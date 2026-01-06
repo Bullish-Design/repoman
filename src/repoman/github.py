@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import asyncio
 import subprocess
 
 
@@ -26,7 +27,7 @@ class GitNotFoundError(GitHubError):
 class GitHubClient:
     """Client for GitHub repository operations using git commands.
 
-    All operations are synchronous. Manager layer handles async coordination.
+    Clone/update operations are async. Manager layer handles coordination.
     """
 
     def __init__(self, use_ssh: bool = True, timeout: int = 300) -> None:
@@ -56,7 +57,52 @@ class GitHubClient:
             return f"git@github.com:{account}/{repo}.git"
         return f"https://github.com/{account}/{repo}.git"
 
-    def clone_repo(self, account: str, repo: str, dest: Path) -> None:
+    async def _run_git_command(self, args: list[str], timeout: int | None = None) -> tuple[str, str]:
+        """Run a git command asynchronously and return stdout/stderr.
+
+        Args:
+            args: Command arguments (including "git").
+            timeout: Timeout in seconds.
+
+        Returns:
+            Tuple of (stdout, stderr).
+
+        Raises:
+            GitNotFoundError: If git command not found.
+            subprocess.TimeoutExpired: If command exceeds timeout.
+            RuntimeError: If command exits with nonzero status.
+        """
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError as exc:
+            raise GitNotFoundError("git command not found. Please install git.") from exc
+
+        resolved_timeout = self.timeout if timeout is None else timeout
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(),
+                timeout=resolved_timeout,
+            )
+        except asyncio.TimeoutError as exc:
+            process.kill()
+            await process.wait()
+            raise subprocess.TimeoutExpired(cmd=args, timeout=resolved_timeout) from exc
+
+        stdout = stdout_bytes.decode().strip() if stdout_bytes else ""
+        stderr = stderr_bytes.decode().strip() if stderr_bytes else ""
+
+        if process.returncode != 0:
+            message = stderr or "git command failed"
+            raise RuntimeError(message)
+
+        return stdout, stderr
+
+    async def clone_repo(self, account: str, repo: str, dest: Path) -> None:
         """Clone repository to destination path.
 
         Creates parent directories if needed.
@@ -74,26 +120,16 @@ class GitHubClient:
         dest.parent.mkdir(parents=True, exist_ok=True)
         url = self.get_repo_url(account, repo)
         try:
-            result = subprocess.run(
-                ["git", "clone", url, str(dest)],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=self.timeout,
-            )
-        except FileNotFoundError as exc:
-            raise GitNotFoundError("git command not found. Please install git.") from exc
+            await self._run_git_command(["git", "clone", url, str(dest)])
         except subprocess.TimeoutExpired as exc:
             raise CloneError(f"git clone timed out after {self.timeout} seconds") from exc
+        except RuntimeError as exc:
+            message = str(exc).strip()
+            if message:
+                raise CloneError(f"Failed to clone {url}: {message}") from exc
+            raise CloneError("git clone failed") from exc
 
-        if result.returncode != 0:
-            stderr = result.stderr.strip()
-            message = "git clone failed"
-            if stderr:
-                message = f"Failed to clone {url}: {stderr}"
-            raise CloneError(message)
-
-    def update_repo(self, path: Path) -> tuple[bool, str]:
+    async def update_repo(self, path: Path) -> tuple[bool, str]:
         """Update repository with git pull.
 
         Args:
@@ -116,26 +152,15 @@ class GitHubClient:
             raise UpdateError(f"Path is not a git repository: {path}")
 
         try:
-            result = subprocess.run(
-                ["git", "-C", str(path), "pull"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=self.timeout,
-            )
-        except FileNotFoundError as exc:
-            raise GitNotFoundError("git command not found. Please install git.") from exc
+            stdout, _stderr = await self._run_git_command(["git", "-C", str(path), "pull"])
         except subprocess.TimeoutExpired as exc:
             raise UpdateError(f"git pull timed out after {self.timeout} seconds") from exc
+        except RuntimeError as exc:
+            message = str(exc).strip()
+            if message:
+                raise UpdateError(f"Failed to update {path}: {message}") from exc
+            raise UpdateError("git pull failed") from exc
 
-        if result.returncode != 0:
-            stderr = result.stderr.strip()
-            message = "git pull failed"
-            if stderr:
-                message = f"Failed to update {path}: {stderr}"
-            raise UpdateError(message)
-
-        stdout = result.stdout.strip()
         lowered = stdout.lower()
         updated = not ("already up to date" in lowered or "already up-to-date" in lowered)
         return updated, stdout
