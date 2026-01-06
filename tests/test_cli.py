@@ -31,3 +31,36 @@ def test_load_config_toml(tmp_path: Path) -> None:
 def test_sync_requires_account_for_repo() -> None:
     result = runner.invoke(cli.app, ["sync", "--repo", "repo1"])
     assert result.exit_code == 1
+
+
+def test_list_command_displays_repos(tmp_path: Path) -> None:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """global:\n  base_dir: ~/code\n\naccounts:\n  - name: alice\n    repos:\n      - repo-one\n      - repo-two\n  - name: bob\n    repos:\n      - repo-three\n"""
+    )
+    result = runner.invoke(cli.app, ["list", "--config", str(config_file)])
+    assert result.exit_code == 0
+    assert "alice" in result.output
+    assert "bob" in result.output
+    assert "repo-one" in result.output
+    assert "repo-two" in result.output
+    assert "repo-three" in result.output
+
+
+def test_list_command_empty_config(tmp_path: Path) -> None:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("accounts: []\n")
+    result = runner.invoke(cli.app, ["list", "--config", str(config_file)])
+    assert result.exit_code == 0
+    assert result.output.strip() in {"", "No repositories configured"}
+
+
+def test_list_command_shows_custom_paths(tmp_path: Path) -> None:
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """accounts:\n  - name: alice\n    repos:\n      - name: repo-one\n        local_dir: custom/location\n"""
+    )
+    result = runner.invoke(cli.app, ["list", "--config", str(config_file)])
+    assert result.exit_code == 0
+    assert "repo-one" in result.output
+    assert "custom/location" in result.output
