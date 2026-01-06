@@ -38,6 +38,9 @@ class GitHubClient:
             timeout: Timeout in seconds for git operations
         """
 
+        if not 30 <= timeout <= 3600:
+            raise ValueError("timeout must be between 30 and 3600 seconds")
+
         self.use_ssh = use_ssh
         self.timeout = timeout
 
