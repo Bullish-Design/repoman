@@ -193,3 +193,18 @@ def test_progress_callback_type_compatibility() -> None:
 
     callback: ProgressCallback = _progress
     assert callable(callback)
+
+
+@pytest.mark.asyncio
+async def test_sync_all_with_empty_accounts() -> None:
+    config = RepomanConfig(
+        **{
+            "global": {"base_dir": "~/code", "max_concurrent": 2},
+            "accounts": [],
+        }
+    )
+    manager = RepoManager(config, github_client=FakeGitHubClient())
+
+    results = await manager.sync_all()
+
+    assert results == []

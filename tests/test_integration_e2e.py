@@ -235,6 +235,43 @@ async def test_custom_local_directory(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_multiple_accounts_same_repo_name(
+    integration_workspace: Path,
+    skip_if_no_git: None,
+) -> None:
+    """Ensure repos with the same name across accounts clone into distinct paths."""
+    config_data = {
+        "global": {
+            "base_dir": str(integration_workspace / "repos"),
+            "max_concurrent": 2,
+            "use_ssh": False,
+            "timeout": 300,
+        },
+        "accounts": [
+            {"name": "octocat", "repos": ["Hello-World"]},
+            {"name": "github", "repos": ["Hello-World"]},
+        ],
+    }
+
+    config = RepomanConfig(**config_data)
+    github_client = GitHubClient(use_ssh=False)
+    manager = RepoManager(config, github_client=github_client)
+
+    results = await manager.sync_all()
+
+    assert len(results) == 2
+    assert all(result.status == "cloned" for result in results)
+
+    octocat_path = integration_workspace / "repos" / "octocat" / "Hello-World"
+    github_path = integration_workspace / "repos" / "github" / "Hello-World"
+
+    assert octocat_path.exists()
+    assert github_path.exists()
+    assert octocat_path != github_path
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_concurrent_clones_with_semaphore(
     integration_workspace: Path,
     skip_if_no_git: None,
@@ -267,6 +304,49 @@ async def test_concurrent_clones_with_semaphore(
 
     assert len(results) == 3
     assert all(r.status == "cloned" for r in results)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_concurrent_repos_with_shared_parent_dirs(
+    integration_workspace: Path,
+    skip_if_no_git: None,
+) -> None:
+    """Ensure concurrent clones under the same account succeed."""
+    config_data = {
+        "global": {
+            "base_dir": str(integration_workspace / "repos"),
+            "max_concurrent": 2,
+            "use_ssh": False,
+            "timeout": 300,
+        },
+        "accounts": [
+            {
+                "name": "octocat",
+                "repos": [
+                    "Hello-World",
+                    "Spoon-Knife",
+                ],
+            },
+        ],
+    }
+
+    config = RepomanConfig(**config_data)
+    github_client = GitHubClient(use_ssh=False)
+    manager = RepoManager(config, github_client=github_client)
+
+    results = await manager.sync_all()
+
+    assert len(results) == 2
+    assert all(result.status == "cloned" for result in results)
+
+    expected_paths = [
+        integration_workspace / "repos" / "octocat" / "Hello-World",
+        integration_workspace / "repos" / "octocat" / "Spoon-Knife",
+    ]
+
+    for path in expected_paths:
+        assert path.exists()
 
 
 @pytest.mark.integration
