@@ -76,6 +76,41 @@ def test_manager_passes_timeout_to_github_client(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+async def test_progress_callback_for_updates() -> None:
+    progress_messages: list[str] = []
+
+    def _progress(message: str, level: str = "info") -> None:
+        progress_messages.append(f"{level}:{message}")
+
+    class UpdatingGitHubClient:
+        def repo_exists(self, path: Path) -> bool:
+            return True
+
+        def has_uncommitted_changes(self, path: Path) -> bool:
+            return False
+
+        async def update_repo(self, path: Path) -> tuple[bool, str]:
+            return True, "updated"
+
+        async def clone_repo(self, account: str, repo: str, dest: Path) -> None:
+            raise RuntimeError("clone should not be called")
+
+    config = RepomanConfig(
+        **{
+            "global": {"base_dir": "~/code", "max_concurrent": 2},
+            "accounts": [{"name": "acct", "repos": ["updated"]}],
+        }
+    )
+    manager = RepoManager(config, github_client=UpdatingGitHubClient())
+
+    result = await manager.sync_repo("acct", "updated", progress=_progress)
+
+    assert result.status == "updated"
+    assert any(message.startswith("info:Updating acct/updated") for message in progress_messages)
+    assert any(message.startswith("info:Updated acct/updated") for message in progress_messages)
+
+
+@pytest.mark.asyncio
 async def test_sync_repo_skips_uncommitted_changes() -> None:
     progress_messages: list[str] = []
 
@@ -113,3 +148,39 @@ async def test_sync_repo_skips_uncommitted_changes() -> None:
     assert "uncommitted changes" in result.message
     assert github.update_called is False
     assert any(message.startswith("warning:Skipped acct/dirty") for message in progress_messages)
+
+
+@pytest.mark.asyncio
+async def test_progress_callback_for_errors() -> None:
+    progress_messages: list[str] = []
+
+    def _progress(message: str, level: str = "info") -> None:
+        progress_messages.append(f"{level}:{message}")
+
+    class FailingGitHubClient:
+        def repo_exists(self, path: Path) -> bool:
+            return False
+
+        def has_uncommitted_changes(self, path: Path) -> bool:
+            return False
+
+        async def update_repo(self, path: Path) -> tuple[bool, str]:
+            return True, "updated"
+
+        async def clone_repo(self, account: str, repo: str, dest: Path) -> None:
+            raise RuntimeError("clone failed")
+
+    config = RepomanConfig(
+        **{
+            "global": {"base_dir": "~/code", "max_concurrent": 2},
+            "accounts": [{"name": "acct", "repos": ["bad"]}],
+        }
+    )
+    manager = RepoManager(config, github_client=FailingGitHubClient())
+
+    result = await manager.sync_repo("acct", "bad", progress=_progress)
+
+    assert result.status == "error"
+    assert any(
+        message.startswith("error:Failed acct/bad: clone failed") for message in progress_messages
+    )
