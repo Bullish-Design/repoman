@@ -199,10 +199,12 @@ class RepoManager:
                             message=message,
                             path=path,
                         )
+                    if progress:
+                        progress(f"Updating {account.name}/{repo_name}", level="info")
                     updated, message = await self.github.update_repo(path)
                     status = "updated" if updated else "up-to-date"
                     if progress:
-                        progress(f"Updated {account.name}/{repo_name}", level="success")
+                        progress(f"Updated {account.name}/{repo_name}", level="info")
                     return SyncResult(account=account.name, repo=repo_name, status=status, message=message, path=path)
                 await self.github.clone_repo(account.name, repo_name, path)
                 if progress:
