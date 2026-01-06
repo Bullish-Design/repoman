@@ -34,14 +34,14 @@ class SyncResult(BaseModel):
     Attributes:
         account: GitHub account name
         repo: Repository name
-        status: Operation result - "cloned", "updated", "up-to-date", "error"
+        status: Operation result - "cloned", "updated", "up-to-date", "skipped", "error"
         message: Additional information (error message if status is "error")
         path: Local path where repository is located
     """
 
     account: str
     repo: str
-    status: Literal["cloned", "updated", "up-to-date", "error"]
+    status: Literal["cloned", "updated", "up-to-date", "skipped", "error"]
     message: str = ""
     path: Path
 
@@ -58,7 +58,7 @@ class RepoManager:
         """
 
         self.config = config
-        self.github = github_client or GitHubClient()
+        self.github = github_client or GitHubClient(timeout=self.config.global_config.timeout)
         self._semaphore = asyncio.Semaphore(config.global_config.max_concurrent)
 
     async def sync_all(self, progress: ProgressCallback | None = None) -> list[SyncResult]:
@@ -187,6 +187,18 @@ class RepoManager:
                 progress(f"Syncing {account.name}/{repo_name}", level="info")
             try:
                 if self.github.repo_exists(path):
+                    has_changes = await asyncio.to_thread(self.github.has_uncommitted_changes, path)
+                    if has_changes:
+                        message = f"Skipped {account.name}/{repo_name} due to uncommitted changes"
+                        if progress:
+                            progress(message, level="warning")
+                        return SyncResult(
+                            account=account.name,
+                            repo=repo_name,
+                            status="skipped",
+                            message=message,
+                            path=path,
+                        )
                     updated, message = await asyncio.to_thread(self.github.update_repo, path)
                     status = "updated" if updated else "up-to-date"
                     if progress:
