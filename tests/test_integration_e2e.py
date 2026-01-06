@@ -296,7 +296,7 @@ async def test_multiple_accounts_same_repo_name(
         },
         "accounts": [
             {"name": "octocat", "repos": ["Hello-World"]},
-            {"name": "github", "repos": ["Hello-World"]},
+            {"name": "Ameen-Alam", "repos": ["Hello-World"]},
         ],
     }
 
@@ -310,7 +310,7 @@ async def test_multiple_accounts_same_repo_name(
     assert all(result.status == "cloned" for result in results)
 
     octocat_path = integration_workspace / "repos" / "octocat" / "Hello-World"
-    github_path = integration_workspace / "repos" / "github" / "Hello-World"
+    github_path = integration_workspace / "repos" / "Ameen-Alam" / "Hello-World"
 
     assert octocat_path.exists()
     assert github_path.exists()
