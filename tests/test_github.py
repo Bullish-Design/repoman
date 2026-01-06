@@ -18,6 +18,22 @@ class _Result:
         self.stderr = stderr
 
 
+class _Process:
+    def __init__(self, returncode: int, stdout: bytes = b"", stderr: bytes = b"") -> None:
+        self.returncode = returncode
+        self._stdout = stdout
+        self._stderr = stderr
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return self._stdout, self._stderr
+
+    async def wait(self) -> int:
+        return self.returncode
+
+    def kill(self) -> None:
+        return None
+
+
 def test_get_repo_url() -> None:
     ssh_client = GitHubClient(use_ssh=True)
     https_client = GitHubClient(use_ssh=False)
@@ -45,110 +61,133 @@ def test_output_dir() -> Path:
 
 
 @pytest.fixture()
-def hello_world_repo(test_output_dir: Path) -> Path:
+async def hello_world_repo(test_output_dir: Path) -> Path:
     if shutil.which("git") is None:
         pytest.skip("git is required for integration tests")
     client = GitHubClient(use_ssh=False)
     dest = test_output_dir / "octocat-hello-world"
     if not dest.exists():
-        client.clone_repo("octocat", "Hello-World", dest)
+        await client.clone_repo("octocat", "Hello-World", dest)
     return dest
 
 
-def test_clone_repo_real_github(hello_world_repo: Path) -> None:
+@pytest.mark.asyncio
+async def test_clone_repo_real_github(hello_world_repo: Path) -> None:
     assert (hello_world_repo / ".git").is_dir()
 
 
-def test_clone_repo_missing_git(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_clone_repo_missing_git(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     client = GitHubClient()
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+    async def _fake_create_subprocess_exec(*_args: object, **_kwargs: object) -> _Process:
         raise FileNotFoundError
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_create_subprocess_exec)
     with pytest.raises(GitNotFoundError):
-        client.clone_repo("acct", "repo", tmp_path / "dest")
+        await client.clone_repo("acct", "repo", tmp_path / "dest")
 
 
-def test_clone_repo_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_clone_repo_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     client = GitHubClient()
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+    async def _fake_run_git_command(*_args: object, **_kwargs: object) -> tuple[str, str]:
         raise subprocess.TimeoutExpired(cmd=["git"], timeout=client.timeout)
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
+    monkeypatch.setattr(client, "_run_git_command", _fake_run_git_command)
     with pytest.raises(CloneError, match="timed out"):
-        client.clone_repo("acct", "repo", tmp_path / "dest")
+        await client.clone_repo("acct", "repo", tmp_path / "dest")
 
 
-def test_clone_repo_failure_includes_stderr(
+@pytest.mark.asyncio
+async def test_clone_repo_failure_includes_stderr(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     client = GitHubClient()
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
-        return _Result(returncode=1, stderr="clone failed")
+    async def _fake_create_subprocess_exec(*_args: object, **_kwargs: object) -> _Process:
+        return _Process(returncode=1, stderr=b"clone failed")
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_create_subprocess_exec)
     with pytest.raises(CloneError, match="clone failed"):
-        client.clone_repo("acct", "repo", tmp_path / "dest")
+        await client.clone_repo("acct", "repo", tmp_path / "dest")
 
 
-def test_update_repo_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_update_repo_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     client = GitHubClient()
 
     with pytest.raises(UpdateError):
-        client.update_repo(tmp_path / "missing")
+        await client.update_repo(tmp_path / "missing")
 
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
     with pytest.raises(UpdateError):
-        client.update_repo(repo_path)
+        await client.update_repo(repo_path)
 
     (repo_path / ".git").mkdir()
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
-        return _Result(returncode=1, stderr="pull failed")
+    async def _fake_create_subprocess_exec(*_args: object, **_kwargs: object) -> _Process:
+        return _Process(returncode=1, stderr=b"pull failed")
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_create_subprocess_exec)
     with pytest.raises(UpdateError, match="pull failed"):
-        client.update_repo(repo_path)
+        await client.update_repo(repo_path)
 
 
-def test_update_repo_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_update_repo_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     client = GitHubClient()
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
     (repo_path / ".git").mkdir()
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+    async def _fake_run_git_command(*_args: object, **_kwargs: object) -> tuple[str, str]:
         raise subprocess.TimeoutExpired(cmd=["git"], timeout=client.timeout)
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
+    monkeypatch.setattr(client, "_run_git_command", _fake_run_git_command)
     with pytest.raises(UpdateError, match="timed out"):
-        client.update_repo(repo_path)
+        await client.update_repo(repo_path)
 
 
-def test_update_repo_up_to_date(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_update_repo_up_to_date(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     client = GitHubClient()
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
     (repo_path / ".git").mkdir()
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
-        return _Result(returncode=0, stdout="Already up to date.")
+    async def _fake_create_subprocess_exec(*_args: object, **_kwargs: object) -> _Process:
+        return _Process(returncode=0, stdout=b"Already up to date.")
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
-    updated, message = client.update_repo(repo_path)
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_create_subprocess_exec)
+    updated, message = await client.update_repo(repo_path)
     assert updated is False
     assert "Already up to date" in message
 
 
-def test_update_repo_real_github(hello_world_repo: Path) -> None:
+@pytest.mark.asyncio
+async def test_update_repo_real_github(hello_world_repo: Path) -> None:
     client = GitHubClient(use_ssh=False)
-    updated, message = client.update_repo(hello_world_repo)
+    updated, message = await client.update_repo(hello_world_repo)
     assert updated is False
     assert message
+
+
+@pytest.mark.asyncio
+async def test_run_git_command_nonzero_exit_raises_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = GitHubClient()
+
+    async def _fake_create_subprocess_exec(*_args: object, **_kwargs: object) -> _Process:
+        return _Process(returncode=2, stderr=b"bad exit")
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_create_subprocess_exec)
+
+    with pytest.raises(RuntimeError, match="bad exit"):
+        await client._run_git_command(["git", "status"])
 
 
 def test_has_uncommitted_changes_true(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

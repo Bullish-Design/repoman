@@ -18,12 +18,12 @@ class FakeGitHubClient:
     def has_uncommitted_changes(self, path: Path) -> bool:
         return False
 
-    def clone_repo(self, account: str, repo: str, dest: Path) -> None:
+    async def clone_repo(self, account: str, repo: str, dest: Path) -> None:
         if repo == "bad":
             raise RuntimeError("clone failed")
         self.cloned.append((account, repo, dest))
 
-    def update_repo(self, path: Path) -> tuple[bool, str]:
+    async def update_repo(self, path: Path) -> tuple[bool, str]:
         return True, "updated"
 
 
@@ -92,11 +92,11 @@ async def test_sync_repo_skips_uncommitted_changes() -> None:
         def has_uncommitted_changes(self, path: Path) -> bool:
             return True
 
-        def update_repo(self, path: Path) -> tuple[bool, str]:
+        async def update_repo(self, path: Path) -> tuple[bool, str]:
             self.update_called = True
             return True, "updated"
 
-        def clone_repo(self, account: str, repo: str, dest: Path) -> None:
+        async def clone_repo(self, account: str, repo: str, dest: Path) -> None:
             raise RuntimeError("clone should not be called")
 
     github = DirtyGitHubClient()

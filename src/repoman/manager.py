@@ -168,7 +168,7 @@ class RepoManager:
         """Internal: Sync a single repository.
 
         This is the core sync logic. Wrapped in semaphore acquisition.
-        Runs git commands in thread executor to avoid blocking event loop.
+        Runs blocking git checks in a thread executor to avoid blocking event loop.
 
         Args:
             account: Account configuration
@@ -199,12 +199,12 @@ class RepoManager:
                             message=message,
                             path=path,
                         )
-                    updated, message = await asyncio.to_thread(self.github.update_repo, path)
+                    updated, message = await self.github.update_repo(path)
                     status = "updated" if updated else "up-to-date"
                     if progress:
                         progress(f"Updated {account.name}/{repo_name}", level="success")
                     return SyncResult(account=account.name, repo=repo_name, status=status, message=message, path=path)
-                await asyncio.to_thread(self.github.clone_repo, account.name, repo_name, path)
+                await self.github.clone_repo(account.name, repo_name, path)
                 if progress:
                     progress(f"Cloned {account.name}/{repo_name}", level="success")
                 return SyncResult(account=account.name, repo=repo_name, status="cloned", path=path)
