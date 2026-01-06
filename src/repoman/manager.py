@@ -13,13 +13,16 @@ from repoman.config import AccountConfig, RepoConfig, RepomanConfig
 from repoman.github import GitHubClient
 
 
+ProgressLevel = Literal["info", "success", "warning", "error"]
+
+
 class ProgressCallback(Protocol):
     """Protocol for progress reporting.
 
     Implementations receive progress updates during sync operations.
     """
 
-    def __call__(self, message: str, level: str = "info") -> None:
+    def __call__(self, message: str, level: ProgressLevel = "info") -> None:
         """Report progress.
 
         Args:

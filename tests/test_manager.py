@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from repoman.config import RepomanConfig
-from repoman.manager import RepoManager
+from repoman.manager import ProgressCallback, ProgressLevel, RepoManager
 
 
 class FakeGitHubClient:
@@ -42,7 +42,7 @@ def _config() -> RepomanConfig:
 async def test_sync_all_reports_results() -> None:
     progress_messages: list[str] = []
 
-    def _progress(message: str, level: str = "info") -> None:
+    def _progress(message: str, level: ProgressLevel = "info") -> None:
         progress_messages.append(f"{level}:{message}")
 
     github = FakeGitHubClient()
@@ -79,7 +79,7 @@ def test_manager_passes_timeout_to_github_client(monkeypatch: pytest.MonkeyPatch
 async def test_progress_callback_for_updates() -> None:
     progress_messages: list[str] = []
 
-    def _progress(message: str, level: str = "info") -> None:
+    def _progress(message: str, level: ProgressLevel = "info") -> None:
         progress_messages.append(f"{level}:{message}")
 
     class UpdatingGitHubClient:
@@ -114,7 +114,7 @@ async def test_progress_callback_for_updates() -> None:
 async def test_sync_repo_skips_uncommitted_changes() -> None:
     progress_messages: list[str] = []
 
-    def _progress(message: str, level: str = "info") -> None:
+    def _progress(message: str, level: ProgressLevel = "info") -> None:
         progress_messages.append(f"{level}:{message}")
 
     class DirtyGitHubClient:
@@ -154,7 +154,7 @@ async def test_sync_repo_skips_uncommitted_changes() -> None:
 async def test_progress_callback_for_errors() -> None:
     progress_messages: list[str] = []
 
-    def _progress(message: str, level: str = "info") -> None:
+    def _progress(message: str, level: ProgressLevel = "info") -> None:
         progress_messages.append(f"{level}:{message}")
 
     class FailingGitHubClient:
@@ -184,3 +184,12 @@ async def test_progress_callback_for_errors() -> None:
     assert any(
         message.startswith("error:Failed acct/bad: clone failed") for message in progress_messages
     )
+
+
+def test_progress_callback_type_compatibility() -> None:
+    def _progress(message: str, level: ProgressLevel = "info") -> None:
+        assert message
+        assert level in ("info", "success", "warning", "error")
+
+    callback: ProgressCallback = _progress
+    assert callable(callback)
