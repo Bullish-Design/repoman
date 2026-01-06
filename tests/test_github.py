@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
+import os
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -31,15 +34,28 @@ def test_repo_exists(tmp_path: Path) -> None:
     assert client.repo_exists(repo_path) is True
 
 
-def test_clone_repo_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    client = GitHubClient()
+@pytest.fixture()
+def test_output_dir() -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    suffix = f"{timestamp}_{os.getpid()}"
+    base_dir = Path(__file__).resolve().parent / "test_output" / suffix
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir
 
-    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
-        return _Result(returncode=1, stderr="failed")
 
-    monkeypatch.setattr("subprocess.run", _fake_run)
-    with pytest.raises(CloneError):
-        client.clone_repo("acct", "repo", tmp_path / "dest")
+@pytest.fixture()
+def hello_world_repo(test_output_dir: Path) -> Path:
+    if shutil.which("git") is None:
+        pytest.skip("git is required for integration tests")
+    client = GitHubClient(use_ssh=False)
+    dest = test_output_dir / "octocat-hello-world"
+    if not dest.exists():
+        client.clone_repo("octocat", "Hello-World", dest)
+    return dest
+
+
+def test_clone_repo_real_github(hello_world_repo: Path) -> None:
+    assert (hello_world_repo / ".git").is_dir()
 
 
 def test_clone_repo_missing_git(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -87,3 +103,10 @@ def test_update_repo_up_to_date(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     updated, message = client.update_repo(repo_path)
     assert updated is False
     assert "Already up to date" in message
+
+
+def test_update_repo_real_github(hello_world_repo: Path) -> None:
+    client = GitHubClient(use_ssh=False)
+    updated, message = client.update_repo(hello_world_repo)
+    assert updated is False
+    assert message
