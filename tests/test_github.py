@@ -149,3 +149,35 @@ def test_update_repo_real_github(hello_world_repo: Path) -> None:
     updated, message = client.update_repo(hello_world_repo)
     assert updated is False
     assert message
+
+
+def test_has_uncommitted_changes_true(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    client = GitHubClient()
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / ".git").mkdir()
+
+    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+        return _Result(returncode=0, stdout=" M file.txt\n")
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    assert client.has_uncommitted_changes(repo_path) is True
+
+
+def test_get_current_branch(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    client = GitHubClient()
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / ".git").mkdir()
+
+    def _fake_run_success(*_args: object, **_kwargs: object) -> _Result:
+        return _Result(returncode=0, stdout="main\n")
+
+    monkeypatch.setattr("subprocess.run", _fake_run_success)
+    assert client.get_current_branch(repo_path) == "main"
+
+    def _fake_run_failure(*_args: object, **_kwargs: object) -> _Result:
+        return _Result(returncode=1, stderr="error")
+
+    monkeypatch.setattr("subprocess.run", _fake_run_failure)
+    assert client.get_current_branch(repo_path) is None

@@ -163,7 +163,6 @@ class GitHubClient:
 
         Raises:
             UpdateError: If path doesn't exist or isn't a git repo
-            GitNotFoundError: If git command not found
         """
 
         if not path.exists():
@@ -177,14 +176,47 @@ class GitHubClient:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=self.timeout,
+                timeout=5,
             )
-        except FileNotFoundError as exc:
-            raise GitNotFoundError("git command not found. Please install git.") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise UpdateError("git status timed out") from exc
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
 
         if result.returncode != 0:
-            raise UpdateError(result.stderr.strip() or "git status failed")
+            return False
 
         return bool(result.stdout.strip())
+
+    def get_current_branch(self, path: Path) -> str | None:
+        """Get the current git branch for a repository.
+
+        Args:
+            path: Path to existing git repository
+
+        Returns:
+            The current branch name, or None on failure.
+
+        Raises:
+            UpdateError: If path doesn't exist or isn't a git repo
+        """
+
+        if not path.exists():
+            raise UpdateError(f"Repository path does not exist: {path}")
+        if not (path / ".git").is_dir():
+            raise UpdateError(f"Path is not a git repository: {path}")
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return None
+
+        if result.returncode != 0:
+            return None
+
+        branch = result.stdout.strip()
+        return branch or None
