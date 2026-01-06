@@ -235,6 +235,53 @@ async def test_custom_local_directory(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_account_level_base_dir_override(
+    integration_workspace: Path,
+    skip_if_no_git: None,
+) -> None:
+    """Ensure account-level base_dir overrides global base_dir."""
+    global_base_dir = integration_workspace / "repos"
+    account_base_dir = integration_workspace / "account_repos"
+
+    config_data = {
+        "global": {
+            "base_dir": str(global_base_dir),
+            "max_concurrent": 2,
+            "use_ssh": False,
+            "timeout": 300,
+        },
+        "accounts": [
+            {"name": "octocat", "repos": ["Hello-World"]},
+            {
+                "name": "github",
+                "base_dir": str(account_base_dir),
+                "repos": ["gitignore"],
+            },
+        ],
+    }
+
+    config = RepomanConfig(**config_data)
+    github_client = GitHubClient(use_ssh=False)
+    manager = RepoManager(config, github_client=github_client)
+
+    results = await manager.sync_all()
+
+    assert len(results) == 2
+    assert all(result.status == "cloned" for result in results)
+
+    octocat_path = global_base_dir / "octocat" / "Hello-World"
+    github_path = account_base_dir / "github" / "gitignore"
+    github_global_path = global_base_dir / "github" / "gitignore"
+
+    assert octocat_path.exists()
+    assert (octocat_path / ".git").exists()
+    assert github_path.exists()
+    assert (github_path / ".git").exists()
+    assert not github_global_path.exists()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_multiple_accounts_same_repo_name(
     integration_workspace: Path,
     skip_if_no_git: None,
