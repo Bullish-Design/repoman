@@ -55,6 +55,9 @@ def _load_config(config_path: Path) -> RepomanConfig:
                 data = tomli.load(handle)
         else:
             raise ValueError("Configuration file must be .yaml, .yml, or .toml")
+    except yaml.YAMLError as exc:
+        typer.secho(f"Error parsing YAML configuration: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
     except Exception as exc:  # noqa: BLE001 - provide clear error message
         typer.secho(f"Error loading configuration: {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
