@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from repoman.config import RepomanConfig
+from repoman.config import RepoConfig, RepomanConfig
 from repoman.manager import ProgressCallback, ProgressLevel, RepoManager
 
 
@@ -53,6 +53,30 @@ async def test_sync_all_reports_results() -> None:
     assert statuses["good"] == "cloned"
     assert statuses["bad"] == "error"
     assert any("Syncing acct/good" in message for message in progress_messages)
+
+
+@pytest.mark.asyncio
+async def test_sync_uses_remote_name_for_clone() -> None:
+    github = FakeGitHubClient()
+    config = RepomanConfig(
+        **{
+            "global": {"base_dir": "~/code", "max_concurrent": 1},
+            "accounts": [
+                {
+                    "name": "acct",
+                    "repos": [RepoConfig(name="Local-Repo", remote_name="remote-repo")],
+                }
+            ],
+        }
+    )
+    manager = RepoManager(config, github_client=github)
+
+    result = await manager.sync_repo("acct", "Local-Repo")
+
+    assert result.status == "cloned"
+    assert github.cloned == [
+        ("acct", "remote-repo", Path("~/code").expanduser().resolve() / "acct" / "Local-Repo")
+    ]
 
 
 def test_manager_passes_timeout_to_github_client(monkeypatch: pytest.MonkeyPatch) -> None:

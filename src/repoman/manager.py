@@ -183,6 +183,8 @@ class RepoManager:
         """
 
         repo_name = repo.name if isinstance(repo, RepoConfig) else repo
+        repo_remote = repo.remote_name if isinstance(repo, RepoConfig) else None
+        repo_slug = repo_remote or repo_name
         path = self.config.get_repo_path(account.name, repo)
 
         async with self._semaphore:
@@ -209,7 +211,7 @@ class RepoManager:
                     if progress:
                         progress(f"Updated {account.name}/{repo_name}", level="info")
                     return SyncResult(account=account.name, repo=repo_name, status=status, message=message, path=path)
-                await self.github.clone_repo(account.name, repo_name, path)
+                await self.github.clone_repo(account.name, repo_slug, path)
                 if progress:
                     progress(f"Cloned {account.name}/{repo_name}", level="success")
                 return SyncResult(account=account.name, repo=repo_name, status="cloned", path=path)
