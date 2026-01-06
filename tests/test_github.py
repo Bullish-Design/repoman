@@ -51,6 +51,22 @@ def test_repo_exists(tmp_path: Path) -> None:
     assert client.repo_exists(repo_path) is True
 
 
+def test_github_client_validates_timeout_too_low() -> None:
+    with pytest.raises(ValueError, match="timeout must be between 30 and 3600 seconds"):
+        GitHubClient(timeout=29)
+
+
+def test_github_client_validates_timeout_too_high() -> None:
+    with pytest.raises(ValueError, match="timeout must be between 30 and 3600 seconds"):
+        GitHubClient(timeout=3601)
+
+
+def test_github_client_accepts_valid_timeout() -> None:
+    for timeout in (30, 300, 3600):
+        client = GitHubClient(timeout=timeout)
+        assert client.timeout == timeout
+
+
 @pytest.fixture()
 def test_output_dir() -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
