@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 _REPO_NAME_PATTERN = r"^[A-Za-z0-9._-]+$"
 
@@ -116,10 +116,18 @@ class GlobalConfig(BaseModel):
     Attributes:
         base_dir: Default base directory for all repositories
         max_concurrent: Maximum concurrent git operations
+        timeout: Timeout in seconds for git operations
     """
 
-    base_dir: Annotated[Path, Field(default=Path("~/code"))]
-    max_concurrent: Annotated[int, Field(default=5, ge=1, le=20)]
+    base_dir: Annotated[
+        Path, Field(default=Path("~/code"), description="Default base directory for all repositories")
+    ]
+    max_concurrent: Annotated[
+        int, Field(default=5, ge=1, le=50, description="Maximum concurrent git operations")
+    ]
+    timeout: Annotated[
+        int, Field(default=300, ge=30, le=3600, description="Timeout in seconds for git operations")
+    ]
 
     @field_validator("base_dir", mode="before")
     @classmethod
@@ -142,6 +150,22 @@ class RepomanConfig(BaseModel):
 
     global_config: Annotated[GlobalConfig, Field(alias="global")] = GlobalConfig()
     accounts: list[AccountConfig] = []
+
+    @model_validator(mode="after")
+    def validate_unique_names(self) -> RepomanConfig:
+        account_names: set[str] = set()
+        for account in self.accounts:
+            if account.name in account_names:
+                raise ValueError(f"Duplicate account name: {account.name}")
+            account_names.add(account.name)
+
+            repo_names: set[str] = set()
+            for repo in account.repos:
+                repo_name = repo.name if isinstance(repo, RepoConfig) else repo
+                if repo_name in repo_names:
+                    raise ValueError(f"Duplicate repo name {repo_name} in account {account.name}")
+                repo_names.add(repo_name)
+        return self
 
     def get_repo_path(self, account: str, repo: str | RepoConfig) -> Path:
         """Calculate final local path for a repository.
