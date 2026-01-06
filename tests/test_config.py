@@ -13,6 +13,17 @@ def test_repo_config_expands_local_dir() -> None:
     assert config.local_dir == Path("~/example").expanduser().resolve()
 
 
+def test_repo_config_rejects_invalid_names() -> None:
+    for name in ("repo@name", "repo name", "repo/name", ""):
+        with pytest.raises(ValidationError):
+            RepoConfig(name=name)
+
+
+def test_repo_config_accepts_valid_names() -> None:
+    for name in ("my-repo", "my_repo", "my.repo", "MyRepo123"):
+        RepoConfig(name=name)
+
+
 def test_account_config_normalizes_dict_repos() -> None:
     account = AccountConfig(name="example", repos=[{"name": "repo"}])
     assert isinstance(account.repos[0], RepoConfig)
