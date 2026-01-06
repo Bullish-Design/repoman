@@ -38,15 +38,24 @@ class RepoConfig(BaseModel):
 
     Attributes:
         name: Repository name (not including owner)
+        remote_name: Optional remote slug used for cloning
         local_dir: Optional override for repository location
     """
 
     name: str
+    remote_name: str | None = None
     local_dir: Path | None = None
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, value: str) -> str:
+        return _validate_repo_name(value)
+
+    @field_validator("remote_name")
+    @classmethod
+    def validate_remote_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         return _validate_repo_name(value)
 
     @field_validator("local_dir", mode="before")

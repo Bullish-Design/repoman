@@ -24,6 +24,13 @@ def test_repo_config_accepts_valid_names() -> None:
         RepoConfig(name=name)
 
 
+def test_repo_config_validates_remote_name() -> None:
+    config = RepoConfig(name="local", remote_name="Remote-Repo")
+    assert config.remote_name == "Remote-Repo"
+    with pytest.raises(ValidationError):
+        RepoConfig(name="local", remote_name="bad name")
+
+
 def test_account_config_normalizes_dict_repos() -> None:
     account = AccountConfig(name="example", repos=[{"name": "repo"}])
     assert isinstance(account.repos[0], RepoConfig)
@@ -85,6 +92,7 @@ def test_repo_path_resolution_order() -> None:
                     "repos": [
                         "simple",
                         {"name": "custom", "local_dir": "~/override"},
+                        {"name": "local-name", "remote_name": "Remote-Name"},
                     ],
                 }
             ],
@@ -95,3 +103,5 @@ def test_repo_path_resolution_order() -> None:
     assert repoman.get_repo_path("acct", "simple") == base_dir / "acct" / "simple"
     custom = RepoConfig(name="custom", local_dir="~/override")
     assert repoman.get_repo_path("acct", custom) == Path("~/override").expanduser().resolve()
+    remote = RepoConfig(name="local-name", remote_name="Remote-Name")
+    assert repoman.get_repo_path("acct", remote) == base_dir / "acct" / "local-name"
