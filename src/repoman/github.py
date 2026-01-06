@@ -29,14 +29,16 @@ class GitHubClient:
     All operations are synchronous. Manager layer handles async coordination.
     """
 
-    def __init__(self, use_ssh: bool = True) -> None:
+    def __init__(self, use_ssh: bool = True, timeout: int = 300) -> None:
         """Initialize GitHub client.
 
         Args:
             use_ssh: Use SSH URLs (git@github.com:) instead of HTTPS
+            timeout: Timeout in seconds for git operations
         """
 
         self.use_ssh = use_ssh
+        self.timeout = timeout
 
     def get_repo_url(self, account: str, repo: str) -> str:
         """Construct repository clone URL.
@@ -77,9 +79,12 @@ class GitHubClient:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=self.timeout,
             )
         except FileNotFoundError as exc:
             raise GitNotFoundError("git command not found. Please install git.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise CloneError("git clone timed out") from exc
 
         if result.returncode != 0:
             raise CloneError(result.stderr.strip() or "git clone failed")
@@ -112,9 +117,12 @@ class GitHubClient:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=self.timeout,
             )
         except FileNotFoundError as exc:
             raise GitNotFoundError("git command not found. Please install git.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise UpdateError("git pull timed out") from exc
 
         if result.returncode != 0:
             raise UpdateError(result.stderr.strip() or "git pull failed")
@@ -135,3 +143,40 @@ class GitHubClient:
         """
 
         return path.is_dir() and (path / ".git").is_dir()
+
+    def has_uncommitted_changes(self, path: Path) -> bool:
+        """Check if repository has uncommitted changes.
+
+        Args:
+            path: Path to existing git repository
+
+        Returns:
+            True if repository has uncommitted changes, False otherwise
+
+        Raises:
+            UpdateError: If path doesn't exist or isn't a git repo
+            GitNotFoundError: If git command not found
+        """
+
+        if not path.exists():
+            raise UpdateError(f"Repository path does not exist: {path}")
+        if not (path / ".git").is_dir():
+            raise UpdateError(f"Path is not a git repository: {path}")
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(path), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=self.timeout,
+            )
+        except FileNotFoundError as exc:
+            raise GitNotFoundError("git command not found. Please install git.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise UpdateError("git status timed out") from exc
+
+        if result.returncode != 0:
+            raise UpdateError(result.stderr.strip() or "git status failed")
+
+        return bool(result.stdout.strip())
