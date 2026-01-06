@@ -1,0 +1,18 @@
+# Repoman configuration file
+global:
+  base_dir: ~/code
+  max_concurrent: 5
+
+accounts:
+  - name: your-github-username
+    repos:
+      - repo1
+      - repo2
+      - name: repo3
+        local_dir: ~/custom/location
+
+  - name: organization-name
+    base_dir: ~/work
+    repos:
+      - project1
+      - project2
