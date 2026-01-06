@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 import shutil
+import subprocess
 
 import pytest
 
@@ -69,6 +70,30 @@ def test_clone_repo_missing_git(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
         client.clone_repo("acct", "repo", tmp_path / "dest")
 
 
+def test_clone_repo_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    client = GitHubClient()
+
+    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+        raise subprocess.TimeoutExpired(cmd=["git"], timeout=client.timeout)
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    with pytest.raises(CloneError, match="timed out"):
+        client.clone_repo("acct", "repo", tmp_path / "dest")
+
+
+def test_clone_repo_failure_includes_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = GitHubClient()
+
+    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+        return _Result(returncode=1, stderr="clone failed")
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    with pytest.raises(CloneError, match="clone failed"):
+        client.clone_repo("acct", "repo", tmp_path / "dest")
+
+
 def test_update_repo_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     client = GitHubClient()
 
@@ -86,7 +111,21 @@ def test_update_repo_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         return _Result(returncode=1, stderr="pull failed")
 
     monkeypatch.setattr("subprocess.run", _fake_run)
-    with pytest.raises(UpdateError):
+    with pytest.raises(UpdateError, match="pull failed"):
+        client.update_repo(repo_path)
+
+
+def test_update_repo_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    client = GitHubClient()
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / ".git").mkdir()
+
+    def _fake_run(*_args: object, **_kwargs: object) -> _Result:
+        raise subprocess.TimeoutExpired(cmd=["git"], timeout=client.timeout)
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    with pytest.raises(UpdateError, match="timed out"):
         client.update_repo(repo_path)
 
 
