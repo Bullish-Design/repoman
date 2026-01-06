@@ -2,6 +2,7 @@
 global:
   base_dir: ~/code
   max_concurrent: 5
+  # Timeout in seconds for git operations (30-3600). Defaults to 300.
   timeout: 300
 
 accounts:
