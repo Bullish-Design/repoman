@@ -84,10 +84,14 @@ class GitHubClient:
         except FileNotFoundError as exc:
             raise GitNotFoundError("git command not found. Please install git.") from exc
         except subprocess.TimeoutExpired as exc:
-            raise CloneError("git clone timed out") from exc
+            raise CloneError(f"git clone timed out after {self.timeout} seconds") from exc
 
         if result.returncode != 0:
-            raise CloneError(result.stderr.strip() or "git clone failed")
+            stderr = result.stderr.strip()
+            message = "git clone failed"
+            if stderr:
+                message = f"Failed to clone {url}: {stderr}"
+            raise CloneError(message)
 
     def update_repo(self, path: Path) -> tuple[bool, str]:
         """Update repository with git pull.
@@ -122,10 +126,14 @@ class GitHubClient:
         except FileNotFoundError as exc:
             raise GitNotFoundError("git command not found. Please install git.") from exc
         except subprocess.TimeoutExpired as exc:
-            raise UpdateError("git pull timed out") from exc
+            raise UpdateError(f"git pull timed out after {self.timeout} seconds") from exc
 
         if result.returncode != 0:
-            raise UpdateError(result.stderr.strip() or "git pull failed")
+            stderr = result.stderr.strip()
+            message = "git pull failed"
+            if stderr:
+                message = f"Failed to update {path}: {stderr}"
+            raise UpdateError(message)
 
         stdout = result.stdout.strip()
         lowered = stdout.lower()
