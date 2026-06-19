@@ -23,7 +23,7 @@
 let
   cfg = config.repoman;
 
-  allManagers = [ "copy" "git" "test" "doc" "site" "session" "agent" "spec" ];
+  allManagers = [ "copy" "git" "test" "doc" "session" "agent" "spec" ];
 in
 {
   imports = [

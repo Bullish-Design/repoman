@@ -1,6 +1,6 @@
 [project]
 name = "repoman"
-version = "0.1.0"
+version = "0.2.0"
 description = "The agentic repo lifecycle conductor for devenv.sh repos — one import that composes the *man manager family."
 requires-python = ">=3.12"
 dependencies = [

@@ -48,7 +48,6 @@ SPINE: list[tuple[str, str | None]] = [
     ("verify", "test"),
     ("save", "git"),
     ("docs", "doc"),
-    ("site", "site"),
 ]
 
 
@@ -76,11 +75,6 @@ REGISTRY: dict[str, Manager] = {
         "doc", "docman", "publish",
         "Docs",
         route_when="build or check the docs",
-    ),
-    "site": Manager(
-        "site", "siteman", "publish",
-        "Site / publishing",
-        route_when="build or deploy the site",
     ),
     "session": Manager(
         "session", "zelligate", "situational",

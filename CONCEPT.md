@@ -2,7 +2,7 @@
 
 > **One devenv import that turns any repo into a fully-managed agentic repo.**
 > Add RepoMan to `devenv.yaml`, set `repoman.enable = true`, pick your managers —
-> and copyroom, gitman, testee, docman, siteman, … are installed, wired, and
+> and copyroom, gitman, testee, docman, … are installed, wired, and
 > skilled, with a single `repoman doctor` over all of them.
 
 RepoMan is the **conductor** for the `*man` family: a per-repo lifecycle front door
@@ -21,7 +21,6 @@ RepoMan does not invent a new architecture — it composes an existing one. Ever
 | **gitman** | version control | jujutsu + colocated git |
 | **testee** | verification (test / lint / typecheck / format) | pytest, ruff, ty |
 | **docman** | docs | _(skeleton)_ |
-| **siteman** | site / publishing | _(skeleton)_ |
 | **zelligate** | live terminal / session surface | Zellij web + daemon |
 | **mypi-agent** | coding-agent runtime + secrets | Pi, secretspec |
 | **allium-env** | spec-driven agent workflow | Allium prompts / skills |
@@ -103,7 +102,7 @@ repoman.git.trunk     = "main";
 Manager roster, in default tiers:
 
 - **Core (default on):** `copy` (copyroom), `git` (gitman), `test` (testee).
-- **Publish:** `doc` (docman), `site` (siteman).
+- **Publish:** `doc` (docman).
 - **Situational:** `session` (zelligate), `agent` (mypi-agent), `spec` (allium).
 
 ---
@@ -119,7 +118,7 @@ repoman status     # gitman status + testee last-run + copyroom drift, side by s
 # optional lifecycle pass-throughs (sequence, gate on exit codes):
 repoman verify     # → testee
 repoman save -m    # → testee verify, then gitman save (gated on green)
-repoman release    # → testee ci → gitman release → docman/siteman
+repoman release    # → testee ci → gitman release → docman
 ```
 
 Pass-through means each tool keeps its own report and skill; `repoman` runs them,
