@@ -12,6 +12,7 @@ import os
 import typer
 
 from .aggregate import run_sub, worst_exit
+from .checks import format_self_check, run_self_check, self_check_exit
 from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
 from .skills import install_entrypoint
 
@@ -38,17 +39,37 @@ def managers() -> None:
 
 
 @app.command()
-def doctor() -> None:
-    """Run every enabled manager's doctor; exit = worst sub-exit."""
+def doctor(
+    self_only: bool = typer.Option(
+        False, "--self-only", help="Run only the RepoMan preflight; skip the manager doctors."
+    ),
+) -> None:
+    """Self-check the RepoMan wiring, then run every enabled manager's doctor.
+
+    Exit = worst of the self-check contribution and the sub-doctors' worst exit
+    code, under the shared 0/1/2/3 contract.
+    """
+
+    managers = _enabled()
+    skills_dir = os.environ.get("REPOMAN_SKILLS_DIR", ".claude/skills")
+    repo_root = os.environ.get("DEVENV_ROOT", os.getcwd())
+
+    typer.echo("=== repoman (self-check) ===")
+    self_checks = run_self_check(managers, repo_root, skills_dir)
+    typer.echo(format_self_check(self_checks))
+    self_code = self_check_exit(self_checks)
+
+    if self_only:
+        raise typer.Exit(code=self_code)
 
     results = []
-    for manager in _enabled():
+    for manager in managers:
         if manager.doctor is None:
             typer.echo(f"\n=== {manager.key} ({manager.command}) — no doctor, skipped ===")
             continue
         typer.echo(f"\n=== {manager.key} ({manager.command}) ===")
         results.append(run_sub(manager, manager.doctor))
-    raise typer.Exit(code=worst_exit(results))
+    raise typer.Exit(code=max(self_code, worst_exit(results)))
 
 
 @app.command()
