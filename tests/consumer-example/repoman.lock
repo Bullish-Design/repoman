@@ -1,0 +1,21 @@
+# repoman.lock — the pinned toolchain for this repo.
+#
+# One manifest pins every manager (and RepoMan itself) so the whole toolchain
+# moves in lockstep. `repoman-sync` reads this and installs the entries for the
+# managers selected in `repoman.managers`, plus the [repoman] self entry.
+#
+# source forms:
+#   path:/abs/path                      local checkout (dev)
+#   git+https://host/org/repo@vX.Y.Z    pinned git ref (fleet)
+
+[repoman]
+package = "repoman"
+source = "path:/home/andrew/Documents/Projects/repoman"
+
+[managers.copy]
+package = "copyroom"
+source = "path:/home/andrew/Documents/Projects/copyroom"
+
+[managers.test]
+package = "testee"
+source = "path:/home/andrew/Documents/Projects/testee"

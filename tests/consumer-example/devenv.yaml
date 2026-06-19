@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+#
+# Throwaway consumer for the RepoMan spike. It imports the meta-module by local
+# path and enables a single manager (test). This proves the "one import" wiring
+# end to end before the full roster exists.
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+  repoman:
+    url: path:../../modules
+    flake: false
+
+imports:
+  - repoman

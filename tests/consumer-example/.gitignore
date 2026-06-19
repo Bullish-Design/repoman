@@ -1,0 +1,4 @@
+.devenv/
+.devenv.flake.nix
+devenv.lock
+.venv/
