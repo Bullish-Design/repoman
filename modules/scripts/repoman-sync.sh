@@ -38,9 +38,15 @@ def target(entry: dict) -> str:
 out = []
 if "repoman" in data:
     out.append(target(data["repoman"]))
-for key in managers:
-    entry = data.get("managers", {}).get(key)
-    if entry is not None:
+
+# Install each selected manager plus any native-dep pseudo-entries keyed off it
+# (e.g. "git-pyjutsu" for the "git" manager — see guide 01). A pseudo-entry's base
+# is the part before the first "-"; uv resolves a manager + its native deps together
+# in one install so editable sources like pyjutsu satisfy the manager's requirement.
+selected = set(managers)
+for key, entry in data.get("managers", {}).items():
+    base = key.split("-", 1)[0]
+    if base in selected:
         out.append(target(entry))
 print("\n".join(out))
 PY

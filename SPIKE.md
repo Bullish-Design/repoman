@@ -146,9 +146,26 @@ Findings:
 - **Editable installs for `path:` sources.** `repoman-sync` installs local checkouts
   with `--editable`, so manager/RepoMan code edits are picked up without reinstalling.
   (git refs install normally.)
-- **gitman is deferred.** It depends on `pyjutsu`, an unpublished native (Rust/maturin)
-  extension built from the sibling `../Pyjutsu` checkout. A plain `uv pip install`
-  can't satisfy it — gitman needs the meta-module to provide a Rust toolchain and a
-  lock entry for pyjutsu. This is the key roster insight: **some managers carry
-  native/system toolchain requirements** the meta-module must contribute (via nix
-  `packages`), beyond just a venv install.
+- **gitman + native toolchains — ✅ done** (project 01, guide 1). gitman depends on
+  `pyjutsu`, an unpublished native (Rust/maturin) extension built from `../Pyjutsu`. A
+  plain `uv pip install` can't satisfy it, so two pieces were added:
+  - `modules/managers/gitman.nix` contributes the **system toolchain** — `pkgs.maturin`
+    + `languages.rust.enable` — gated on `"git" ∈ managers`, so only repos that select
+    gitman pull Rust. This proves the meta-module can provision **nix-level system
+    toolchains**, not just venv pip installs.
+  - pyjutsu gets its own `repoman.lock` pseudo-entry (`[managers.git-pyjutsu]`) because
+    `uv pip install` ignores gitman's `[tool.uv.sources]`. `repoman-sync` installs any
+    `<manager>-*` pseudo-entry alongside its manager, so uv builds both editable in one
+    resolve and satisfies gitman's `pyjutsu` requirement from the local build.
+
+  Verified end to end in `tests/consumer-example` with `managers = [ copy git test ]`:
+  `repoman-sync` compiled pyjutsu (≈7.5 min native build, first run only) and installed
+  the toolchain; `repoman managers` lists all three; `repoman doctor` runs the self-check
+  then gitman's + testee's doctors. (gitman's doctor reports exit 2 in the bare consumer —
+  "not a colocated jj repo" — which is the expected uninitialized state, not a wiring
+  failure; we don't `jj git init` the throwaway consumer.)
+
+  Two notes vs. the original concerns:
+  - **Python 3.13:** gitman requires `>=3.13`. The consumer's rolling nixpkgs already
+    provides 3.13.13, so no version pin (and no `nixpkgs-python` input) was needed — the
+    earlier "One fix found" worry below didn't bite here.

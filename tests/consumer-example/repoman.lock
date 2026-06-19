@@ -16,6 +16,19 @@ source = "path:/home/andrew/Documents/Projects/repoman"
 package = "copyroom"
 source = "path:/home/andrew/Documents/Projects/copyroom"
 
+[managers.git]
+package = "gitman"
+source = "path:/home/andrew/Documents/Projects/gitman"
+
+# gitman's native dependency. Must be an explicit entry: `uv pip install` ignores
+# gitman's [tool.uv.sources], so pyjutsu won't resolve otherwise. Built via maturin
+# + the Rust toolchain the gitman manager module adds to the devenv. Not a manager —
+# never add "git-pyjutsu" to repoman.managers; repoman-sync picks it up via the
+# "<manager>-*" pseudo-entry rule, keyed off the selected "git".
+[managers.git-pyjutsu]
+package = "pyjutsu"
+source = "path:/home/andrew/Documents/Projects/Pyjutsu"
+
 [managers.test]
 package = "testee"
 source = "path:/home/andrew/Documents/Projects/testee"

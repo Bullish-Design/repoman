@@ -145,6 +145,18 @@ Two layers, mirroring the proven allium-env / zelligate / testee patterns:
    `repoman-sync` installs the selected managers' Python packages into the venv and
    installs their skills under `skillsDir`.
 
+> **Managers may contribute nix-level provisioning, not just venv installs.** Most
+> managers are pure pip installs, but some carry native/system toolchain requirements
+> that a venv install alone can't satisfy. A manager module may therefore contribute
+> system `packages` and language toolchains (`languages.*`) to the consumer devenv —
+> conditionally on being selected — in addition to its tasks/scripts/skills. Proven by
+> gitman (project 01, guide 1): its `pyjutsu` dependency is a Rust/maturin native
+> extension, so `modules/managers/gitman.nix` adds `pkgs.maturin` +
+> `languages.rust.enable`, gated on `"git" ∈ managers` (repos without gitman never pull
+> Rust). Native deps that `uv pip install` can't resolve from `[tool.uv.sources]` get an
+> explicit `repoman.lock` pseudo-entry (`[managers.<m>-<dep>]`) that `repoman-sync`
+> installs alongside the manager. See `SPIKE.md`.
+
 > **De-risking note.** The original open question was "does devenv support transitive
 > *nix inputs* from an imported remote module." The spike shows that for Python-based
 > managers this is mostly **not needed**: the nix module only wires tasks/scripts/skills,
@@ -191,6 +203,9 @@ a slim conductor.
   roster (`repoman install-skills`, run by `repoman-sync`). Design + verification in
   `docs/SKILLS.md`. Remaining: conflict-precedence table, installing sub-skills, and
   `doctor`-as-skill-linter.
-- **gitman & native toolchains** — gitman needs Rust/maturin + the unpublished pyjutsu;
-  the meta-module must contribute system `packages`, not just venv installs. First
-  manager that forces nix-level (not just venv) provisioning.
+- ~~**gitman & native toolchains**~~ — **done** (project 01, guide 1). gitman needs
+  Rust/maturin + the unpublished pyjutsu; `modules/managers/gitman.nix` contributes the
+  toolchain (gated on `"git"`) and a `git-pyjutsu` lock pseudo-entry carries the native
+  dep. Proves the meta-module can do nix-level (not just venv) provisioning — see §6 and
+  `SPIKE.md`. Remaining gitman follow-up: a fleet path (published pyjutsu wheel + `git+…`
+  sources) so `path:` checkouts aren't required.

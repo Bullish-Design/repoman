@@ -157,6 +157,26 @@ doctors (copyroom skipped until guide for copyroom doctor lands) and aggregates 
 | `uv pip install` still can't find pyjutsu | Confirm the `git-pyjutsu` lock entry + the sync-loop change (step 6) actually pass `--editable /Pyjutsu`. Check the printed install plan. |
 | Pyjutsu path differs on another machine | `path:` sources are dev-only; fleet use switches these to `git+…@ref` (and pyjutsu becomes a published wheel per gitman's roadmap). |
 
+## Implementation notes (verified)
+
+Implemented as written, with these confirmations/divergences:
+
+- **Python 3.13 was free.** gitman requires `>=3.13`; the consumer's rolling nixpkgs
+  already resolves Python 3.13.13, so no `languages.python.version` pin (and no
+  `nixpkgs-python` input) was needed. The `uv pip install` of gitman succeeded against the
+  default interpreter.
+- **Sync-loop fix (step 6) — used the "simplest" option.** `repoman-sync.sh` now iterates
+  all lock `managers` entries and includes any whose base (`key.split("-",1)[0]`) is in
+  `$REPOMAN_MANAGERS`, so `git-pyjutsu` is installed alongside `git`. `git-pyjutsu` is
+  **not** in `repoman.managers`, so the CLI never treats it as a manager. The self-check
+  (`checks.py`) already tolerates the pseudo-entry via the same `split("-",1)[0]` rule.
+- **Native build cost:** first `repoman-sync` compiled pyjutsu in ≈7m26s (uv "Prepared 5
+  packages in 7m 26s"); subsequent runs reuse the build. Ran it in the background per the
+  SPIKE pattern.
+- **`repoman doctor` exit in the bare consumer is 2**, sourced from gitman's *own* doctor
+  ("XX colocated — not a colocated jj repo"), not from RepoMan's self-check (all OK). This
+  is the documented uninitialized-gitman caveat; the aggregation is correct.
+
 ## Outcome / what this proves
 
 The meta-module is not limited to venv pip installs: a manager module can contribute

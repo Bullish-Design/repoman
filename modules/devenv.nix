@@ -29,8 +29,8 @@ in
   imports = [
     ./managers/testee.nix
     ./managers/copyroom.nix
-    # ./managers/gitman.nix   (deferred: needs a Rust/maturin toolchain + the
-    #                          unpublished pyjutsu native extension — see SPIKE.md)
+    ./managers/gitman.nix   # contributes a Rust/maturin toolchain when "git" is selected,
+                            # to build the unpublished pyjutsu native extension — see SPIKE.md
   ];
 
   options.repoman = {
