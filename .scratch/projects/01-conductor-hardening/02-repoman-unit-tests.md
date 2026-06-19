@@ -19,6 +19,13 @@ is cheap, high-value hygiene.
 - Tests live in `tests/` (pyproject already sets `testpaths=["tests"]`,
   `pythonpath=["src"]`, `--cov=repoman`). `tests/consumer-example/` has no `test_*.py`, so
   it won't be collected — leave it.
+
+> **Discrepancy found (resolved).** A stale `pytest.ini` from the old GitHub-syncer
+> implementation survived the pivot. pytest.ini takes precedence over pyproject's
+> `[tool.pytest.ini_options]`, so it silently shadowed the entire intended config
+> (coverage, `--strict-config`, `filterwarnings=error`, `pythonpath`) and injected an
+> `asyncio_mode = auto` for a plugin no longer installed. Deleted `pytest.ini`; pyproject is
+> now the sole pytest config (`configfile: pyproject.toml`, coverage active).
 - Deps already present: `pytest`, `pytest-cov` in `[project.optional-dependencies].dev`.
   `typer.testing.CliRunner` needs nothing extra (ships with typer).
 - Run: `devenv shell -- pytest` (or the repo's `test` script).
