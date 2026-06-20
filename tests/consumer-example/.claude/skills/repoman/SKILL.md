@@ -7,7 +7,7 @@ auto_trigger:
 
 # RepoMan — repo front door
 
-This repo is managed by **RepoMan**. Managers wired in: **copy git test**.
+This repo is managed by **RepoMan**. Managers wired in: **copy git test session agent**.
 
 Run everything inside `devenv shell`. Exit codes: `0` ok · `1` decision · `2` infra/config · `3` usage.
 Never invoke pytest / ruff / git / copier directly — go through the manager (or `repoman`).
@@ -25,6 +25,8 @@ scaffold → change → verify → save
 | scaffold a repo, pull template updates, or check template drift | copy | `copyroom` | `copyroom` |
 | commit, branch, land, undo, or release | git | `gitman` | `gitman` |
 | verify code health, fix lint/format, or rerun failures | test | `testee` | `testee` |
+| open a live terminal/session for this repo | session | `zelligate` | `zelligate` |
+| manage the coding-agent runtime or secrets | agent | `mypi` | `mypi` |
 
 For domain detail, open that manager's own skill under `.claude/skills/`.
 
