@@ -25,6 +25,19 @@ def test_managers_lists_agent(monkeypatch):
     assert result.exit_code == 0 and "mypi" in result.stdout
 
 
+def test_managers_lists_doc(monkeypatch):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "doc")
+    result = runner.invoke(app, ["managers"])
+    assert result.exit_code == 0 and "docman" in result.stdout
+
+
+def test_managers_lists_spec(monkeypatch):
+    # spec maps to the family CLI `alliman`, not the 3rd-party `allium`.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "spec")
+    result = runner.invoke(app, ["managers"])
+    assert result.exit_code == 0 and "alliman" in result.stdout
+
+
 def _healthy_repo(tmp_path, monkeypatch, managers):
     """A tmp repo whose lock + PATH satisfy the doctor self-check for ``managers``."""
     lock = '[repoman]\npackage="repoman"\nsource="path:/x"\n'

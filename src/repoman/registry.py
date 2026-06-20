@@ -73,7 +73,7 @@ REGISTRY: dict[str, Manager] = {
     ),
     "doc": Manager(
         "doc", "docman", "publish",
-        "Docs",
+        "Docs build/lint/check (zensical)",
         route_when="build or check the docs",
     ),
     "session": Manager(
@@ -89,8 +89,11 @@ REGISTRY: dict[str, Manager] = {
         route_when="manage the coding-agent runtime or secrets",
     ),
     "spec": Manager(
-        "spec", "allium", "situational",
+        "spec", "alliman", "situational",   # NOT "allium" — that's the 3rd-party juxt/allium-tools binary (no doctor verb)
         "Spec-driven agent workflow (Allium)",
+        # allium-env installs its manager skill under `allium-entrypoint`, not `alliman`,
+        # so point the sub-skill deferral check at the dir that actually ships.
+        skill="allium-entrypoint",
         route_when="write or check a behavioural spec",
     ),
 }

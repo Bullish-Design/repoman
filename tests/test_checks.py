@@ -68,6 +68,30 @@ def test_agent_lock_and_installed_ok(tmp_path, monkeypatch):
     assert _names(result)["installed:agent"].level == "ok"
 
 
+def test_doc_lock_and_installed_ok(tmp_path, monkeypatch):
+    (tmp_path / "repoman.lock").write_text(
+        _GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n'
+    )
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["lock:doc"].level == "ok"
+    assert _names(result)["installed:doc"].level == "ok"
+
+
+def test_spec_lock_and_installed_ok(tmp_path, monkeypatch):
+    # spec's command is "alliman" (not the 3rd-party "allium"); installed:spec checks
+    # shutil.which("alliman").
+    (tmp_path / "repoman.lock").write_text(
+        _GOOD_LOCK + '[managers.spec]\npackage="alliman"\nsource="path:/x"\n'
+    )
+    seen = {}
+    monkeypatch.setattr(checks.shutil, "which", lambda c: seen.setdefault(c, "/usr/bin/" + c))
+    result = run_self_check([REGISTRY["spec"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["lock:spec"].level == "ok"
+    assert _names(result)["installed:spec"].level == "ok"
+    assert "alliman" in seen and "allium" not in seen  # never probes the 3rd-party binary
+
+
 def test_uninstalled_manager_fails(tmp_path, monkeypatch):
     (tmp_path / "repoman.lock").write_text(
         _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'

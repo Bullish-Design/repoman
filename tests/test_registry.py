@@ -41,3 +41,23 @@ def test_agent_entry_shape():
     assert m.command == "mypi"  # console script, not the dist name
     assert m.tier == "situational"
     assert m.doctor == ["doctor"] and m.status == ["paths"]
+
+
+def test_doc_entry_shape():
+    m = REGISTRY["doc"]
+    assert m.command == "docman"
+    assert m.tier == "publish"
+    assert m.doctor == ["doctor"]
+    assert m.status is None  # docman has no status verb — repoman status skips it
+    assert m.skill == "docman"  # defaults to the command; docman ships a `docman` skill dir
+
+
+def test_spec_command_is_not_the_thirdparty_binary():
+    # Regression guard: `spec` must invoke the family manager CLI (`alliman`), NOT the
+    # third-party juxt/allium-tools `allium` binary, which has no `doctor` verb.
+    m = REGISTRY["spec"]
+    assert m.command == "alliman"  # NOT "allium"
+    assert m.tier == "situational" and m.status is None
+    assert m.doctor == ["doctor"]
+    # allium-env installs its manager skill as `allium-entrypoint`, not `alliman`.
+    assert m.skill == "allium-entrypoint"

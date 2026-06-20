@@ -5,7 +5,7 @@
 
 {
   repoman.enable = true;
-  repoman.managers = [ "copy" "git" "test" "session" "agent" ];
+  repoman.managers = [ "copy" "git" "test" "doc" "session" "agent" "spec" ];
 
   languages.python = {
     enable = true;
