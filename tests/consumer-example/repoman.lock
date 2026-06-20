@@ -32,3 +32,7 @@ source = "path:/home/andrew/Documents/Projects/Pyjutsu"
 [managers.test]
 package = "testee"
 source = "path:/home/andrew/Documents/Projects/testee"
+
+[managers.session]
+package = "zelligate"
+source = "path:/home/andrew/Documents/Projects/zelligate"

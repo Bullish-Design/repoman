@@ -27,3 +27,10 @@ def test_spine_keys_are_registered_or_none():
 
 def test_core_managers_present():
     assert {"copy", "git", "test"} <= set(REGISTRY)
+
+
+def test_session_entry_shape():
+    m = REGISTRY["session"]
+    assert m.command == "zelligate"
+    assert m.tier == "situational"
+    assert m.doctor == ["doctor"] and m.status == ["list"]
