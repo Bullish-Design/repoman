@@ -32,3 +32,10 @@ source = "path:/home/andrew/Documents/Projects/Pyjutsu"
 [managers.test]
 package = "testee"
 source = "path:/home/andrew/Documents/Projects/testee"
+
+# Pure-Python coding-agent manager. Note the intentional mismatch: the lock key is
+# the manager *key* ("agent"), the package is the PyPI/dist name ("mypi-agent"), and
+# the console script is "mypi" (the command the registry maps "agent" to).
+[managers.agent]
+package = "mypi-agent"
+source = "path:/home/andrew/Documents/Projects/mypi-agent"

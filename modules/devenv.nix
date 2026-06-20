@@ -31,6 +31,7 @@ in
     ./managers/copyroom.nix
     ./managers/gitman.nix   # contributes a Rust/maturin toolchain when "git" is selected,
                             # to build the unpublished pyjutsu native extension — see SPIKE.md
+    ./managers/mypi.nix     # contributes pkgs.secretspec when "agent" is selected
   ];
 
   options.repoman = {

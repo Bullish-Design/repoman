@@ -44,6 +44,18 @@ def test_native_pseudo_entry_satisfies_base_manager(tmp_path, monkeypatch):
     assert _names(result)["lock:git"].level == "ok"
 
 
+def test_agent_lock_and_installed_ok(tmp_path, monkeypatch):
+    # agent's lock key/package/command mismatch: key "agent", package "mypi-agent",
+    # command "mypi". installed:agent checks shutil.which("mypi") — the command.
+    (tmp_path / "repoman.lock").write_text(
+        _GOOD_LOCK + '[managers.agent]\npackage="mypi-agent"\nsource="path:/x"\n'
+    )
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    result = run_self_check([REGISTRY["agent"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["lock:agent"].level == "ok"
+    assert _names(result)["installed:agent"].level == "ok"
+
+
 def test_uninstalled_manager_fails(tmp_path, monkeypatch):
     (tmp_path / "repoman.lock").write_text(
         _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'
