@@ -13,6 +13,12 @@ def test_managers_lists_enabled(monkeypatch):
     assert "gitman" not in result.stdout
 
 
+def test_managers_lists_session(monkeypatch):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "session")
+    result = runner.invoke(app, ["managers"])
+    assert result.exit_code == 0 and "zelligate" in result.stdout
+
+
 def _healthy_repo(tmp_path, monkeypatch, managers):
     """A tmp repo whose lock + PATH satisfy the doctor self-check for ``managers``."""
     lock = '[repoman]\npackage="repoman"\nsource="path:/x"\n'
