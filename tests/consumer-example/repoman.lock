@@ -43,3 +43,15 @@ source = "path:/home/andrew/Documents/Projects/zelligate"
 [managers.agent]
 package = "mypi-agent"
 source = "path:/home/andrew/Documents/Projects/mypi-agent"
+
+[managers.doc]
+package = "docman"
+source = "path:/home/andrew/Documents/Projects/docman"
+
+# Spec manager. Like "agent", the names diverge deliberately: the lock key is the
+# manager key ("spec"), while the package/dist and the console script are both "alliman"
+# (the registry command). The third-party `allium` binary is NOT a manager entry — it's
+# provisioned by allium-env's own devenv at the nix layer, never via this lock.
+[managers.spec]
+package = "alliman"
+source = "path:/home/andrew/Documents/Projects/allium-env"
