@@ -59,3 +59,25 @@ def test_install_skills_writes_file(monkeypatch, tmp_path):
     result = runner.invoke(app, ["install-skills"])
     assert result.exit_code == 0
     assert (tmp_path / ".claude/skills/repoman/SKILL.md").exists()
+
+
+def test_install_skills_also_installs_devman(monkeypatch, tmp_path):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "copy test")
+    monkeypatch.setenv("REPOMAN_SKILLS_DIR", ".claude/skills")
+    monkeypatch.setenv("REPOMAN_DOCS_DIR", ".agents/devenv")
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+    result = runner.invoke(app, ["install-skills"])
+    assert result.exit_code == 0
+    # A devman skill lands beside the entrypoint, and the docs export lands under docs_dir.
+    assert (tmp_path / ".claude/skills/devenv-run-commands/SKILL.md").exists()
+    assert (tmp_path / ".agents/devenv/lock-and-cache.md").exists()
+
+
+def test_doctor_reports_devman_checks(monkeypatch, tmp_path):
+    _healthy_repo(tmp_path, monkeypatch, "copy test")
+    result = runner.invoke(app, ["doctor", "--self-only"])
+    assert "devman:skills" in result.stdout
+    assert "devman:docs" in result.stdout
+    # Nothing installed in the tmp repo → warn, but warn is non-fatal (exit stays 0).
+    assert "WARN devman:skills" in result.stdout
+    assert result.exit_code == 0

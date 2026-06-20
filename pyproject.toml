@@ -32,7 +32,12 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-repoman = ["templates/*.j2"]
+repoman = [
+    "templates/*.j2",
+    "devman/assets/skills/*/SKILL.md",
+    "devman/assets/docs/*.md",
+    "devman/assets/articles/*.md",
+]
 
 [tool.ruff]
 line-length = 120

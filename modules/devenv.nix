@@ -59,6 +59,12 @@ in
       default = ".claude/skills";
       description = "Directory (relative to repo root) where agent skills are installed.";
     };
+
+    docsDir = lib.mkOption {
+      type = lib.types.str;
+      default = ".agents/devenv";
+      description = "Directory (relative to repo root) where devman's devenv-literacy docs export is installed.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -66,11 +72,15 @@ in
     # which sub-doctors / sub-status commands to aggregate) and where skills go.
     env.REPOMAN_MANAGERS = lib.concatStringsSep " " cfg.managers;
     env.REPOMAN_SKILLS_DIR = cfg.skillsDir;
+    # devman's docs export lands here; `repoman install-skills` (run by repoman-sync)
+    # reads REPOMAN_DOCS_DIR and installs the literacy assets alongside the entrypoint.
+    env.REPOMAN_DOCS_DIR = cfg.docsDir;
 
-    # Pull the selected managers' Python CLIs into the venv from repoman.lock.
-    # (Skill installation is layered on next, after the entrypoint template lands.)
+    # Pull the selected managers' Python CLIs into the venv from repoman.lock, then
+    # run `repoman install-skills` (generates the entrypoint skill + installs devman's
+    # devenv-literacy skills + docs export). One sync, one install path.
     scripts.repoman-sync = {
-      description = "Install the selected managers' CLIs into this repo's venv from repoman.lock.";
+      description = "Install the selected managers' CLIs into this repo's venv from repoman.lock, plus agent skills + devman docs.";
       exec = ''exec ${pkgs.bash}/bin/bash ${./scripts/repoman-sync.sh}'';
     };
 

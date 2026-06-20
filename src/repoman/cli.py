@@ -13,8 +13,12 @@ import typer
 
 from .aggregate import run_sub, worst_exit
 from .checks import format_self_check, run_self_check, self_check_exit
+from .devman.check import devman_checks
+from .devman.install import install_devman
 from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
 from .skills import install_entrypoint
+
+_DEFAULT_DOCS_DIR = ".agents/devenv"
 
 app = typer.Typer(
     help="RepoMan - the single agentic front door to a devenv.sh repo's lifecycle.",
@@ -54,8 +58,11 @@ def doctor(
     skills_dir = os.environ.get("REPOMAN_SKILLS_DIR", ".claude/skills")
     repo_root = os.environ.get("DEVENV_ROOT", os.getcwd())
 
+    docs_dir = os.environ.get("REPOMAN_DOCS_DIR", _DEFAULT_DOCS_DIR)
+
     typer.echo("=== repoman (self-check) ===")
     self_checks = run_self_check(managers, repo_root, skills_dir)
+    self_checks += devman_checks(repo_root, skills_dir, docs_dir)
     typer.echo(format_self_check(self_checks))
     self_code = self_check_exit(self_checks)
 
@@ -87,12 +94,15 @@ def status() -> None:
 
 @app.command("install-skills")
 def install_skills() -> None:
-    """Generate the RepoMan entrypoint (router) skill from the enabled managers."""
+    """Generate the entrypoint skill and install devman's devenv-literacy assets."""
 
     skills_dir = os.environ.get("REPOMAN_SKILLS_DIR", ".claude/skills")
+    docs_dir = os.environ.get("REPOMAN_DOCS_DIR", _DEFAULT_DOCS_DIR)
     repo_root = os.environ.get("DEVENV_ROOT", os.getcwd())
     dest = install_entrypoint(_enabled(), skills_dir, repo_root)
     typer.echo(f"repoman: wrote entrypoint skill → {dest}")
+    written = install_devman(skills_dir, docs_dir, repo_root)
+    typer.echo(f"repoman: installed devman assets ({len(written)} files) → {skills_dir}, {docs_dir}")
 
 
 def main() -> None:

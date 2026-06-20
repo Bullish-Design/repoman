@@ -51,16 +51,23 @@ This is the **allium-env shape** (value = installing agent assets correctly), ge
 ```
 repoman/
   modules/
-    devenv.nix            # meta-module (unchanged role); installs devman assets via sync
+    devenv.nix            # meta-module (unchanged role); adds docsDir option + REPOMAN_DOCS_DIR env
+  src/repoman/
     devman/
       assets/
         skills/           # the devenv-literacy SKILL.md files (Layer 1)
         docs/             # the distilled documentation export (Layer 2)
         articles/         # explainers + recipes (Layer 3)
-  src/repoman/
-    skills.py             # extend: also install devman's skills (not just the entrypoint)
-    checks.py             # extend: self-check that devman skills/docs are installed + current
+      assets.py           # enumerate the shipped skills/docs (what *should* be installed)
+      install.py          # install_devman(): copy assets into the consumer + write a manifest
+      check.py            # devman_checks(): self-check assets are installed + current
+    cli.py                # extend: install-skills also installs devman; doctor runs devman_checks
+    checks.py             # reused: SelfCheck / self_check_exit / format_self_check
 ```
+
+> **Asset location (corrected):** assets are **package-data inside `src/repoman/devman/assets/`**,
+> not under `modules/`. The installed `repoman` Python package (run as `repoman install-skills`)
+> lays them down, exactly like `templates/entrypoint.SKILL.md.j2`.
 
 - **Installation:** `repoman-sync` already runs `repoman install-skills` (generates the
   entrypoint). Add a step that also copies devman's `assets/skills` + `assets/docs` into the
@@ -106,8 +113,10 @@ No separate binary. The verbs map onto the existing conductor:
 
 ## Open questions
 
-- **Asset layout & options** — `modules/devman/assets/` vs co-locating under existing skill
-  templates; what `repoman.devman.*` options (if any) are worth exposing.
+- **Asset layout & options** — *resolved:* assets live as package-data under
+  `src/repoman/devman/assets/` (the installed package lays them down); the only new option exposed
+  is `repoman.docsDir` (default `.agents/devenv`). A `repoman.devman.enable` kill switch was left
+  as YAGNI.
 - **Skill granularity & triggers** — how many skills, on what triggers, without colliding with
   the entrypoint or manager skills (reuse the `docs/SKILLS.md` trigger discipline).
 - **Docs-export source** — vendor + distill official devenv.sh docs, or write from observed

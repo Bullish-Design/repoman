@@ -4,7 +4,10 @@ The concrete first set of assets devman would ship (as a repoman subsystem), acr
 layers. Each is grounded in a real, observed agent failure mode in devenv-managed repos. A
 candidate list to prune/prioritize, not a locked spec.
 
-## Layer 1 — Skills (`modules/devman/assets/skills/` → installed to `skillsDir`)
+> Asset paths are package-data under **`src/repoman/devman/assets/`** (corrected from the original
+> `modules/devman/assets/` sketch — the installed `repoman` package lays them down). See the guide.
+
+## Layer 1 — Skills (`src/repoman/devman/assets/skills/` → installed to `skillsDir`)
 
 Short, trigger-driven. One job each. Triggers fire on **mechanics** keywords so they don't
 collide with RepoMan's entrypoint (lifecycle keywords) or the manager skills (domain keywords).
@@ -24,7 +27,7 @@ single front door. Each devman skill carries the standard footer deferring cross
 *ordering* to the `repoman` skill, and triggers on its own mechanics keywords so several don't
 fire as "primary" at once (the `docs/SKILLS.md` discipline).
 
-## Layer 2 — Documentation export (`modules/devman/assets/docs/` → installed to `docsDir`)
+## Layer 2 — Documentation export (`src/repoman/devman/assets/docs/` → installed to `docsDir`)
 
 A distilled, agent-optimized subset of devenv.sh docs — curated, regenerable, noise-stripped.
 Foregrounds the agent-relevant facts; drops marketing and human-onboarding prose.
@@ -40,7 +43,7 @@ Foregrounds the agent-relevant facts; drops marketing and human-onboarding prose
 > Generated from a curated source + a hand-written "agent gotchas" overlay, so it tracks
 > devenv.sh releases instead of rotting.
 
-## Layer 3 — Articles / recipes (`modules/devman/assets/articles/`)
+## Layer 3 — Articles / recipes (`src/repoman/devman/assets/articles/`)
 
 Longer "why + worked example" pieces for the recurring hard cases.
 
