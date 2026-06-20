@@ -34,3 +34,10 @@ def test_session_entry_shape():
     assert m.command == "zelligate"
     assert m.tier == "situational"
     assert m.doctor == ["doctor"] and m.status == ["list"]
+
+
+def test_agent_entry_shape():
+    m = REGISTRY["agent"]
+    assert m.command == "mypi"  # console script, not the dist name
+    assert m.tier == "situational"
+    assert m.doctor == ["doctor"] and m.status == ["paths"]
