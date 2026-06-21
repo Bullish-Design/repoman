@@ -29,13 +29,15 @@ in
     # selected AND its provisioning is available. `optionalAttrs hasInput` (not `mkIf`)
     # so the `allium.*` references vanish entirely when the input is absent — else a
     # strict eval throws "option `allium' does not exist".
-    (lib.optionalAttrs hasInput {
-      allium.enable = lib.mkIf enabled true;
+    (lib.optionalAttrs hasInput (lib.mkIf enabled {
+      allium.enable = true;
       # alliman doesn't need the third-party `allium` binary; skip the fetch by default
       # (also dodges the darwin placeholder hashes). A consumer wanting the spec tool
       # itself can override allium.cli.enable = true.
       allium.cli.enable = lib.mkDefault false;
-    })
+      # Signal nix-layer provisioning presence to `repoman doctor` (checks.py).
+      env.REPOMAN_PROVISIONED_SPEC = "1";
+    }))
     # The doctor task wires whenever "spec" is selected — `repoman doctor` calls the venv
     # `alliman` CLI (installed by repoman-sync) regardless; if provisioning is absent its
     # own doctor reports the gap.

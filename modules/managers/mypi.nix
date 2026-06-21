@@ -51,6 +51,8 @@ in
     (lib.optionalAttrs hasInput (lib.mkIf enabled {
       scripts.mypi.exec = venvMypi "";
       scripts.secretspec-setup.exec = venvMypi "secretspec-setup ";
+      # Signal nix-layer provisioning presence to `repoman doctor` (checks.py).
+      env.REPOMAN_PROVISIONED_AGENT = "1";
     }))
     # Always-on when "agent" is selected: the secretspec binary mypi's secrets verbs drive,
     # plus the aggregation tasks. `repoman doctor` calls the venv mypi (absolute path) so it
