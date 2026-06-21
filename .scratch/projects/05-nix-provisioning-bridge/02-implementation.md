@@ -155,3 +155,33 @@ in {
     **module set still evals cleanly** (no "option `docman' does not exist") — eval-safety holds.
   - **Out of scope (5b/6):** auto-scaffolding the inputs into a consumer's `devenv.yaml`; the
     git-manager Python-3.13 doctor warning (separate check); final full-roster aggregate capstone.
+- **2026-06-21** — **Phase 6 (full-roster capstone) done.** End-to-end `repoman doctor` (all
+  sub-doctors, not `--self-only`) re-verified over the **whole roster**
+  (`copy git test doc session agent spec`) in `tests/consumer-example`.
+  - **Self-check: 100% green.** Every `lock:`, `installed:` (all 7), `provisioned:{doc,spec,agent}`,
+    `skill:entrypoint`, and `devman:*` row is **OK**. This is the part Phases 1-5 own — the conductor
+    wiring + the nix bridge — and it is fully clean.
+  - **The bridge does its job (positive evidence):** every nix-layer tool the bridge is responsible
+    for is on PATH/env — docman's `zensical 0.0.45` + `lychee`/`markdownlint-cli2`/`typos`/`mdformat`/
+    `ghp-import` + python 3.13 (via nixpkgs-python); zelligate's `zellij`; mypi's node/`NPM_CONFIG_*`/
+    `PI_CODING_AGENT_DIR` + `secretspec`; allium's installer. docman doctor → all OK; testee → all OK;
+    zelligate → ok.
+  - **Residual aggregate exit is 2, and every non-green is (ii)-class, NOT a nix-bridge gap:**
+    - `copy` — `doctor=None`, skipped (copyroom has no doctor verb).
+    - `git` (gitman) — `colocated`/`remote`/`trunk`/`version-source` — **workspace state**: the
+      throwaway consumer isn't a real colocated-jj repo with a remote. Expected; not provisioning.
+    - `agent` (mypi) — `missing_settings_shim`/`invalid_manifest`/`missing_pi_executable` (+ resource/
+      secret warnings) — the **`mypi sync`-dependent, user-driven** part we deliberately don't auto-run
+      (safe-bridge policy, Phase 4). The Phase-4 provisioning errors (`npm_scope_not_project_local`,
+      missing node/npm, `missing_agent_root`, `pi_not_on_path`) are **gone** — confirming the bridge.
+    - `spec` (alliman) — skills/manifest `FAIL` because `alliman install-skills` hasn't been run (a
+      normal one-command install step, not a bridge gap; the installer is on PATH — the Phase-3 fix).
+      In the **nested** consumer-example the git-root-relative installer escapes to the repoman repo
+      root (Phase-3 known env quirk, harmless: `autoInstall` is off so nothing was written); an
+      **isolated** git consumer reaches `alliman doctor` → 0 (already verified in Phase 3).
+  - **Conclusion:** matches the README validation criteria — `repoman doctor` is green except for
+    (ii)-class items (workspace state / user-driven secrets / a normal install step). The nix-layer
+    provisioning bridge is **complete across all five (i)-class managers**.
+  - **Test hardening:** added `test_full_roster_self_check_is_green` (all 7 managers, healthy
+    lock+PATH+provisioning signals → every row OK, exit 0; exactly the three approach-B managers carry
+    a `provisioned:` row). Full suite `devenv shell -- pytest -q` → **62 passed**.

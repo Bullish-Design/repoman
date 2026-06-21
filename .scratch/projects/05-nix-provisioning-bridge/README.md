@@ -74,6 +74,13 @@ manager repo's own standalone devenv behavior.
   negative (isolated consumer, input absent → WARN, exit 0, clean eval) both verified. Detail in
   [`02-implementation.md`](02-implementation.md). **Next:** Phase 6 (full-roster capstone re-verify).
 
+- **2026-06-21** — **Phase 6 done — project complete.** Full-roster `repoman doctor` re-verified in
+  consumer-example: self-check 100% green (all `installed:`/`provisioned:`/`devman:` OK); the bridge's
+  nix-layer tools all on PATH/env (zensical+docs toolchain, zellij, node+secretspec, allium installer).
+  Residual aggregate-2 is entirely (ii)-class — gitman workspace state, mypi user-driven `sync`, a
+  pending `alliman install-skills` — no nix-bridge gap remains. Added a full-roster self-check capstone
+  test (62 pass). All five (i)-class managers are bridged. Detail in [`02-implementation.md`](02-implementation.md).
+
 ## Status checklist
 
 - [x] Task 1 — Map the mechanism; confirm/refute the two-layer model — **confirmed**
@@ -90,10 +97,14 @@ manager repo's own standalone devenv behavior.
 - [x] **Phase 5**: repoman R1 doctor warnings (selected approach-B manager missing its input) — verified
       (registry `nix_input`; modules signal `REPOMAN_PROVISIONED_<KEY>`; `checks.py` `provisioned:<key>`
       warn; 61 tests pass; positive + negative + eval-safety verified)
-- [ ] **Phase 6**: unit tests + full-roster consumer-example re-verify
+- [x] **Phase 6**: unit tests + full-roster consumer-example re-verify — **done**. Self-check 100%
+      green over the whole roster; every residual sub-doctor non-green is (ii)-class (workspace state /
+      user-driven secrets / a normal install step), not a nix-bridge gap. Added the full-roster
+      self-check capstone test (62 tests pass).
 
 > Implementation detail + verification evidence: [`02-implementation.md`](02-implementation.md).
-> Phases 1–4 are **merged to main** (`d3aa73b`); allium-env's `modules/allium.nix` extraction is
+> Phases 1–4 merged to main (`d3aa73b`); Phase 5 merged (`f5fe0e8`); Phase 6 the final commit.
+> **All six phases complete — project done.** allium-env's `modules/allium.nix` extraction is
 > merged to allium-env main (`ca88652`).
 
 ## Constraints to honor (from the brief)
