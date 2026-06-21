@@ -2,3 +2,12 @@
 .devenv.flake.nix
 devenv.lock
 .venv/
+.pre-commit-config.yaml
+# docman's enterShell (docs-init) scaffolds these into a doc-enabled consumer. In a
+# real repo they're source you commit; in this throwaway fixture they're generated
+# noise — ignore them so the fixture stays focused on repoman wiring.
+.docman/
+docs/
+snippets/
+.markdownlint.jsonc
+.typos.toml
