@@ -64,6 +64,36 @@ same nix-layer gap — record these so you don't rediscover them:
 - **doc (docman):** doctor wants `zensical` on PATH, but zensical is declared nowhere
   (not in docman's pyproject deps nor its devenv.nix) and isn't installed by repoman-sync.
 
+### docman.nix eval bug — FIXED (was blocking any 3rd manager on this machine)
+
+`modules/managers/docman.nix` defined `docman.enable = true` under
+`lib.mkIf (enabled && hasInput)`. When the consumer hasn't declared the `docman` input
+(`hasInput = false`), the `docman` option is never declared (the import is skipped), yet
+`mkIf` still **places a definition** for it — `mkIf` guards the value, not option-existence.
+Under a strict full-config eval (this machine's devenv bootstrap forces one via
+`config.profiles.hostname` / `config.cachix.enable`) the module system throws
+`The option 'docman' does not exist`, breaking the shell for *any* roster. Fixed by gating
+on `hasInput` with `lib.optionalAttrs` (depends on `inputs`, not `config`) so the reference
+vanishes when the input is absent:
+```nix
+(lib.optionalAttrs hasInput { docman.enable = lib.mkIf enabled true; })
+```
+Audit the other Approach-B managers (mypi/zelligate) for the same `mkIf`-vs-`optionalAttrs`
+mistake. (Only `docman.nix` has it today; the rest don't set a manager-named option.)
+
+### git (gitman) — pyjutsu can't bootstrap colocation of an EXISTING git repo
+
+Follow-up to the jj-version-skew finding: the clean fix (colocate via pyjutsu's own jj-lib
+0.38, sidestepping the jj-CLI version) does **not** work on a repo that already has `.git`.
+`pyjutsu.Workspace.init(path, colocate=True)` → `init_colocated_git` → `WorkspaceError:
+Failed to initialize git repository` (that path creates a *fresh* repo; it can't adopt an
+existing `.git`). jj-lib's adopt-existing path is `init_workspace_with_existing_repo`, which
+pyjutsu only exposes via `add_workspace` (secondary workspaces), not as a primary-colocate.
+Net: a consumer with existing git history can't get a gitman-compatible (jj-lib-0.38) store
+without a jj CLI pinned to ~0.38 — which isn't readily available (system jj is 0.42; lazamar's
+version table is stale at 0.30). **Proper fix belongs here:** gitman/pyjutsu should expose an
+"adopt existing git repo → colocated jj workspace" init at the embedded jj-lib version.
+
 Net: in a fresh consumer only **testee** (and copyroom, which has no doctor) is green
 out of the box. Every other manager has a nix-layer provisioning gap.
 
