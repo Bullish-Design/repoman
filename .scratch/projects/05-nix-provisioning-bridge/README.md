@@ -74,7 +74,15 @@ manager repo's own standalone devenv behavior.
 - [x] Task 4 — Design the general mechanism — **hybrid A/B/none + module contract; input-transitivity crux surfaced**
 - [x] Task 5 — Worked end-to-end fix for spec/allium-env — **plan written + sketches for the rest**
 - [x] Findings doc complete and ready for review — **see [`01-findings.md`](01-findings.md)**
-- [ ] Review the 3 open questions, then write implementation guide(s)
+- [x] Review the 3 open questions → decisions taken (R1; upstream warn-vs-fail deferred; spike = doc)
+- [x] **Implementation Phase 1** (approach A): copy (git+gnupatch), session (ZELLIGATE_* env) — verified
+- [x] **Implementation Phase 2** (approach B spike): doc/docman — verified, mechanism confirmed
+- [x] **Implementation Phase 3** (approach B): spec/allium-env (module extracted upstream) — verified green
+- [ ] **Phase 4**: agent/mypi (import pi-agent.nix; bootstrap=manual_only, telegram off; CLI-shadow)
+- [ ] **Phase 5**: repoman R1 doctor warnings (selected approach-B manager missing its input)
+- [ ] **Phase 6**: unit tests + full-roster consumer-example re-verify
+
+> Implementation detail + verification evidence: [`02-implementation.md`](02-implementation.md).
 
 ## Constraints to honor (from the brief)
 
