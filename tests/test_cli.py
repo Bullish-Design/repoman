@@ -77,6 +77,16 @@ def test_doctor_fails_when_selected_manager_unbuilt(monkeypatch, tmp_path):
     assert result.exit_code == 2
 
 
+def test_doctor_warns_when_approach_b_input_missing(monkeypatch, tmp_path):
+    # doc selected + CLI on PATH but no REPOMAN_PROVISIONED_DOC → WARN provisioned:doc,
+    # non-fatal (exit 0).
+    _healthy_repo(tmp_path, monkeypatch, "doc")
+    monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
+    result = runner.invoke(app, ["doctor", "--self-only"])
+    assert "WARN provisioned:doc" in result.stdout
+    assert result.exit_code == 0
+
+
 def test_install_skills_writes_file(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_MANAGERS", "copy test")
     monkeypatch.setenv("REPOMAN_SKILLS_DIR", ".claude/skills")

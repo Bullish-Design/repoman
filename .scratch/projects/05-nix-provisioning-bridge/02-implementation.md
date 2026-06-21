@@ -124,3 +124,34 @@ in {
     provisioning is absent — partly self-served already by docman's/alliman's own doctors, so lower
     value; needs the nix modules to signal input-presence to the Python layer) + Phase 6 (unit tests
     + full-roster re-verify).
+- **2026-06-21** — **Phase 5 (repoman R1 doctor warning) done and verified.** `repoman doctor` now
+  emits a non-fatal `provisioned:<key>` row for each selected approach-B manager, distinct from
+  `installed:<key>` (venv CLI). The nix→python signal: each approach-B module sets
+  `env.REPOMAN_PROVISIONED_<KEY> = "1"` inside its `optionalAttrs hasInput (mkIf enabled { … })`
+  block (folded beside the `enable`/settings), so the env exists iff the input was declared AND the
+  manager is selected; `checks.py` reads it (`os.environ`). Absent → `warn` (`_LEVELS["warn"]==0`,
+  never fails the aggregate) with a fix hint ("add the '<input>' input to devenv.yaml").
+  - **registry.py:** new `Manager.nix_input` field; set `doc→"docman"`, `spec→"allium-env"`,
+    `agent→"mypi-agent"`; `""` for copy/git/test/session.
+  - **modules:** `docman.nix`/`alliman.nix` restructured from `optionalAttrs hasInput { … = mkIf
+    enabled … }` to `optionalAttrs hasInput (mkIf enabled { … })` so the env sits beside the enable.
+    `mypi.nix`: `piAgent.enable = enabled` stays unconditional-when-hasInput (upstream default TRUE);
+    the env was added to the existing `optionalAttrs hasInput (mkIf enabled { scripts … })` block.
+    Eval-safety of the canonical approach-B pattern preserved (env lives inside `optionalAttrs
+    hasInput`, never a bare `mkIf`).
+  - **checks.py:** `import os`; after the `installed:` loop, a `provisioned:<key>` row per manager
+    with a non-empty `nix_input`.
+  - **Tests (55→61):** `test_registry.py` asserts `nix_input` for the three + `""` for the rest;
+    `test_checks.py` covers warn-when-signal-absent (exit 0), ok-when-`"1"`, and no-row for an
+    approach-A manager; `test_cli.py` adds a `doctor --self-only` WARN-and-exit-0 case. Full suite
+    `devenv shell -- pytest -q` → **61 passed**.
+  - **Verified positive** (consumer-example, all three inputs declared): with
+    `devenv shell --refresh-eval-cache` (NB: `rm devenv.lock` alone does NOT bust devenv's eval
+    cache — must refresh, else the new env vars read empty), `provisioned:{doc,spec,agent}` all **OK**,
+    exit 0.
+  - **Verified negative** (isolated `/tmp` git consumer, `managers=["doc"]`, **no** docman input):
+    `installed:doc` **OK** but `provisioned:doc` **WARN** (the orthogonality — installed≠provisioned),
+    exit 0. Extended to all three approach-B managers selected with no inputs → three WARNs, exit 0,
+    **module set still evals cleanly** (no "option `docman' does not exist") — eval-safety holds.
+  - **Out of scope (5b/6):** auto-scaffolding the inputs into a consumer's `devenv.yaml`; the
+    git-manager Python-3.13 doctor warning (separate check); final full-roster aggregate capstone.

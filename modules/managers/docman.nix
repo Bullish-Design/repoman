@@ -36,9 +36,13 @@ in
     # absent the `docman.enable` reference vanishes entirely — `mkIf` alone still
     # places a definition for the then-undeclared `docman` option, which throws
     # "option `docman' does not exist" under a strict full-config eval.
-    (lib.optionalAttrs hasInput {
-      docman.enable = lib.mkIf enabled true;
-    })
+    (lib.optionalAttrs hasInput (lib.mkIf enabled {
+      docman.enable = true;
+      # Signal to `repoman doctor` (checks.py) that docman's nix module is imported
+      # AND active — provisioned:doc is OK. Without the input this whole block (and
+      # the env) vanishes, so the check warns. See run_self_check().
+      env.REPOMAN_PROVISIONED_DOC = "1";
+    }))
     # The aggregation tasks wire whenever "doc" is selected — `repoman doctor` calls
     # the venv `docman` CLI (installed by repoman-sync) regardless of provisioning;
     # if the toolchain is absent its own doctor reports the gap.

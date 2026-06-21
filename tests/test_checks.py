@@ -149,6 +149,44 @@ def test_sub_skill_with_deferral_ok(tmp_path, monkeypatch):
     assert _names(result)["skill:test:defers"].level == "ok"
 
 
+# --- provisioned:<key> (nix-layer presence) --------------------------------
+
+
+def test_provisioned_warns_when_input_signal_absent(tmp_path, monkeypatch):
+    # doc is approach-B: CLI installed (installed:doc ok) but no REPOMAN_PROVISIONED_DOC
+    # → provisioned:doc warns, and warn is non-fatal so the aggregate exit stays 0.
+    (tmp_path / "repoman.lock").write_text(
+        _GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n'
+    )
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
+    result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
+    prov = _names(result)["provisioned:doc"]
+    assert prov.level == "warn"
+    assert "docman" in prov.detail and "devenv.yaml" in prov.detail
+    assert self_check_exit(result) == 0
+
+
+def test_provisioned_ok_when_input_signalled(tmp_path, monkeypatch):
+    (tmp_path / "repoman.lock").write_text(
+        _GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n'
+    )
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    monkeypatch.setenv("REPOMAN_PROVISIONED_DOC", "1")
+    result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["provisioned:doc"].level == "ok"
+
+
+def test_no_provisioned_row_for_approach_a_manager(tmp_path, monkeypatch):
+    # copy (approach-A, nix_input="") gets no provisioned: row at all.
+    (tmp_path / "repoman.lock").write_text(
+        _GOOD_LOCK + '[managers.copy]\npackage="copyroom"\nsource="path:/x"\n'
+    )
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    result = run_self_check([REGISTRY["copy"]], str(tmp_path), ".claude/skills")
+    assert "provisioned:copy" not in _names(result)
+
+
 # --- devman self-checks ----------------------------------------------------
 
 

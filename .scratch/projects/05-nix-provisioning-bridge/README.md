@@ -66,6 +66,14 @@ manager repo's own standalone devenv behavior.
   **Next:** review the 3 open questions (R1-vs-R2 input strategy; upstream warn-vs-fail; a small
   verification spike) before implementing. No code touched.
 
+- **2026-06-21** — **Phase 5 done + verified.** `repoman doctor` now warns (non-fatal) when a selected
+  approach-B manager (`doc`/`spec`/`agent`) is missing its `devenv.yaml` input. Mechanism: each module
+  signals `env.REPOMAN_PROVISIONED_<KEY>=1` (inside `optionalAttrs hasInput (mkIf enabled …)`),
+  `checks.py` reads it as `provisioned:<key>` (orthogonal to `installed:<key>`). Registry gains
+  `Manager.nix_input`. 61 unit tests pass; positive (consumer-example, inputs present → all OK) and
+  negative (isolated consumer, input absent → WARN, exit 0, clean eval) both verified. Detail in
+  [`02-implementation.md`](02-implementation.md). **Next:** Phase 6 (full-roster capstone re-verify).
+
 ## Status checklist
 
 - [x] Task 1 — Map the mechanism; confirm/refute the two-layer model — **confirmed**
@@ -78,9 +86,10 @@ manager repo's own standalone devenv behavior.
 - [x] **Implementation Phase 1** (approach A): copy (git+gnupatch), session (ZELLIGATE_* env) — verified
 - [x] **Implementation Phase 2** (approach B spike): doc/docman — verified, mechanism confirmed
 - [x] **Implementation Phase 3** (approach B): spec/allium-env (module extracted upstream) — verified green
-- [ ] **Phase 4**: agent/mypi (import pi-agent.nix; bootstrap=manual_only, telegram off; CLI-shadow)
-- [ ] **Phase 5**: repoman R1 doctor warnings (selected approach-B manager missing its input)
-      — **kickoff ready:** [`KICKOFF_PHASE5.md`](KICKOFF_PHASE5.md)
+- [x] **Phase 4**: agent/mypi (import pi-agent.nix; bootstrap=manual_only, telegram off; CLI-shadow) — verified
+- [x] **Phase 5**: repoman R1 doctor warnings (selected approach-B manager missing its input) — verified
+      (registry `nix_input`; modules signal `REPOMAN_PROVISIONED_<KEY>`; `checks.py` `provisioned:<key>`
+      warn; 61 tests pass; positive + negative + eval-safety verified)
 - [ ] **Phase 6**: unit tests + full-roster consumer-example re-verify
 
 > Implementation detail + verification evidence: [`02-implementation.md`](02-implementation.md).

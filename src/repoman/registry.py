@@ -22,6 +22,9 @@ class Manager:
         doctor: Args for this manager's doctor (every manager has one).
         status: Args for a status-like read, or ``None`` if it has none.
         summary: One-line description for ``repoman managers``.
+        nix_input: For an approach-B manager, the ``devenv.yaml`` input its nix
+            module needs (presence-gated import); ``""`` for approach-A /
+            pure-Python managers that need no consumer-declared input.
     """
 
     key: str
@@ -32,6 +35,7 @@ class Manager:
     status: list[str] | None = None
     skill: str = ""          # sub-skill name the entrypoint routes to (default: command)
     route_when: str = ""     # "when you want to…" cell in the routing table
+    nix_input: str = ""      # devenv.yaml input the manager's approach-B nix module needs; "" = none
 
     def __post_init__(self) -> None:
         if not self.skill:
@@ -75,6 +79,7 @@ REGISTRY: dict[str, Manager] = {
         "doc", "docman", "publish",
         "Docs build/lint/check (zensical)",
         route_when="build or check the docs",
+        nix_input="docman",
     ),
     "session": Manager(
         "session", "zelligate", "situational",
@@ -87,6 +92,7 @@ REGISTRY: dict[str, Manager] = {
         "Coding-agent runtime + secrets (Pi)",
         status=["paths"],
         route_when="manage the coding-agent runtime or secrets",
+        nix_input="mypi-agent",
     ),
     "spec": Manager(
         "spec", "alliman", "situational",   # NOT "allium" — that's the 3rd-party juxt/allium-tools binary (no doctor verb)
@@ -95,6 +101,7 @@ REGISTRY: dict[str, Manager] = {
         # so point the sub-skill deferral check at the dir that actually ships.
         skill="allium-entrypoint",
         route_when="write or check a behavioural spec",
+        nix_input="allium-env",
     ),
 }
 

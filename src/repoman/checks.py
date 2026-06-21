@@ -8,6 +8,7 @@ installed, or a lock/manager mismatch — before the sub-doctors even run.
 
 from __future__ import annotations
 
+import os
 import shutil
 import tomllib
 from dataclasses import dataclass
@@ -63,6 +64,27 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
             SelfCheck(f"installed:{m.key}", "ok" if present else "fail",
                       m.command if present else f"{m.command} not on PATH — run repoman-sync")
         )
+
+    # Nix-layer provisioning: an approach-B manager's nix module lives in the
+    # manager's own repo and is pulled in by a presence-gated import that only
+    # fires when the consumer declares that manager's `devenv.yaml` input (R1 —
+    # inputs aren't transitive across a remote module import). checks.py runs
+    # *inside* the shell and can't see devenv.yaml, so each such module signals
+    # input-presence via `REPOMAN_PROVISIONED_<KEY>=1`. A missing signal means
+    # the CLI installed (installed:<key> ok) but its nix module didn't import —
+    # warn (non-fatal) so the gap surfaces early instead of as a confusing
+    # sub-doctor error. Orthogonal to installed:<key> (the venv CLI).
+    for m in managers:
+        if not m.nix_input:
+            continue
+        signalled = os.environ.get(f"REPOMAN_PROVISIONED_{m.key.upper()}") == "1"
+        out.append(SelfCheck(
+            f"provisioned:{m.key}",
+            "ok" if signalled else "warn",
+            "" if signalled
+            else f"{m.key} selected but its nix module isn't imported — add the "
+                 f"'{m.nix_input}' input to devenv.yaml, then `devenv update` + repoman-sync",
+        ))
 
     skill = Path(repo_root) / skills_dir / "repoman" / "SKILL.md"
     out.append(
