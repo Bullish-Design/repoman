@@ -19,6 +19,18 @@ in
     # without it, so provision it whenever "session" is selected.
     packages = [ pkgs.zellij ];
 
+    # zelligate's config defaults are Docker-first (workspace=/workspaces,
+    # state=/workspaces/.zelligate, docker_mode=1). Outside a container those paths
+    # don't exist / aren't writable, so `zelligate doctor` hard-fails (exit 2) on a
+    # plain consumer even though the surface is otherwise fine. Point the workspace +
+    # state at in-repo, writable locations and turn docker-mode off by default. All
+    # `mkDefault` so a consumer actually running the Docker workbench can override.
+    env = {
+      ZELLIGATE_DOCKER_MODE = lib.mkDefault "0";
+      ZELLIGATE_WORKSPACE_DIR = lib.mkDefault config.devenv.root;
+      ZELLIGATE_STATE_DIR = lib.mkDefault "${config.devenv.state}/zelligate";
+    };
+
     tasks = {
       # zelligate owns its own report; `repoman status`/`doctor` aggregate via the CLI.
       "repoman:session:status".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/zelligate list'';

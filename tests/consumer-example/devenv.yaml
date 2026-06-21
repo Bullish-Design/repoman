@@ -9,6 +9,21 @@ inputs:
   repoman:
     url: path:../../modules
     flake: false
+  # Approach-B manager inputs. devenv.yaml inputs are NOT transitive across a remote
+  # module import, so a consumer that selects "doc" must declare docman's repo as an
+  # input (repoman's doc manager module imports it presence-gated). nixpkgs-python is
+  # required because docman's module pins languages.python.version.
+  nixpkgs-python:
+    url: github:cachix/nixpkgs-python
+  docman:
+    url: path:../../../docman
+    flake: false
+  allium-env:
+    url: path:../../../allium-env
+    flake: false
+  mypi-agent:
+    url: path:../../../mypi-agent
+    flake: false
 
 imports:
   - repoman
