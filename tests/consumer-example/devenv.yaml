@@ -18,6 +18,9 @@ inputs:
   docman:
     url: path:../../../docman
     flake: false
+  allium-env:
+    url: path:../../../allium-env
+    flake: false
 
 imports:
   - repoman

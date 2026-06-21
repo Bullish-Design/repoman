@@ -71,4 +71,36 @@ in {
     sub-doctor (repoman-side warning still worth adding for managers whose doctor doesn't — Phase 5).
   - Fixture hygiene: gitignored docman's seeded scaffold (`.docman/ docs/ snippets/ .markdownlint.jsonc
     .typos.toml`) in the consumer-example. Unit suite still 55 passed.
+  - **Negative case verified:** a throwaway consumer selecting `doc` with **no** docman input evals
+    cleanly. This forced a fix: `docman.enable` must be set via `lib.optionalAttrs hasInput { … }`
+    (vanishes at the attrset level when the input is absent), **not** `lib.mkIf (enabled && hasInput)`
+    — `mkIf` alone still registers a definition for the then-undeclared `docman` option and throws
+    "option `docman' does not exist" under strict eval. **This is the canonical approach-B pattern**
+    and must be reused for spec/agent. Committed (`1c30ca4`).
   - **Next:** Phase 3 (spec/allium-env — needs R4 un-gitignore + extraction).
+- **2026-06-21** — **Phase 3 (spec/allium-env) done and verified.**
+  - **R4 was a non-issue:** the asset source trees (`.vendor/allium`, `.skills/allium-cli`,
+    `.skills/allium-entrypoint`, `.agents/prompts`) are all already **tracked** — the audit's
+    git-ignored claim was wrong. Only the install *target* `.agents/skills/allium-entrypoint/` is
+    untracked (correct).
+  - **allium-env (committed + merged to main, `ca88652`):** extracted `modules/allium.nix`
+    (enable default→**false**; the allium CLI derivation, installer script, env, enterShell;
+    asset paths `../…` relative to the module). `devenv.nix` slimmed to `imports = [ ./modules/allium.nix ]`
+    `+ allium.enable = true` + the repo-local editable venv (kept OUT of the module). **Standalone
+    preserved:** `alliman doctor` → 0 after `allium-install-codex-skills`; allium-env's own
+    `tests/consumer-example` still green.
+  - **repoman:** `alliman.nix` rewritten to the canonical approach-B pattern (presence-import
+    `inputs.allium-env + "/modules/allium.nix"`, `optionalAttrs hasInput { allium.enable = mkIf
+    enabled true; allium.cli.enable = mkDefault false; }` — binary fetch off, alliman doesn't need
+    it). consumer-example `devenv.yaml` gained the `allium-env` input.
+  - **Verified in an ISOLATED git consumer** (`/tmp/spec-iso`, managers=["spec"]): installer on
+    PATH (was absent — the core symptom), `alliman install-skills` runs, **`alliman doctor` → 0**.
+    Negative case (spec selected, no allium-env input) evals cleanly.
+  - **Two findings recorded:** (a) git-based inputs (`git+file://`, flake:false) only materialize
+    **committed** files — approach-B modules + their assets must be committed before any git consumer
+    sees them (the `path:` input copies the worktree, which masked this in repoman's consumer-example).
+    (b) allium's installer is **git-root-relative**, so in repoman's *nested* consumer-example it
+    escapes to the repoman repo root; a real (isolated-git) consumer is unaffected. Both are
+    environment facts, not wiring bugs.
+  - **Next:** Phase 4 (agent/mypi — import `pi-agent.nix`, bootstrap=manual_only, telegram off,
+    resolve CLI-shadow), then Phase 5 (repoman R1 doctor warnings) + Phase 6 (tests).

@@ -11,3 +11,5 @@ docs/
 snippets/
 .markdownlint.jsonc
 .typos.toml
+.docman/site/
+.docman/.cache/
