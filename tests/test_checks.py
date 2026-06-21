@@ -187,6 +187,41 @@ def test_no_provisioned_row_for_approach_a_manager(tmp_path, monkeypatch):
     assert "provisioned:copy" not in _names(result)
 
 
+# --- full-roster capstone (Phase 6) ----------------------------------------
+
+
+def test_full_roster_self_check_is_green(tmp_path, monkeypatch):
+    """The whole roster, healthy: lock + PATH + provisioning signals → all OK, exit 0.
+
+    Locks in the Phase 1-5 bridge wiring at the unit level: every selected manager
+    is installed (venv CLI) and — for the three approach-B managers — provisioned
+    (nix module imported). The capstone end-to-end re-verify lives in the
+    consumer-example; this guards the self-check shape against regression.
+    """
+    managers = list(REGISTRY.values())
+    lock = _GOOD_LOCK
+    for key in REGISTRY:
+        lock += f'[managers.{key}]\npackage="{key}"\nsource="path:/x"\n'
+    # gitman's native-dep pseudo-entry (resolved off the selected "git").
+    lock += '[managers.git-pyjutsu]\npackage="pyjutsu"\nsource="path:/x"\n'
+    (tmp_path / "repoman.lock").write_text(lock)
+    skill = tmp_path / ".claude/skills" / "repoman" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: repoman\n---\n")
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    for key in ("doc", "spec", "agent"):
+        monkeypatch.setenv(f"REPOMAN_PROVISIONED_{key.upper()}", "1")
+
+    result = run_self_check(managers, str(tmp_path), ".claude/skills")
+    names = _names(result)
+    assert self_check_exit(result) == 0
+    assert all(c.level == "ok" for c in result)
+    # Exactly the three approach-B managers get a provisioned: row, all OK.
+    assert {n for n in names if n.startswith("provisioned:")} == {
+        "provisioned:doc", "provisioned:spec", "provisioned:agent"
+    }
+
+
 # --- devman self-checks ----------------------------------------------------
 
 
