@@ -80,9 +80,12 @@ manager repo's own standalone devenv behavior.
 - [x] **Implementation Phase 3** (approach B): spec/allium-env (module extracted upstream) — verified green
 - [ ] **Phase 4**: agent/mypi (import pi-agent.nix; bootstrap=manual_only, telegram off; CLI-shadow)
 - [ ] **Phase 5**: repoman R1 doctor warnings (selected approach-B manager missing its input)
+      — **kickoff ready:** [`KICKOFF_PHASE5.md`](KICKOFF_PHASE5.md)
 - [ ] **Phase 6**: unit tests + full-roster consumer-example re-verify
 
 > Implementation detail + verification evidence: [`02-implementation.md`](02-implementation.md).
+> Phases 1–4 are **merged to main** (`d3aa73b`); allium-env's `modules/allium.nix` extraction is
+> merged to allium-env main (`ca88652`).
 
 ## Constraints to honor (from the brief)
 
