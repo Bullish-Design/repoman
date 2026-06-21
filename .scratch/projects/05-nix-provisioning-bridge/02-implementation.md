@@ -104,3 +104,23 @@ in {
     environment facts, not wiring bugs.
   - **Next:** Phase 4 (agent/mypi — import `pi-agent.nix`, bootstrap=manual_only, telegram off,
     resolve CLI-shadow), then Phase 5 (repoman R1 doctor warnings) + Phase 6 (tests).
+- **2026-06-21** — **Phase 4 (agent/mypi) done and verified** (user chose the "safe bridge").
+  `mypi.nix` presence-imports `pi-agent.nix` and gates it. Two mypi-specific wrinkles handled:
+  (a) `piAgent.enable` defaults TRUE upstream, so set `= enabled` explicitly (else declaring the
+  input would activate it uninvited); (b) the module's `scripts.mypi`/`secretspec-setup` point at a
+  nix-built mypi — overridden via `mkForce` to the venv CLI (resolves the shadow **and** avoids
+  building the nix CLI). Safe knobs (`mkDefault`): `bootstrap.mode="manual_only"`,
+  `telegram.enable=false`, `showUsageOnEntry=false`, `secrets.enable=false`.
+  **Verified in consumer-example:** node 22 on PATH; `NPM_CONFIG_PREFIX`/`PI_CODING_AGENT_DIR`/
+  `MYPI_AGENT_ROOT` env set; `mypi` resolves to the **venv** bin (shadow resolved). `mypi doctor`:
+  the (i) provisioning errors (`npm_scope_not_project_local`, missing node/npm, `missing_agent_root`,
+  `pi_not_on_path`) are **gone**; only the 3 `mypi sync`-dependent errors remain (settings shim,
+  manifest, pi executable) — the (ii) user-driven part we intentionally don't auto-run. **No
+  side-effects:** no `secretspec.toml`/`devenv.local.yaml` written, no on-entry npm install.
+  - **All 5 (i)-class managers now bridged** (copy, session, doc, spec, agent). `test` is pure-Python
+    (no module). `git` toolchain already bridged (approach A); its only residual is the latent
+    Python-3.13 concern → a doctor warning (Phase 5), not a forced pin.
+  - **Remaining:** Phase 5 (repoman-side R1 warning when a selected approach-B manager's input/
+    provisioning is absent — partly self-served already by docman's/alliman's own doctors, so lower
+    value; needs the nix modules to signal input-presence to the Python layer) + Phase 6 (unit tests
+    + full-roster re-verify).

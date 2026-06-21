@@ -21,6 +21,9 @@ inputs:
   allium-env:
     url: path:../../../allium-env
     flake: false
+  mypi-agent:
+    url: path:../../../mypi-agent
+    flake: false
 
 imports:
   - repoman
