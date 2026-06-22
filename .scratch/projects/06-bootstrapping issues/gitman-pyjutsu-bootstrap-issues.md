@@ -290,15 +290,31 @@ providing pyjutsu + Rust/maturin but **no `jj` binary** — the citegeist condit
    gives both recipes explicitly (existing-history → `init --colocate` + `start`; fresh/empty →
    `init --colocate` + `seed`).
 
-### New observation (separate gitman follow-up, found 2026-06-22)
+### Follow-up A — colocated git not exported after mutations — ✅ FIXED (gitman `18c7b19`)
 
-`gitman land` advances the **jj** trunk bookmark (`tx.set_bookmark(trunk, lane)`) but does **not**
-call `git_export()` — only `do_seed` exports. So after a land the colocated git `refs/heads/<trunk>`
-lags jj's trunk, and a `git push <trunk>` pushes the stale ref. Worked around here by running
-`ws.git_export()` before pushing. Either gitman's `land` should export trunk to the colocated git
-(consistent with `seed`), or this is intentional for a publish-lane/PR-merge model — worth a decision
-in gitman. Not a bootstrap issue; logged here for traceability.
+`gitman land` (and `save`/`start`) advanced the **jj** trunk/lane bookmarks but never called
+`git_export()` — only `do_seed` did. So after a land the colocated git `refs/heads/<trunk>` (and
+HEAD) lagged jj, and a plain `git push <trunk>` shipped a stale ref. **Fixed** by centralizing the
+export in the `canonical_tx` / `canonical_guard` wrappers (the choke point every mutating intent runs
+through), matching the jj CLI which exports after every op. Best-effort like jj: a partial export
+failure (a branch rewound by `undo`, diverged from its git ref → "failed to export some bookmarks")
+is swallowed rather than aborting the already-committed intent. Covered by
+`tests/test_colocated_git_sync.py`; verified end-to-end (`land` then a plain `git push` ships the
+landed commit, no manual export).
 
-**Project status: CLOSED.** The two gitman polish items are done + pushed; item 1 (pyjutsu version
-string) is deferred to the in-flight jj-lib 0.42 port; the `land` export observation is a separate
-gitman follow-up.
+### Follow-up B — `gitman start` after a `land` diverges from the pushed trunk (open gitman bug)
+
+Found while dogfooding the above. After `land` leaves the trunk bookmark on `@` (or its parent),
+editing files then `gitman start <lane>` did **not** stack a clean lane on the just-landed trunk —
+it rebuilt a fresh commit off the **pre-land parent**, folding the new work in and producing a commit
+that is a *sibling* of the landed/pushed commit (shared grandparent), not a child. Net effect: trunk
+silently diverged from `origin/main`, and the lane showed `+0 −0`. This is the same family as the
+original **Issue 6** "start folds into trunk" symptom, resurfacing in the post-`land` state.
+**Recovered** by resetting jj trunk to the pushed commit at the git level (git is the durable store:
+`refs/heads/main` was correct), committing the held-aside change on top, pushing fast-forward, and
+re-adopting `.jj` via pyjutsu. Worth a proper fix + regression test in gitman (start must stack on the
+current trunk after a land). Not a bootstrap issue; logged for traceability.
+
+**Project status: CLOSED.** Two gitman polish items + Follow-up A are done and pushed (gitman
+`18c7b19`, linear history `colocate → export-fix`). Open: pyjutsu version string (deferred to the
+in-flight jj-lib 0.42 port) and Follow-up B (start-after-land divergence).
