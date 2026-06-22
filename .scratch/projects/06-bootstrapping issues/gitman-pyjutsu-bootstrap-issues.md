@@ -320,10 +320,14 @@ current trunk after a land). Not a bootstrap issue; logged for traceability.
 Surfaced while re-adopting `.jj` after the recovery, with the **in-flight pyjutsu 0.42** build (the
 0.38 build never showed any of this — the repo was canonical). Three linked observations:
 
-1. **0.42 adopt imports git *tags* as visible heads.** The repo has a `v0.2.0` tag pointing at an
-   **off-main** commit (`c2a8443` "Bump version to 0.2.0" — the 0.2.0 release commit was rebased out
-   of main's line at some point). pyjutsu 0.38's adopt didn't surface it; 0.42's does, so `c2a8443`
-   becomes a `(trunk..)` stray → `gitman status` OFF-CANONICAL on an otherwise-clean repo.
+1. **A fresh adopt imports git *tags* as visible heads (jj-standard — NOT a 0.42 regression).** The
+   repo has a `v0.2.0` tag pointing at an **off-main** commit (`c2a8443` "Bump version to 0.2.0" — the
+   0.2.0 release commit was rebased out of main's line at some point). `adopt_existing_git` calls
+   jj-lib's `git::import_refs` (the same import `jj git import` runs), which imports tags; the tagged
+   commit stays reachable → a visible head → a `(trunk..)` stray → `gitman status` OFF-CANONICAL on an
+   otherwise-clean repo. *(Earlier framing said "0.38 didn't, 0.42 does" — that was wrong: no fresh
+   0.38 adopt was tested. The long-lived `.jj` that read as canonical simply predated those tags. The
+   0.42 build was incidental.)*
 2. **Divergent change-id.** That off-main `c2a8443` shares jj change-id `poosovxy` with an **on-main**
    commit (`c90ef6c` "Pyjutsu bootstrap fixes") — a historical rewrite jj recorded as one divergent
    change. `gitman reconcile` abandons/adopts a stray **by change-id** (`tx.abandon(change.change_id)`),
@@ -335,10 +339,14 @@ Surfaced while re-adopting `.jj` after the recovery, with the **in-flight pyjuts
 
 **Recovered** by abandoning the off-main stray **by commit-id** (`tx.abandon("c2a8443…")` — unambiguous,
 sidesteps the divergent change-id), which jj allows where the change-id form fails → CANONICAL again.
-**Suggested gitman fix:** `reconcile` should handle divergent strays — target the specific commit-id
-rather than the change-id (or skip/flag divergent changes) so an off-canonical repo is always
-recoverable. **Suggested pyjutsu fix:** revisit whether 0.42's adopt should import tags as visible
-heads (0.38 didn't), and whether `.jj` deletion should also prune `refs/jj/keep/*`.
+**Suggested gitman fix:** (a) exclude tagged commits from the stray revset (`~ ::tags()`) — a release
+tag is not "work edited outside Gitman"; (b) make `reconcile` target the specific commit-id rather
+than the shared change-id so a divergent stray is always recoverable. **Suggested pyjutsu fix:** prune
+orphaned `refs/jj/keep/*` on adopt (they survive `.jj` deletion); the tag import itself is jj-standard,
+so decide whether the bootstrap-adopt should offer a tag-conservative mode rather than change the
+default. **Detailed analysis reports filed in each repo:**
+`gitman/.scratch/projects/06-stray-tags-and-divergent-reconcile/issue-overview.md` and
+`Pyjutsu/.scratch/projects/10-adopt-tag-visibility-and-keep-refs/issue-overview.md`.
 
 **Project status: CLOSED.** Two gitman polish items + Follow-up A are done and pushed (gitman
 `18c7b19`, linear `colocate → export-fix`); gitman's local `.jj` was recovered to CANONICAL/HEALTHY,
