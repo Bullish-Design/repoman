@@ -274,16 +274,31 @@ providing pyjutsu + Rust/maturin but **no `jj` binary** — the citegeist condit
 | Existing `.git` **with** history | `pyjutsu adopt` → `gitman init` → `gitman start <lane>` (adopts the WIP) → `save`/`land` |
 | Fresh/empty `.git` (no commits) | `pyjutsu adopt` → `gitman init` → `gitman seed -m "…"` → normal flow |
 
-### Residual polish (optional, non-blocking)
+### Residual polish
 
 1. **pyjutsu Python version string** — `__version__` still reports `0.7.0`; the `0.7.1` bump touched
    only `Cargo.toml`. Sync the Python package version (cosmetic; the compiled fix is present).
-2. **gitman bootstrap UX** — `gitman init` still requires the manual
-   `python -c "from pyjutsu import Workspace; Workspace.init('.', colocate=True)"` one-liner first
-   (it detects the non-colocated state and prints that exact command). A `gitman init --colocate` that
-   runs the pyjutsu adopt for you would make it a true one-command bootstrap. Design choice, not a bug.
-3. **gitman skill docs** — fold the two recipes above into the gitman skill so agents pick the right
-   path (init-only vs seed) without rediscovering it.
+   **Deferred** — pyjutsu's working tree is mid-port to **jj-lib 0.42** (the version bump belongs with
+   that effort); left untouched on purpose.
+2. **gitman bootstrap UX** — ✅ **done (2026-06-22, gitman `856133e`).** `gitman init --colocate`
+   now runs the pyjutsu adopt itself (`ensure_colocated()` — adopts an existing `.git` or creates one,
+   idempotent) so bootstrap is a single command. The not-colocated errors (`session.load`, `do_init`)
+   now point at `--colocate`. Covered by `tests/test_colocate_init.py` (5 cases). Smoke-tested
+   end-to-end: `gitman init --colocate --trunk main` on an existing repo → INITIALIZED, doctor HEALTHY,
+   `gitman start` adopts the WIP.
+3. **gitman skill docs** — ✅ **done (same commit).** `SKILL.md`'s "Bootstrapping a repo" section now
+   gives both recipes explicitly (existing-history → `init --colocate` + `start`; fresh/empty →
+   `init --colocate` + `seed`).
 
-**Project status: CLOSED.** No blocking work remains; the three items above are cosmetic/UX polish for
-the owning repos.
+### New observation (separate gitman follow-up, found 2026-06-22)
+
+`gitman land` advances the **jj** trunk bookmark (`tx.set_bookmark(trunk, lane)`) but does **not**
+call `git_export()` — only `do_seed` exports. So after a land the colocated git `refs/heads/<trunk>`
+lags jj's trunk, and a `git push <trunk>` pushes the stale ref. Worked around here by running
+`ws.git_export()` before pushing. Either gitman's `land` should export trunk to the colocated git
+(consistent with `seed`), or this is intentional for a publish-lane/PR-merge model — worth a decision
+in gitman. Not a bootstrap issue; logged here for traceability.
+
+**Project status: CLOSED.** The two gitman polish items are done + pushed; item 1 (pyjutsu version
+string) is deferred to the in-flight jj-lib 0.42 port; the `land` export observation is a separate
+gitman follow-up.
