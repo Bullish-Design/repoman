@@ -1,8 +1,14 @@
-# Guide 01 — Make `zelligate doctor` honour the family exit contract
+# Guide 01 — Make `zelligate doctor` honour the family exit contract — **DONE ✅**
 
-**Target repo: `zelligate` (`/home/andrew/Documents/Projects/zelligate`).** This is an upstream fix,
-not a repoman edit. Copy this guide into zelligate's scratch (e.g.
-`.scratch/projects/04-doctor-exit-code/`) and implement against the live `src/zelligate/cli.py`.
+**Status: DONE & verified (2026-06-25).** Implemented in `zelligate` (`eae7ac4`, released v0.3.0)
+exactly to this guide: `_state_writable()` + `_doctor_exit_code()` helpers, and `typer.Exit(exit_code)`
+on all three paths (`--quick`, `--json`, rich), plus the optional `"exit_code"` field in the JSON
+report. Verified live: a degraded workspace (`ZELLIGATE_WORKSPACE_DIR=/nonexistent`) exits **2** on
+all three paths; the happy path stays `0`; 20 doctor tests pass. RepoMan needed no code change —
+`repoman doctor`'s aggregate now propagates a degraded session as `2`.
+
+**Target repo: `zelligate` (`/home/andrew/Documents/Projects/zelligate`).** This was an upstream fix,
+not a repoman edit. (Original guide retained below as the implementation record.)
 
 **Goal:** make `zelligate doctor` (and `zelligate doctor --json`) **exit non-zero when the session
 surface is degraded**, under the `*man`-family `0/1/2/3` contract — so RepoMan's `repoman doctor`,

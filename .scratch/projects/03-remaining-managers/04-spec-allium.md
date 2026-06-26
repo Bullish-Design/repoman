@@ -1,9 +1,12 @@
-# Guide 04 — Wire the `spec` manager (allium-env / alliman) — **BLOCKED**
+# Guide 04 — Wire the `spec` manager (allium-env / alliman) — **DONE ✅**
 
-**Status: BLOCKED on allium-env's `02-cli-conductor-alignment` project, and carries a required
-registry fix.** Unlike the other three, `spec` has a **wrong `command` in the registry today**
-(`allium`, which collides with a third-party binary). This guide writes the repoman side in full,
-names the prerequisite, and carries the exact registry command-name edit.
+**Status: DONE & verified (2026-06-25).** allium-env's `02-cli-conductor-alignment` shipped the
+`alliman` CLI (`e0a0d5f`) with a family-conforming `doctor` (`typer.Exit(0 if report.ok else 2)`,
+16 tests pass). The required registry fix is applied: `REGISTRY["spec"]` now uses `command="alliman"`
+(not the colliding third-party `allium` binary) and `skill="allium-entrypoint"` (the dir allium-env
+actually installs). Verified live: the consumer-example `repoman doctor` runs the `spec` sub-doctor
+and the aggregate exits `2` when alliman's assets aren't installed. The original spec below is
+retained as the (now-satisfied) prerequisite record.
 
 ## Prerequisite / blocked-on (read this first)
 

@@ -1,13 +1,24 @@
 # 04 — Unblocking RepoMan's remaining managers (upstream follow-ups)
 
-RepoMan now wires six managers (`copy`, `git`, `test`, **`session`**, **`agent`**, **`doc`** —
-`session`/`agent` landed via `03-remaining-managers`; **`doc`→docman** landed via follow-up item 2
-below and was verified end-to-end 2026-06-25). Of the three **upstream** (sibling-repo) follow-ups
-this directory coordinates, **item 2 (docman) is DONE**; two remain before the conductor's coverage
-is complete and clean — the zelligate doctor exit-code fix and the alliman family CLI. This
-directory is the **coordination hub** for that work: it carries the one guide that didn't exist yet
-(the zelligate doctor exit-code fix) and points at the two sibling alignment guides that already
-live in their own repos.
+RepoMan now wires seven managers (`copy`, `git`, `test`, **`session`**, **`agent`**, **`doc`**,
+**`spec`**) and **all three upstream follow-ups this directory coordinates are DONE** (verified
+2026-06-25). The conductor's manager coverage is complete and clean. This directory remains the
+historical **coordination hub** for that work: it carried the one guide that didn't exist elsewhere
+(the zelligate doctor exit-code fix) and pointed at the two sibling alignment guides that live in
+their own repos.
+
+**Closure summary (all verified 2026-06-25):**
+
+- **Item 1 — zelligate doctor exit-code fix:** landed in `zelligate` (`eae7ac4`, v0.3.0). Degraded
+  workspace now exits **2** on all three paths (rich / `--json` / `--quick`); happy path stays `0`;
+  20 doctor tests pass. `repoman doctor`'s aggregate propagates it (no repoman code change needed).
+- **Item 2 — docman family CLI:** docman CLI shipped 2026-06-20; repoman `doc` wired + verified
+  end-to-end (see `03-remaining-managers/03-doc-docman.md`).
+- **Item 3 — alliman family CLI:** landed in `allium-env` (`e0a0d5f`). `alliman doctor` honours the
+  0/2 contract (`typer.Exit(0 if report.ok else 2)`); 16 tests pass. repoman's `spec` registry
+  entry carries the command/skill fix (`command="alliman"`, `skill="allium-entrypoint"`). The live
+  consumer-example `repoman doctor` runs the `spec` sub-doctor and the aggregate exits **2** when
+  alliman's assets aren't installed.
 
 Each item is implemented by editing a **sibling repo**, not repoman. Where repoman itself needs a
 finishing edit afterwards, that's the already-written wiring guide in
@@ -17,9 +28,9 @@ finishing edit afterwards, that's the already-written wiring guide in
 
 | # | Item | Target repo | Guide | Unblocks | Status |
 |---|---|---|---|---|---|
-| 1 | **zelligate `doctor` exit-code fix** | `zelligate` | [`01-zelligate-doctor-exit-code.md`](01-zelligate-doctor-exit-code.md) **(new, here)** | closes the "degraded session reports green" gap (repoman guide 01 §Risks) | **ready — guide in this dir** |
+| 1 | **zelligate `doctor` exit-code fix** | `zelligate` | [`01-zelligate-doctor-exit-code.md`](01-zelligate-doctor-exit-code.md) **(new, here)** | closes the "degraded session reports green" gap (repoman guide 01 §Risks) | **DONE ✅** — landed `eae7ac4` (v0.3.0); degraded→2 all paths, verified 2026-06-25 |
 | 2 | **docman family CLI** (`docman doctor`) | `docman` | `docman/.scratch/projects/02-cli-conductor-alignment/01-docman-cli.md` **(already exists)** | repoman `doc` manager — `03-remaining-managers/03-doc-docman.md` | **DONE ✅** — docman CLI shipped 2026-06-20; repoman `doc` wired + verified end-to-end 2026-06-25 |
-| 3 | **alliman family CLI** (`alliman doctor`) | `allium-env` | `allium-env/.scratch/projects/02-cli-conductor-alignment/01-alliman-cli.md` **(already exists)** | repoman `spec` manager — `03-remaining-managers/04-spec-allium.md` (+ registry `command` fix) | **spec'd in target repo; not yet implemented** |
+| 3 | **alliman family CLI** (`alliman doctor`) | `allium-env` | `allium-env/.scratch/projects/02-cli-conductor-alignment/01-alliman-cli.md` **(already exists)** | repoman `spec` manager — `03-remaining-managers/04-spec-allium.md` (+ registry `command` fix) | **DONE ✅** — landed `e0a0d5f`; 0/2 contract, registry command/skill fix applied, verified 2026-06-25 |
 
 > **Why only one new guide here.** Items 2 and 3 already have detailed, code-grounded
 > implementation guides **in their own repos** (`02-cli-conductor-alignment/` in each, with a
