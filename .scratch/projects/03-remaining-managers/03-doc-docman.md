@@ -1,9 +1,33 @@
-# Guide 03 — Wire the `doc` manager (docman) — **BLOCKED**
+# Guide 03 — Wire the `doc` manager (docman) — **DONE ✅**
 
-**Status: BLOCKED on docman's `02-cli-conductor-alignment` project.** The repoman side is trivial
-composition (mirrors guides 01/02), but it cannot land until docman ships a `docman` console command
-with a conforming `doctor`. This guide writes the repoman side in full *and* names the exact
-prerequisite so it's a finish-the-last-mile job once the sibling project lands.
+**Status: DONE & verified end-to-end (2026-06-25).** The blocking prerequisite —
+docman's `02-cli-conductor-alignment` project — shipped a conforming `docman` Typer CLI +
+Pydantic `doctor` on 2026-06-20 17:04. The repoman side landed the same day: `57d6fe7`
+(*Wire the doc (docman) and spec (alliman) managers*), refined by `1c30ca4` (nix-layer
+provisioning bridge) and `a494e91` (phase-5: doctor warns when an approach-B input is
+missing). Registry, `modules/managers/docman.nix`, the consumer lock/inputs, `checks.py`,
+and the unit tests are all in place and green.
+
+**Live verification (2026-06-25, `tests/consumer-example` cold build, full roster):**
+
+- `repoman doctor` self-check: `OK lock:doc` · `OK installed:doc — docman` ·
+  **`OK provisioned:doc`** (approach-B signal `REPOMAN_PROVISIONED_DOC=1` + the `docman` /
+  `nixpkgs-python` inputs declared).
+- `=== doc (docman) ===` sub-doctor invokes the real venv `docman doctor` and returns an
+  all-OK Pydantic report (zensical 0.0.45, python 3.13.13, lychee/markdownlint/typos/
+  mdformat/ghp-import, config, site-gitignored, input declarations).
+- Exit contract confirmed: `docman doctor` exits **0** healthy; deleting
+  `.docman/zensical.toml` *after* shell entry (so docman's `docs-init` re-seed doesn't mask
+  it) yields **`FAIL config — missing`** and exit **2**. Config self-heals on next entry.
+
+The original spec below is retained as the (now-satisfied) prerequisite record.
+
+---
+
+The repoman side was trivial composition (mirrors guides 01/02); it could not land until
+docman shipped a `docman` console command with a conforming `doctor`. This guide wrote the
+repoman side in full *and* named the exact prerequisite so it was a finish-the-last-mile job
+once the sibling project landed — which it now has.
 
 ## Prerequisite / blocked-on (read this first)
 

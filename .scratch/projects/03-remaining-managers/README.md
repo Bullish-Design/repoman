@@ -16,7 +16,7 @@ and in each guide.
 |---|---|---|---|---|---|---|
 | `session` | `zelligate` | `zelligate` ✓ | `doctor`, `status=["list"]` | **Real CLI** — `src/zelligate/cli.py`: `doctor` (`--quick`/`--json`) + `list` (`--json`) | `pkgs.zellij` | **READY** — concrete guide (one doctor exit-code gap, non-blocking) |
 | `agent` | `mypi-agent` | `mypi` ✓ | `doctor`, `status=["paths"]` | **Real CLI** — `src/mypi_agent/cli.py`: `doctor` (`--json`, exit 0/1) + `paths` (`--json`) | `pkgs.secretspec` | **READY** — concrete guide |
-| `doc` | `docman` | `docman` ✓ | `doctor` (no status) | **No CLI** — `modules/docman.nix` + `scripts/docs-*.sh`; **no `pyproject.toml` at all** | docs toolchain (already in docman's module) | **BLOCKED** on docman `02-cli-conductor-alignment` |
+| `doc` | `docman` | `docman` ✓ | `doctor` (no status) | **Real CLI** — `src/docman/cli.py`: `docman doctor` (Pydantic report, `--json`, exit 0/2) wrapping the `docs-*.sh` engine | docs toolchain (already in docman's module) | **DONE ✅** — wired `57d6fe7`, verified end-to-end 2026-06-25 |
 | `spec` | `allium-env` | `allium` ⚠️ | `doctor` (no status) | **No CLI** — `pyproject.toml` still `name = "template-py"` | the `alliman` CLI (the `allium` *binary* is third-party `juxt/allium-tools`, already on PATH) | **BLOCKED** on allium-env `02-cli-conductor-alignment` + **registry command fix** |
 
 ### Drift from the kickoff findings (confirmed against the live repos)

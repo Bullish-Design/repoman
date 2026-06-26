@@ -1,10 +1,13 @@
 # 04 — Unblocking RepoMan's remaining managers (upstream follow-ups)
 
-RepoMan now wires five managers (`copy`, `git`, `test`, **`session`**, **`agent`** — the last two
-landed via `03-remaining-managers`). Three pieces of **upstream** (sibling-repo) work remain before
-the conductor's coverage is complete and clean. This directory is the **coordination hub** for that
-work: it carries the one guide that didn't exist yet (the zelligate doctor exit-code fix) and points
-at the two sibling alignment guides that already live in their own repos.
+RepoMan now wires six managers (`copy`, `git`, `test`, **`session`**, **`agent`**, **`doc`** —
+`session`/`agent` landed via `03-remaining-managers`; **`doc`→docman** landed via follow-up item 2
+below and was verified end-to-end 2026-06-25). Of the three **upstream** (sibling-repo) follow-ups
+this directory coordinates, **item 2 (docman) is DONE**; two remain before the conductor's coverage
+is complete and clean — the zelligate doctor exit-code fix and the alliman family CLI. This
+directory is the **coordination hub** for that work: it carries the one guide that didn't exist yet
+(the zelligate doctor exit-code fix) and points at the two sibling alignment guides that already
+live in their own repos.
 
 Each item is implemented by editing a **sibling repo**, not repoman. Where repoman itself needs a
 finishing edit afterwards, that's the already-written wiring guide in
@@ -15,7 +18,7 @@ finishing edit afterwards, that's the already-written wiring guide in
 | # | Item | Target repo | Guide | Unblocks | Status |
 |---|---|---|---|---|---|
 | 1 | **zelligate `doctor` exit-code fix** | `zelligate` | [`01-zelligate-doctor-exit-code.md`](01-zelligate-doctor-exit-code.md) **(new, here)** | closes the "degraded session reports green" gap (repoman guide 01 §Risks) | **ready — guide in this dir** |
-| 2 | **docman family CLI** (`docman doctor`) | `docman` | `docman/.scratch/projects/02-cli-conductor-alignment/01-docman-cli.md` **(already exists)** | repoman `doc` manager — `03-remaining-managers/03-doc-docman.md` | **spec'd in target repo; not yet implemented** |
+| 2 | **docman family CLI** (`docman doctor`) | `docman` | `docman/.scratch/projects/02-cli-conductor-alignment/01-docman-cli.md` **(already exists)** | repoman `doc` manager — `03-remaining-managers/03-doc-docman.md` | **DONE ✅** — docman CLI shipped 2026-06-20; repoman `doc` wired + verified end-to-end 2026-06-25 |
 | 3 | **alliman family CLI** (`alliman doctor`) | `allium-env` | `allium-env/.scratch/projects/02-cli-conductor-alignment/01-alliman-cli.md` **(already exists)** | repoman `spec` manager — `03-remaining-managers/04-spec-allium.md` (+ registry `command` fix) | **spec'd in target repo; not yet implemented** |
 
 > **Why only one new guide here.** Items 2 and 3 already have detailed, code-grounded
