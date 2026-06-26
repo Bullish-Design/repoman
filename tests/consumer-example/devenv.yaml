@@ -24,6 +24,12 @@ inputs:
   mypi-agent:
     url: path:../../../mypi-agent
     flake: false
+  # vendomat is a real flake input (default flake: true): its module reads
+  # inputs.vendomat.packages.<system>.wheelhouse to point UV_FIND_LINKS at the
+  # prebuilt pyjutsu wheel, so the wheel: source in repoman.lock resolves.
+  vendomat:
+    url: path:../../../vendomat
 
 imports:
   - repoman
+  - vendomat/modules
