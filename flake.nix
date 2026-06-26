@@ -21,9 +21,14 @@
             version = "0.1.0";
             src = self;
             pyproject = true;
+            build-system = with pkgs.python312Packages; [
+              setuptools
+              wheel
+            ];
             propagatedBuildInputs = with pkgs.python312Packages; [
               pydantic
               typer
+              jinja2
               pyyaml
               tomli
               aiofiles
