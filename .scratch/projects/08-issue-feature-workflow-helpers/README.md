@@ -26,10 +26,11 @@ nothing keeping them linked; `foreman` is that front door.
 3. **[`CONCEPT.md`](CONCEPT.md)** — the settled design (leaf-vs-tree + promotion,
    composition stack, vault↔repo field-ownership coherence, borrowed muse/loci-core
    conventions, one-package/two-profile architecture). §9 = locked decisions.
-4. **[`KICKOFF.md`](KICKOFF.md)** — the paste-into-fresh-session prompt for **Phase
-   1 (skills-only)**.
+4. **[`KICKOFF.md`](KICKOFF.md)** — the Phase-1 (skills-only) orchestration packet.
 5. **[`01-phase1-skills-only.md`](01-phase1-skills-only.md)** — the code-grounded
    implementation guide for Phase 1.
+6. **[`KICKOFF_PROMPT.md`](KICKOFF_PROMPT.md)** — the paste-into-a-clean-session
+   prompt to start Phase 1.
 
 ## Status
 
