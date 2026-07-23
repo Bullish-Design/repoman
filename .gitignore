@@ -207,3 +207,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Transient Claude Code runtime lock (machine-local)
+.claude/scheduled_tasks.lock
