@@ -1,5 +1,16 @@
 # 02 — devman module (devenv-literacy layer)
 
+> **STATUS: SHIPPED (2026-06-20).** The brainstorm below is now real code in this
+> repo: `src/repoman/devman/` (`assets.py`, `check.py`, `install.py`) + package-data
+> under `devman/assets/{skills,docs,articles}/`, wired into the conductor at
+> `src/repoman/cli.py` (`devman_checks` in `doctor`, `install_devman` in
+> `install-skills`) and covered by `tests/test_devman.py`. The docs export lands in
+> `REPOMAN_DOCS_DIR` (`modules/devenv.nix`). Open questions from the brainstorm
+> were settled: name kept as **`devman`**; self-check strictness is **warn**
+> (non-fatal, `checks.py`); the richer hook surface was deferred as YAGNI.
+>
+> This section below is kept as the historical record of the concept.
+
 Brainstorm + plan for **devman**: a subsystem **inside the repoman repo** (not a separate
 repo) that ships the devenv-literacy assets — agent **skills**, a distilled **documentation
 export**, and **articles/recipes** — that make Claude Code agents use `devenv.sh`-managed repos
@@ -34,6 +45,6 @@ import — and there is **no single place that teaches the rules**. devman is th
 
 ## Status
 
-Brainstorm. Scope and form are settling toward "a repoman subsystem"; the content set and the
-exact wiring (asset layout, sync step, self-check extension) are the things to lock before an
-implementation project.
+**SHIPPED** — see the note at the top of this file for where the code lives and how
+it's wired. The original brainstorm questions are resolved (name `devman`, warn-level
+self-check, hook surface deferred).

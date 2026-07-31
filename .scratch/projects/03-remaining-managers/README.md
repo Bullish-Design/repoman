@@ -1,5 +1,10 @@
 # 03 — Implementation guides for RepoMan's four remaining managers
 
+> **STATUS: CLOSED (2026-06-25).** All four guides below were implemented and
+> verified; the current roster wires all seven keys (see `04-unblock-remaining-managers/`
+> for the closure summary). This directory remains the historical per-manager
+> implementation guides.
+
 RepoMan wires three managers today (`copy`→copyroom, `git`→gitman, `test`→testee) and the devman
 literacy subsystem is complete. **Four keys remain** in the registry with no manager module and no
 lock entry: `session`, `agent`, `doc`, `spec`. This directory holds one self-contained,
@@ -15,7 +20,7 @@ and in each guide.
 | Key | Lib (sibling repo) | Registry `command` | Verbs repoman calls | CLI today | System deps | Status |
 |---|---|---|---|---|---|---|
 | `session` | `zelligate` | `zelligate` ✓ | `doctor`, `status=["list"]` | **Real CLI** — `src/zelligate/cli.py`: `doctor` (`--quick`/`--json`, exit 0/2) + `list` (`--json`) | `pkgs.zellij` | **DONE ✅** — wired; doctor exit-code gap closed (zelligate `eae7ac4`), verified 2026-06-25 |
-| `agent` | `mypi-agent` | `mypi` ✓ | `doctor`, `status=["paths"]` | **Real CLI** — `src/mypi_agent/cli.py`: `doctor` (`--json`, exit 0/1) + `paths` (`--json`) | `pkgs.secretspec` | **READY** — concrete guide |
+| `agent` | `mypi-agent` | `mypi` ✓ | `doctor`, `status=["paths"]` | **Real CLI** — `src/mypi_agent/cli.py`: `doctor` (`--json`, exit 0/1) + `paths` (`--json`) | `pkgs.secretspec` | **DONE ✅** — wired; verified 2026-06-25 (guide 02) |
 | `doc` | `docman` | `docman` ✓ | `doctor` (no status) | **Real CLI** — `src/docman/cli.py`: `docman doctor` (Pydantic report, `--json`, exit 0/2) wrapping the `docs-*.sh` engine | docs toolchain (already in docman's module) | **DONE ✅** — wired `57d6fe7`, verified end-to-end 2026-06-25 |
 | `spec` | `allium-env` | `alliman` ✓ | `doctor` (no status) | **Real CLI** — `src/alliman/cli.py`: `alliman doctor` (Pydantic report, `--json`, exit 0/2) + `install-skills` + `init` | the `alliman` CLI (the `allium` *binary* is third-party `juxt/allium-tools`, already on PATH) | **DONE ✅** — landed `e0a0d5f`; registry command/skill fix applied, verified 2026-06-25 |
 

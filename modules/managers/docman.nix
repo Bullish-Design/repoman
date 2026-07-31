@@ -13,7 +13,7 @@
 # *activated* (`docman.enable = true`) only when "doc" is also selected. A consumer
 # that selects "doc" but hasn't declared the input still gets the doctor task wired;
 # `repoman doctor` warns that the nix provisioning is absent (see checks.py).
-{ inputs, lib, config, ... }:
+{ inputs ? {}, lib, config, ... }:
 
 let
   cfg = config.repoman;

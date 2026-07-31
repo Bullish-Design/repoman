@@ -88,7 +88,9 @@ in
       exec = ''exec ${pkgs.bash}/bin/bash ${./scripts/repoman-sync.sh}'';
     };
 
-    enterShell = lib.optionalString cfg.enable ''
+    # (This whole block is inside `config = lib.mkIf cfg.enable`, so no inner
+    # enable guard is needed — the optionalString below only pads a constant.)
+    enterShell = ''
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " cfg.managers}"
       fi

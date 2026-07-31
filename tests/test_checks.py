@@ -38,18 +38,36 @@ def test_missing_self_entry_warns(tmp_path):
 
 def test_native_pseudo_entry_satisfies_base_manager(tmp_path, monkeypatch):
     # git-pyjutsu pseudo-entry counts for the git manager (guide 1).
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.git-pyjutsu]\npackage="pyjutsu"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.git-pyjutsu]\npackage="pyjutsu"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:git"].level == "ok"
 
 
-def test_session_lock_and_installed_ok(tmp_path, monkeypatch):
+def test_pseudo_entry_must_match_base_manager_exactly(tmp_path, monkeypatch):
+    # "gitx-pyjutsu" splits to base "gitx", which must NOT satisfy the "git"
+    # manager — only an exact base match counts (the positive case above).
     (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.session]\npackage="zelligate"\nsource="path:/x"\n'
+        _GOOD_LOCK + '[managers.gitx-pyjutsu]\npackage="pyjutsu"\nsource="path:/x"\n'
     )
+    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
+    result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["lock:git"].level == "fail"
+
+
+def test_self_check_exit_unknown_level_falls_back_to_2():
+    # A level outside ok/warn/fail maps to fail (2), never silently 0 — a future
+    # level that forgets the mapping can't hide a broken wiring.
+    assert self_check_exit([checks.SelfCheck("x", "??")]) == 2
+
+
+def test_format_self_check_unknown_level_is_question_marked():
+    formatted = checks.format_self_check([checks.SelfCheck("x", "??", "detail")])
+    assert "? x — detail" in formatted
+
+
+def test_session_lock_and_installed_ok(tmp_path, monkeypatch):
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.session]\npackage="zelligate"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["session"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:session"].level == "ok"
@@ -59,9 +77,7 @@ def test_session_lock_and_installed_ok(tmp_path, monkeypatch):
 def test_agent_lock_and_installed_ok(tmp_path, monkeypatch):
     # agent's lock key/package/command mismatch: key "agent", package "mypi-agent",
     # command "mypi". installed:agent checks shutil.which("mypi") — the command.
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.agent]\npackage="mypi-agent"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.agent]\npackage="mypi-agent"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["agent"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:agent"].level == "ok"
@@ -69,9 +85,7 @@ def test_agent_lock_and_installed_ok(tmp_path, monkeypatch):
 
 
 def test_doc_lock_and_installed_ok(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:doc"].level == "ok"
@@ -81,9 +95,7 @@ def test_doc_lock_and_installed_ok(tmp_path, monkeypatch):
 def test_spec_lock_and_installed_ok(tmp_path, monkeypatch):
     # spec's command is "alliman" (not the 3rd-party "allium"); installed:spec checks
     # shutil.which("alliman").
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.spec]\npackage="alliman"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.spec]\npackage="alliman"\nsource="path:/x"\n')
     seen = {}
     monkeypatch.setattr(checks.shutil, "which", lambda c: seen.setdefault(c, "/usr/bin/" + c))
     result = run_self_check([REGISTRY["spec"]], str(tmp_path), ".claude/skills")
@@ -93,9 +105,7 @@ def test_spec_lock_and_installed_ok(tmp_path, monkeypatch):
 
 
 def test_uninstalled_manager_fails(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda _c: None)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     inst = _names(result)["installed:test"]
@@ -104,18 +114,14 @@ def test_uninstalled_manager_fails(tmp_path, monkeypatch):
 
 
 def test_entrypoint_skill_missing_warns(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["skill:entrypoint"].level == "warn"
 
 
 def test_healthy_wiring_is_all_ok(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n')
     skill = tmp_path / ".claude/skills" / "repoman" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text("---\nname: repoman\n---\n")
@@ -126,9 +132,7 @@ def test_healthy_wiring_is_all_ok(tmp_path, monkeypatch):
 
 
 def test_sub_skill_without_deferral_warns(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n')
     sub = tmp_path / ".claude/skills" / "testee" / "SKILL.md"
     sub.parent.mkdir(parents=True)
     sub.write_text("---\nname: testee\n---\nNo deferral footer here.\n")
@@ -138,9 +142,7 @@ def test_sub_skill_without_deferral_warns(tmp_path, monkeypatch):
 
 
 def test_sub_skill_with_deferral_ok(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.test]\npackage="testee"\nsource="path:/x"\n')
     sub = tmp_path / ".claude/skills" / "testee" / "SKILL.md"
     sub.parent.mkdir(parents=True)
     sub.write_text("For when to verify vs commit, see the `repoman` skill.\n")
@@ -155,9 +157,7 @@ def test_sub_skill_with_deferral_ok(tmp_path, monkeypatch):
 def test_provisioned_warns_when_input_signal_absent(tmp_path, monkeypatch):
     # doc is approach-B: CLI installed (installed:doc ok) but no REPOMAN_PROVISIONED_DOC
     # → provisioned:doc warns, and warn is non-fatal so the aggregate exit stays 0.
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
     result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
@@ -168,9 +168,7 @@ def test_provisioned_warns_when_input_signal_absent(tmp_path, monkeypatch):
 
 
 def test_provisioned_ok_when_input_signalled(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     monkeypatch.setenv("REPOMAN_PROVISIONED_DOC", "1")
     result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
@@ -179,9 +177,7 @@ def test_provisioned_ok_when_input_signalled(tmp_path, monkeypatch):
 
 def test_no_provisioned_row_for_approach_a_manager(tmp_path, monkeypatch):
     # copy (approach-A, nix_input="") gets no provisioned: row at all.
-    (tmp_path / "repoman.lock").write_text(
-        _GOOD_LOCK + '[managers.copy]\npackage="copyroom"\nsource="path:/x"\n'
-    )
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.copy]\npackage="copyroom"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["copy"]], str(tmp_path), ".claude/skills")
     assert "provisioned:copy" not in _names(result)
@@ -218,7 +214,9 @@ def test_full_roster_self_check_is_green(tmp_path, monkeypatch):
     assert all(c.level == "ok" for c in result)
     # Exactly the three approach-B managers get a provisioned: row, all OK.
     assert {n for n in names if n.startswith("provisioned:")} == {
-        "provisioned:doc", "provisioned:spec", "provisioned:agent"
+        "provisioned:doc",
+        "provisioned:spec",
+        "provisioned:agent",
     }
 
 

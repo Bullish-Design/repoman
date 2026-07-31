@@ -17,7 +17,7 @@
 #   - its `scripts.mypi`/`secretspec-setup` point at a nix-built mypi (version skew vs the
 #     repoman-pinned venv CLI), so we override them to the venv `mypi` — which also avoids
 #     building the nix CLI package at all.
-{ inputs, pkgs, lib, config, ... }:
+{ inputs ? {}, pkgs, lib, config, ... }:
 
 let
   cfg = config.repoman;

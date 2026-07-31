@@ -39,6 +39,16 @@ def test_managers_lists_spec(monkeypatch):
     assert result.exit_code == 0 and "alliman" in result.stdout
 
 
+def test_enabled_drops_unknown_manager_keys(monkeypatch):
+    # Garbage REPOMAN_MANAGERS entries are dropped, not KeyError: the registry is
+    # the trusted filter, so a stale/hand-edited env can't crash the CLI.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "test bogus")
+    result = runner.invoke(app, ["managers"])
+    assert result.exit_code == 0
+    assert "testee" in result.stdout
+    assert "bogus" not in result.stdout
+
+
 def _healthy_repo(tmp_path, monkeypatch, managers):
     """A tmp repo whose lock + PATH satisfy the doctor self-check for ``managers``."""
     lock = '[repoman]\npackage="repoman"\nsource="path:/x"\n'
@@ -85,6 +95,23 @@ def test_doctor_exit_is_worst_of_self_and_sub(monkeypatch, tmp_path):
     result = runner.invoke(app, ["doctor"])
     assert "FAIL installed:test" in result.stdout
     assert result.exit_code == 2
+
+
+def test_doctor_mixed_roster_skips_and_runs(monkeypatch, tmp_path):
+    # copy (no doctor) is skipped AND testee's doctor runs, in one invocation —
+    # both halves of the roster behavior in a single call.
+    _healthy_repo(tmp_path, monkeypatch, "copy test")
+    ran = []
+
+    def fake_run(manager, args):
+        ran.append(manager.key)
+        return SubResult(manager.key, [manager.command, *args], exit_code=0, available=True)
+
+    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
+    result = runner.invoke(app, ["doctor"])
+    assert "no doctor, skipped" in result.stdout
+    assert ran == ["test"]  # only the doctor-bearing manager was invoked
+    assert result.exit_code == 0
 
 
 def test_status_exits_worst_of_sub_results(monkeypatch):

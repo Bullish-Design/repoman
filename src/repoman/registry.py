@@ -33,9 +33,9 @@ class Manager:
     summary: str
     doctor: list[str] | None = field(default_factory=lambda: ["doctor"])
     status: list[str] | None = None
-    skill: str = ""          # sub-skill name the entrypoint routes to (default: command)
-    route_when: str = ""     # "when you want to…" cell in the routing table
-    nix_input: str = ""      # devenv.yaml input the manager's approach-B nix module needs; "" = none
+    skill: str = ""  # sub-skill name the entrypoint routes to (default: command)
+    route_when: str = ""  # "when you want to…" cell in the routing table
+    nix_input: str = ""  # devenv.yaml input the manager's approach-B nix module needs; "" = none
 
     def __post_init__(self) -> None:
         if not self.skill:
@@ -57,45 +57,60 @@ SPINE: list[tuple[str, str | None]] = [
 
 REGISTRY: dict[str, Manager] = {
     "copy": Manager(
-        "copy", "copyroom", "core",
+        "copy",
+        "copyroom",
+        "core",
         "Templating / scaffolding / convergence (Copier)",
-        doctor=None,  # copyroom (v0.4) has no doctor verb; inspect/status only
+        doctor=None,  # copyroom ships `doctor` (v0.4+), but repoman's copy verb is
+        # status — a scaffolder gets no doctor pass in the aggregate
         status=["status"],
         route_when="scaffold a repo, pull template updates, or check template drift",
     ),
     "git": Manager(
-        "git", "gitman", "core",
+        "git",
+        "gitman",
+        "core",
         "Version control (jujutsu + colocated git)",
         status=["status"],
         route_when="commit, branch, land, undo, or release",
     ),
     "test": Manager(
-        "test", "testee", "core",
+        "test",
+        "testee",
+        "core",
         "Verification (pytest / ruff / ty)",
         status=["list-runs"],
         route_when="verify code health, fix lint/format, or rerun failures",
     ),
     "doc": Manager(
-        "doc", "docman", "publish",
+        "doc",
+        "docman",
+        "publish",
         "Docs build/lint/check (zensical)",
         route_when="build or check the docs",
         nix_input="docman",
     ),
     "session": Manager(
-        "session", "zelligate", "situational",
+        "session",
+        "zelligate",
+        "situational",
         "Live terminal / session surface (Zellij)",
         status=["list"],
         route_when="open a live terminal/session for this repo",
     ),
     "agent": Manager(
-        "agent", "mypi", "situational",
+        "agent",
+        "mypi",
+        "situational",
         "Coding-agent runtime + secrets (Pi)",
         status=["paths"],
         route_when="manage the coding-agent runtime or secrets",
         nix_input="mypi-agent",
     ),
     "spec": Manager(
-        "spec", "alliman", "situational",   # NOT "allium" — that's the 3rd-party juxt/allium-tools binary (no doctor verb)
+        "spec",
+        "alliman",
+        "situational",  # NOT "allium" — that's the 3rd-party juxt/allium-tools binary (no doctor verb)
         "Spec-driven agent workflow (Allium)",
         # allium-env installs its manager skill under `allium-entrypoint`, not `alliman`,
         # so point the sub-skill deferral check at the dir that actually ships.

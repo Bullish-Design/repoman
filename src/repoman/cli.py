@@ -27,7 +27,11 @@ app = typer.Typer(
 
 
 def _enabled() -> list[Manager]:
-    """Managers wired into this repo, from ``REPOMAN_MANAGERS`` or the core default."""
+    """Managers wired into this repo, from ``REPOMAN_MANAGERS`` or the core default.
+
+    Unknown keys in ``REPOMAN_MANAGERS`` are dropped (never a KeyError): the
+    registry is the trusted filter against a stale or hand-edited env.
+    """
 
     raw = os.environ.get("REPOMAN_MANAGERS", "").split()
     keys = raw or DEFAULT_MANAGERS
@@ -54,14 +58,14 @@ def doctor(
     code, under the shared 0/1/2/3 contract.
     """
 
-    managers = _enabled()
+    enabled = _enabled()
     skills_dir = os.environ.get("REPOMAN_SKILLS_DIR", ".claude/skills")
     repo_root = os.environ.get("DEVENV_ROOT", os.getcwd())
 
     docs_dir = os.environ.get("REPOMAN_DOCS_DIR", _DEFAULT_DOCS_DIR)
 
     typer.echo("=== repoman (self-check) ===")
-    self_checks = run_self_check(managers, repo_root, skills_dir)
+    self_checks = run_self_check(enabled, repo_root, skills_dir)
     self_checks += devman_checks(repo_root, skills_dir, docs_dir)
     typer.echo(format_self_check(self_checks))
     self_code = self_check_exit(self_checks)
@@ -70,7 +74,7 @@ def doctor(
         raise typer.Exit(code=self_code)
 
     results = []
-    for manager in managers:
+    for manager in enabled:
         if manager.doctor is None:
             typer.echo(f"\n=== {manager.key} ({manager.command}) — no doctor, skipped ===")
             continue

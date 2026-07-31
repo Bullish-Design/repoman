@@ -13,7 +13,7 @@
 # gated on "spec" also being selected. The third-party `allium` binary is NOT needed by
 # the `alliman` CLI (doctor/install-skills never call it), so `allium.cli.enable` defaults
 # OFF here — no heavy juxt/allium-tools fetch unless a consumer opts in.
-{ inputs, lib, config, ... }:
+{ inputs ? {}, lib, config, ... }:
 
 let
   cfg = config.repoman;
