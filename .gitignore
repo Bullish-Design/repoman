@@ -210,3 +210,7 @@ __marimo__/
 
 # Transient Claude Code runtime lock (machine-local)
 .claude/scheduled_tasks.lock
+
+# Nix build output
+/result
+/result-*
