@@ -1,5 +1,6 @@
 from typer.testing import CliRunner
 
+from repoman.aggregate import SubResult
 from repoman.cli import app
 
 runner = CliRunner()
@@ -55,6 +56,65 @@ def test_doctor_skips_managers_without_doctor(monkeypatch, tmp_path):
     result = runner.invoke(app, ["doctor"])
     assert "self-check" in result.stdout
     assert "no doctor, skipped" in result.stdout
+    assert result.exit_code == 0
+
+
+def test_doctor_exit_collapses_sub_doctor_exit(monkeypatch, tmp_path):
+    # The conductor's whole reason for existing: a sub-doctor's non-zero exit (1)
+    # must win over a green self-check (0) — proves max() combines both sides.
+    _healthy_repo(tmp_path, monkeypatch, "test")
+    monkeypatch.setattr(
+        "repoman.cli.run_sub",
+        lambda manager, args: SubResult(manager.key, [manager.command, *args], exit_code=1, available=True),
+    )
+    result = runner.invoke(app, ["doctor"])
+    assert "=== test (testee) ===" in result.stdout
+    assert result.exit_code == 1
+
+
+def test_doctor_exit_is_worst_of_self_and_sub(monkeypatch, tmp_path):
+    # self-check FAIL (2) + sub-doctor 1 → exit 2: proves the max() folds the
+    # self side in too, not just the sub-doctors' worst.
+    _healthy_repo(tmp_path, monkeypatch, "test")
+    # installed:test fails → self_code 2, while the mocked sub-doctor returns 1.
+    monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
+    monkeypatch.setattr(
+        "repoman.cli.run_sub",
+        lambda manager, args: SubResult(manager.key, [manager.command, *args], exit_code=1, available=True),
+    )
+    result = runner.invoke(app, ["doctor"])
+    assert "FAIL installed:test" in result.stdout
+    assert result.exit_code == 2
+
+
+def test_status_exits_worst_of_sub_results(monkeypatch):
+    # git returns 0, test returns 1 → status exits 1 (worst).
+    monkeypatch.setenv("REPOMAN_MANAGERS", "git test")
+
+    def fake_run(manager, args):
+        code = 1 if manager.key == "test" else 0
+        return SubResult(manager.key, [manager.command, *args], exit_code=code, available=True)
+
+    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
+    result = runner.invoke(app, ["status"])
+    assert "=== git (gitman) ===" in result.stdout
+    assert "=== test (testee) ===" in result.stdout
+    assert result.exit_code == 1
+
+
+def test_status_skips_managers_without_status(monkeypatch):
+    # doc has status=None → skipped entirely: no run_sub call, no echo, exit 0.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "copy doc")
+    called = []
+
+    def fake_run(manager, args):
+        called.append(manager.key)
+        return SubResult(manager.key, [manager.command, *args], exit_code=0, available=True)
+
+    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
+    result = runner.invoke(app, ["status"])
+    assert called == ["copy"]
+    assert "docman" not in result.stdout
     assert result.exit_code == 0
 
 

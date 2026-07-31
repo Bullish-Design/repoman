@@ -1,5 +1,7 @@
 {
-  description = "Repository manager for NixOS configurations";
+  # Keep the description in sync with pyproject.toml; this is the first line a
+  # Nix-oriented reader sees and it must not describe the old wiped concept.
+  description = "The agentic repo lifecycle conductor for devenv.sh repos — one import that composes the *man manager family.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,20 +20,21 @@
         {
           default = pkgs.python312Packages.buildPythonApplication {
             pname = "repoman";
-            version = "0.1.0";
+            # Source the version from pyproject.toml so the flake package can't
+            # drift behind the project (it previously hard-coded 0.1.0).
+            version = (builtins.fromTOML (builtins.readFile ./pyproject.toml)).project.version;
             src = self;
             pyproject = true;
             build-system = with pkgs.python312Packages; [
               setuptools
               wheel
             ];
+            # Only the real runtime deps from pyproject.toml. pyyaml/tomli/aiofiles
+            # were cargo-culted from a template; tomllib is stdlib (python 3.11+).
             propagatedBuildInputs = with pkgs.python312Packages; [
               pydantic
               typer
               jinja2
-              pyyaml
-              tomli
-              aiofiles
             ];
           };
         });
