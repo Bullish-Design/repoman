@@ -18,12 +18,24 @@
 # membership in `repoman.managers`. Imports cannot depend on `config`, so we
 # import every manager module statically and let each one decide whether to
 # activate — the standard devenv/NixOS module idiom.
+#
+# `repoman.managers` selects which manager tasks/skills are WIRED — it no longer
+# gates toolchain installation (project 12): the pure-CLI managers live in a
+# single system-wide toolchain venv ($REPOMAN_TOOLCHAIN_VENV, populated by
+# `repoman-sync --machine` from the machine repoman.lock) regardless of any one
+# repo's roster. testee is the exception: it runs inside the consumer's code, so
+# it is a per-repo uv dev dependency declared in pyproject.toml.
 { pkgs, lib, config, inputs ? {}, ... }:
 
 let
   cfg = config.repoman;
 
   allManagers = [ "copy" "git" "test" "doc" ];
+
+  # D1: a SHELL expression, expanded by bash at task/shell time — never a nix-eval-time
+  # absolute path. Reading $HOME via the nix builtin would bake one user's path into the
+  # eval result and yield "/repoman/venv" wherever HOME is unset (CI, nix-daemon).
+  toolchainVenvExpr = "\${REPOMAN_TOOLCHAIN_VENV:-\${XDG_DATA_HOME:-$HOME/.local/share}/repoman/venv}";
 in
 {
   imports = [
@@ -57,6 +69,23 @@ in
       description = "copyroom's canonical template (the repo 'genome') for new/converge.";
     };
 
+    # D1: shell expression for the system-wide toolchain venv's bin dir. Manager modules
+    # interpolate it into task execs: "''${cfg.toolchainBin}"/gitman status. Honours
+    # $REPOMAN_TOOLCHAIN_VENV, else $XDG_DATA_HOME/repoman/venv, else ~/.local/share/repoman/venv.
+    # Populated by `repoman-sync --machine`. NOT a nix path — bash expands it at runtime.
+    toolchainBin = lib.mkOption {
+      type = lib.types.str;
+      internal = true;
+      readOnly = true;
+      default = "${toolchainVenvExpr}/bin";
+      description = ''
+        Shell expression (NOT a nix path) for the system-wide toolchain venv's bin dir.
+        Manager modules interpolate it into task execs: "''${cfg.toolchainBin}"/gitman status.
+        Honours $REPOMAN_TOOLCHAIN_VENV, else $XDG_DATA_HOME/repoman/venv, else
+        ~/.local/share/repoman/venv. Populated by `repoman-sync --machine`.
+      '';
+    };
+
     installSkills = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -76,17 +105,24 @@ in
     env.REPOMAN_MANAGERS = lib.concatStringsSep " " cfg.managers;
     env.REPOMAN_SKILLS_DIR = cfg.skillsDir;
 
-    # Pull the selected managers' Python CLIs into the venv from repoman.lock, then
-    # run `repoman install-skills` (generates the entrypoint router skill — the
-    # only skill RepoMan owns; manager skills are tool-shipped or genome-shipped).
+    # Verify the shared toolchain venv, then install this repo's agent skills + devman docs.
     scripts.repoman-sync = {
-      description = "Install the selected managers' CLIs into this repo's venv from repoman.lock, plus the generated entrypoint skill.";
-      exec = ''exec ${pkgs.bash}/bin/bash ${./scripts/repoman-sync.sh}'';
+      description = "Verify the shared toolchain venv, then install this repo's agent skills + devman docs.";
+      exec = ''exec ${pkgs.bash}/bin/bash ${./scripts/repoman-sync.sh} "$@"'';
     };
 
     # (This whole block is inside `config = lib.mkIf cfg.enable`, so no inner
     # enable guard is needed — the optionalString below only pads a constant.)
     enterShell = ''
+      # D1: runtime shell expression — prepend the SYSTEM-WIDE toolchain bin (NOT the
+      # consumer venv). Prepending (not appending) shadows a stale toolchain left in
+      # the consumer venv by a pre-migration repoman-sync.
+      export REPOMAN_TOOLCHAIN_VENV="${toolchainVenvExpr}"
+      export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"
+      if [ ! -x "$REPOMAN_TOOLCHAIN_VENV/bin/repoman" ]; then
+        echo "RepoMan: shared toolchain not bootstrapped ($REPOMAN_TOOLCHAIN_VENV)." >&2
+        echo "RepoMan:   cd <repoman checkout> && devenv shell -- repoman-sync --machine" >&2
+      fi
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " cfg.managers}"
       fi

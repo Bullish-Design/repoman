@@ -31,11 +31,25 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
 
 
 def _healthy_repo(tmp_path, monkeypatch, managers):
-    """A tmp repo whose lock + PATH satisfy the doctor self-check for ``managers``."""
-    lock = '[repoman]\npackage="repoman"\nsource="path:/x"\n'
-    for key in managers.split():
-        lock += f'[managers.{key}]\npackage="{key}"\nsource="path:/x"\n'
-    (tmp_path / "repoman.lock").write_text(lock)
+    """A tmp repo whose toolchain venv + pyproject satisfy the doctor self-check."""
+    # fake bootstrapped SYSTEM-WIDE toolchain venv (project 12)
+    venv = tmp_path / "toolchain"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "repoman").write_text("")
+    manifest = '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
+    for key in ("copy", "git", "doc"):
+        if key in managers.split():
+            manifest += f'[managers.{key}]\npackage = "{key}"\nsource = "path:/x"\n'
+    if "git" in managers.split():
+        manifest += '[managers.git-pyjutsu]\npackage = "pyjutsu"\nsource = "wheel:pyjutsu>=0.8"\n'
+    (venv / "repoman-toolchain.toml").write_text(manifest)
+    # the consumer declares testee as a uv dev dependency
+    if "test" in managers.split():
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "x"\nversion = "0.0.0"\nrequires-python = ">=3.13"\n'
+            'dependencies = []\n[dependency-groups]\ndev = ["testee"]\n'
+        )
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
     monkeypatch.setenv("REPOMAN_MANAGERS", managers)
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setattr("repoman.checks.shutil.which", lambda c: "/usr/bin/" + c)
@@ -143,14 +157,20 @@ def test_doctor_self_only_skips_manager_doctors(monkeypatch, tmp_path):
     assert result.exit_code == 0
 
 
-def test_doctor_fails_when_selected_manager_unbuilt(monkeypatch, tmp_path):
-    # test selected but absent from lock and not on PATH → self-check FAIL, exit 2.
-    (tmp_path / "repoman.lock").write_text('[repoman]\npackage="repoman"\nsource="path:/x"\n')
+def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
+    # test selected but NOT declared in pyproject.toml (uv-declared manager, project 12)
+    # → uv:test FAIL, exit 2. The toolchain venv itself is healthy.
+    venv = tmp_path / "toolchain"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "repoman").write_text("")
+    (venv / "repoman-toolchain.toml").write_text('[repoman]\npackage="repoman"\nsource="path:/x"\n')
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\n')
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
     monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
     result = runner.invoke(app, ["doctor", "--self-only"])
-    assert "FAIL" in result.stdout
+    assert "FAIL uv:test" in result.stdout
     assert result.exit_code == 2
 
 

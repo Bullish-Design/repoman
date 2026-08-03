@@ -18,7 +18,6 @@
 let
   cfg = config.repoman;
   enabled = cfg.enable && builtins.elem "doc" cfg.managers;
-  venvBin = "${config.devenv.state}/venv/bin";
   # Did the consumer declare the docman input? (Approach-B managers require it —
   # devenv.yaml inputs are not transitive across a remote module import.)
   hasInput = inputs ? docman;
@@ -44,12 +43,13 @@ in
       env.REPOMAN_PROVISIONED_DOC = "1";
     }))
     # The aggregation tasks wire whenever "doc" is selected — `repoman doctor` calls
-    # the venv `docman` CLI (installed by repoman-sync) regardless of provisioning;
-    # if the toolchain is absent its own doctor reports the gap.
+    # the shared-toolchain `docman` CLI (project 12) regardless of provisioning; if the
+    # toolchain is absent its own doctor reports the gap.
     (lib.mkIf enabled {
       tasks = {
-        "repoman:docs:doctor".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/docman doctor'';
-        "repoman:docs:build".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/docman build'';
+        # docman lives in the SYSTEM-WIDE toolchain venv (project 12), resolved at runtime.
+        "repoman:docs:doctor".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/docman doctor'';
+        "repoman:docs:build".exec  = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/docman build'';
       };
     })
   ];

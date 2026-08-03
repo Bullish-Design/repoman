@@ -13,7 +13,6 @@
 let
   cfg = config.repoman;
   enabled = cfg.enable && builtins.elem "copy" cfg.managers;
-  venvBin = "${config.devenv.state}/venv/bin";
 in
 {
   config = lib.mkIf enabled {
@@ -22,7 +21,8 @@ in
     packages = [ pkgs.git pkgs.gnupatch ];
 
     tasks = {
-      "repoman:template:status".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/copyroom status'';
+      # copyroom lives in the SYSTEM-WIDE toolchain venv (project 12), resolved at runtime.
+      "repoman:template:status".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/copyroom status'';
     };
   };
 }

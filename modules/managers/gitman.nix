@@ -13,7 +13,6 @@
 let
   cfg = config.repoman;
   enabled = cfg.enable && builtins.elem "git" cfg.managers;
-  venvBin = "${config.devenv.state}/venv/bin";
 in
 {
   options.repoman.nativeBuild = lib.mkOption {
@@ -33,7 +32,11 @@ in
       packages = [ pkgs.git ];
 
       tasks = {
-        "repoman:vc:status".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/gitman status'';
+        # gitman lives in the SYSTEM-WIDE toolchain venv (project 12), resolved at runtime.
+        # Not a bare `gitman`: the task exec must not depend on PATH state, so it uses the
+        # toolchain bin shell expression directly (D1 — devenv tasks may not inherit the
+        # shell's PATH prepend).
+        "repoman:vc:status".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/gitman status'';
       };
     }
 

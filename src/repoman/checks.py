@@ -1,14 +1,22 @@
 """RepoMan self-check (preflight) for `repoman doctor`.
 
 Validates the conductor's own wiring before delegating to manager doctors:
-the lock, the lock↔managers consistency, installed manager CLIs, and skills.
-This catches the class of problem the spike hit — a manager selected but not
-installed, or a lock/manager mismatch — before the sub-doctors even run.
+the system-wide toolchain venv, the machine manifest it was synced from, the
+lock↔managers consistency, installed manager CLIs, and skills. This catches
+the class of problem the spike hit — a manager selected but not installed, or
+a lock/manager mismatch — before the sub-doctors even run.
+
+Project 12: the manager family splits by install model. Pure-CLI managers
+(`install == "toolchain"`) live in one system-wide shared venv, validated
+against the manifest `repoman-sync --machine` recorded inside it. uv-declared
+managers (`install == "uv"`, today: testee) live in the consumer's uv graph,
+validated against `pyproject.toml`.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tomllib
 from dataclasses import dataclass
@@ -20,6 +28,8 @@ from .registry import Manager
 # "fail" is broken wiring → 2 (infra/config), merged with the sub-doctors' worst.
 _LEVELS = {"ok": 0, "warn": 0, "fail": 2}
 
+_DEFAULT_TOOLCHAIN = "repoman/venv"
+
 
 @dataclass
 class SelfCheck:
@@ -28,41 +38,123 @@ class SelfCheck:
     detail: str = ""
 
 
-def _load_lock(repo_root: str) -> tuple[dict | None, SelfCheck]:
-    lock_path = Path(repo_root) / "repoman.lock"
-    if not lock_path.exists():
-        return None, SelfCheck("lock", "fail", f"missing: {lock_path}")
+def toolchain_venv() -> Path:
+    """The system-wide toolchain venv (project 12), mirroring repoman-sync.sh's resolution."""
+
+    env = os.environ.get("REPOMAN_TOOLCHAIN_VENV")
+    if env:
+        return Path(env)
+    data_home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(data_home) / _DEFAULT_TOOLCHAIN
+
+
+def _load_toolchain_manifest(venv: Path) -> tuple[dict | None, SelfCheck]:
+    """Read the lock `repoman-sync --machine` recorded inside the shared venv (D7)."""
+
+    path = venv / "repoman-toolchain.toml"
+    if not path.exists():
+        return None, SelfCheck(
+            "toolchain:lock", "warn",
+            f"no manifest at {path} — re-run `repoman-sync --machine` to record one",
+        )
     try:
-        with open(lock_path, "rb") as fh:
-            return tomllib.load(fh), SelfCheck("lock", "ok", str(lock_path))
+        with open(path, "rb") as fh:
+            return tomllib.load(fh), SelfCheck("toolchain:lock", "ok", str(path))
     except tomllib.TOMLDecodeError as exc:
-        return None, SelfCheck("lock", "fail", f"unparseable: {exc}")
+        return None, SelfCheck("toolchain:lock", "warn", f"unparseable: {exc}")
+
+
+def _requirement_name(req: str) -> str:
+    """'testee>=0.3 ; python_version>"3.12"' -> 'testee' (PEP 508 head, normalized)."""
+
+    head = re.split(r"[\s\[<>=!~;@()]", req.strip(), maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", head).lower()
+
+
+def uv_declared_in(pyproject: dict, package: str) -> str | None:
+    """Which pyproject table declares ``package``, or None. Generic over any uv manager (D5)."""
+
+    target = re.sub(r"[-_.]+", "-", package).lower()
+    project = pyproject.get("project") or {}
+    tables: list[tuple[str, list]] = [("[project.dependencies]", project.get("dependencies") or [])]
+    for extra, reqs in (project.get("optional-dependencies") or {}).items():
+        tables.append((f"[project.optional-dependencies] {extra}", reqs or []))
+    for group, reqs in (pyproject.get("dependency-groups") or {}).items():
+        tables.append((f"[dependency-groups] {group}", reqs or []))
+    for label, reqs in tables:
+        # dependency-groups entries may be {include-group = "..."} dicts — skip non-strings.
+        if any(isinstance(r, str) and _requirement_name(r) == target for r in reqs):
+            return label
+    return None
+
+
+def _load_pyproject(repo_root: str) -> dict | None:
+    path = Path(repo_root) / "pyproject.toml"
+    if not path.exists():
+        return None
+    try:
+        with open(path, "rb") as fh:
+            return tomllib.load(fh)
+    except tomllib.TOMLDecodeError:
+        return None
 
 
 def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> list[SelfCheck]:
     """Validate the conductor's own wiring for the enabled ``managers``."""
 
     out: list[SelfCheck] = []
-    data, lock_check = _load_lock(repo_root)
-    out.append(lock_check)
 
-    if data is not None:
-        if "repoman" not in data:
-            out.append(SelfCheck("lock:self", "warn", "no [repoman] self entry"))
-        lock_keys = set(data.get("managers", {}))
-        for m in managers:
-            # tolerate native-dep pseudo-entries like "git-pyjutsu" (guide 1)
-            has = m.key in lock_keys or any(k.split("-", 1)[0] == m.key for k in lock_keys)
-            out.append(
-                SelfCheck(f"lock:{m.key}", "ok" if has else "fail",
-                          "" if has else "selected but absent from repoman.lock")
-            )
+    # --- toolchain: the system-wide shared venv (project 12) -------------------
+    venv = toolchain_venv()
+    have_venv = (venv / "bin" / "repoman").exists()
+    out.append(SelfCheck(
+        "toolchain:venv", "ok" if have_venv else "fail",
+        str(venv) if have_venv
+        else f"missing or incomplete: {venv} — run `repoman-sync --machine` from the repoman checkout",
+    ))
+
+    data = None
+    if have_venv:
+        data, manifest_check = _load_toolchain_manifest(venv)
+        out.append(manifest_check)
+        if data is not None and "repoman" not in data:
+            out.append(SelfCheck("toolchain:self", "warn", "no [repoman] self entry"))
+
+    pyproject = _load_pyproject(repo_root)
+    lock_keys = set((data or {}).get("managers", {}))
 
     for m in managers:
+        if m.install == "uv":
+            where = uv_declared_in(pyproject, m.package) if pyproject else None
+            out.append(SelfCheck(
+                f"uv:{m.key}", "ok" if where else "fail",
+                f"uv-declared — {where}" if where
+                else f"{m.package} not declared in pyproject.toml — add it to "
+                     f'[dependency-groups] dev (+ [tool.uv.sources]) and run `uv sync`',
+            ))
+            continue
+        if data is None:
+            continue  # no manifest to check against; toolchain:venv/lock already reported
+        # tolerate native-dep pseudo-entries like "git-pyjutsu" (guide 1)
+        has = m.key in lock_keys or any(k.split("-", 1)[0] == m.key for k in lock_keys)
+        out.append(SelfCheck(
+            f"lock:{m.key}", "ok" if has else "fail",
+            "" if has else "selected but absent from the machine repoman.lock",
+        ))
+
+    if (Path(repo_root) / "repoman.lock").exists():
+        out.append(SelfCheck(
+            "lock:orphan", "warn",
+            "per-repo repoman.lock is obsolete — the toolchain is machine-level; delete this file",
+        ))
+
+    # --- installed:<key> (PATH presence) ---------------------------------------
+    for m in managers:
         present = shutil.which(m.command) is not None
+        heal = "run `repoman-sync --machine`" if m.install == "toolchain" else "run `uv sync`"
         out.append(
             SelfCheck(f"installed:{m.key}", "ok" if present else "fail",
-                      m.command if present else f"{m.command} not on PATH — run repoman-sync")
+                      m.command if present else f"{m.command} not on PATH — {heal}")
         )
 
     # Nix-layer provisioning: an approach-B manager's nix module lives in the

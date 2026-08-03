@@ -48,3 +48,27 @@ def test_approach_a_and_pure_python_managers_have_no_nix_input():
     # Approach-A (copy) and pure-Python (test) + git need no consumer input.
     for key in ("copy", "git", "test"):
         assert REGISTRY[key].nix_input == ""
+
+
+def test_install_model_split():
+    # project 12: pure-CLI managers are toolchain-installed; testee is uv-declared.
+    for key in ("copy", "git", "doc"):
+        assert REGISTRY[key].install == "toolchain"
+    assert REGISTRY["test"].install == "uv"
+
+
+def test_package_defaults_to_command():
+    # the distribution name the uv:<key> check looks for in pyproject.toml.
+    assert Manager("x", "xcli", "core", "s").package == "xcli"
+    for key, m in REGISTRY.items():
+        assert m.package == m.command
+
+
+def test_install_model_is_validated():
+    # a typo in install must fail loudly, never silently disable a doctor check.
+    import pytest
+
+    with pytest.raises(ValueError):
+        Manager("x", "xcli", "core", "s", install="bogus")
+    Manager("x", "xcli", "core", "s", install="toolchain")
+    Manager("x", "xcli", "core", "s", install="uv")
