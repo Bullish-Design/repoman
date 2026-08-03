@@ -60,7 +60,11 @@ in
     managers = lib.mkOption {
       type = lib.types.listOf (lib.types.enum allManagers);
       default = [ "copy" "git" "test" ];
-      description = "Which component managers to wire into this repo.";
+      description = ''
+        Which managers' tasks/skills are WIRED into this repo. Does NOT gate
+        toolchain installation (project 12): the shared toolchain venv holds every
+        pure-CLI manager regardless; testee is a per-repo uv dev dependency.
+      '';
     };
 
     template = lib.mkOption {
