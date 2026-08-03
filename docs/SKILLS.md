@@ -87,7 +87,29 @@ can lint these in `repoman doctor`):
 - `src/repoman/registry.py` — `Manager.route_when`/`skill` + the `SPINE` ordering.
 - `src/repoman/skills.py` — `build_spine`, `render_entrypoint`, `install_entrypoint`.
 - `src/repoman/templates/entrypoint.SKILL.md.j2` — the template.
-- `repoman install-skills` (CLI) — renders + writes; called by `repoman-sync`.
+- `repoman install-skills` (CLI) — renders + writes the router; called by
+  `repoman-sync`. This is the **only** skill RepoMan installs.
+
+## Skill ownership (the agent-files convention)
+
+`install-skills` shrunk to the router because the family adopted the agent-files
+convention (see the decision doc `docs/AGENT-FILES.md`): skills live under
+`.agents/skills/` (default `skillsDir`), and each skill has one owner:
+
+- **tool-shipped** — version-locked skills ship with their tool. CopyRoom's
+  canonical set (`copyroom`, `copyroom-adopt`, `copyroom-template-edit`) ships in
+  copyroom's package assets and is materialized by `copyroom agent-files export`;
+  copyroom's own `doctor` checks currency.
+- **genome / fleet** — the devenv-literacy skills + docs ship with the **genome**
+  (template-py, under `template/.agents/`) and are converged by `copyroom update`.
+- **overlay** — a repo's own additions/modifications; permanent divergence is
+  declared in `copyroom.project.yml` `agent.overlay`.
+- **repoman's router** — generated at sync time from the runtime manager roster.
+
+`repoman doctor` lints *ownership*, not static copies: it classifies every skill
+under `.agents/skills/` as tool-shipped / genome-or-overlay and warns when a
+canonical copyroom skill is missing (`skill:tool-shipped`). The old
+`.devman-source` manifest is retired.
 
 ## Open questions
 
@@ -95,8 +117,5 @@ can lint these in `repoman doctor`):
   copyroom's `template-test` vs testee's `verify` during a template edit) — the
   entrypoint should name the winner per lifecycle phase rather than let sub-skills
   negotiate.
-- **Installing the sub-skills themselves** — currently each manager's own `init`
-  scaffolds its skill; should `repoman-sync` invoke each manager's skill-install so the
-  whole set lands in one step? (Manager-specific; deferred.)
 - **`doctor` as skill-linter** — verify every enabled manager's skill carries the
   deferral footer and non-colliding triggers.

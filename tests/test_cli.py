@@ -41,12 +41,20 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
     monkeypatch.setattr("repoman.checks.shutil.which", lambda c: "/usr/bin/" + c)
 
 
-def test_doctor_skips_managers_without_doctor(monkeypatch, tmp_path):
-    # copy (copyroom) has doctor=None → skipped; self-check green → exit 0.
-    _healthy_repo(tmp_path, monkeypatch, "copy")
+def test_doctor_runs_every_enabled_manager(monkeypatch, tmp_path):
+    # Every roster manager ships a doctor now (copyroom 0.6+ included) — the
+    # aggregate invokes them all; a green self-check → exit 0.
+    _healthy_repo(tmp_path, monkeypatch, "copy test")
+    ran = []
+
+    def fake_run(manager, args):
+        ran.append(manager.key)
+        return SubResult(manager.key, [manager.command, *args], exit_code=0, available=True)
+
+    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
     result = runner.invoke(app, ["doctor"])
     assert "self-check" in result.stdout
-    assert "no doctor, skipped" in result.stdout
+    assert ran == ["copy", "test"]
     assert result.exit_code == 0
 
 
@@ -78,9 +86,9 @@ def test_doctor_exit_is_worst_of_self_and_sub(monkeypatch, tmp_path):
     assert result.exit_code == 2
 
 
-def test_doctor_mixed_roster_skips_and_runs(monkeypatch, tmp_path):
-    # copy (no doctor) is skipped AND testee's doctor runs, in one invocation —
-    # both halves of the roster behavior in a single call.
+def test_doctor_mixed_roster_runs_all_doctors(monkeypatch, tmp_path):
+    # copyroom and testee both run their doctors in one invocation — the roster
+    # has no doctor-less manager anymore.
     _healthy_repo(tmp_path, monkeypatch, "copy test")
     ran = []
 
@@ -90,8 +98,9 @@ def test_doctor_mixed_roster_skips_and_runs(monkeypatch, tmp_path):
 
     monkeypatch.setattr("repoman.cli.run_sub", fake_run)
     result = runner.invoke(app, ["doctor"])
-    assert "no doctor, skipped" in result.stdout
-    assert ran == ["test"]  # only the doctor-bearing manager was invoked
+    assert "=== copy (copyroom) ===" in result.stdout
+    assert "=== test (testee) ===" in result.stdout
+    assert ran == ["copy", "test"]
     assert result.exit_code == 0
 
 
@@ -155,32 +164,36 @@ def test_doctor_warns_when_approach_b_input_missing(monkeypatch, tmp_path):
     assert result.exit_code == 0
 
 
-def test_install_skills_writes_file(monkeypatch, tmp_path):
+def test_install_skills_writes_entrypoint_only(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_MANAGERS", "copy test")
-    monkeypatch.setenv("REPOMAN_SKILLS_DIR", ".claude/skills")
+    monkeypatch.setenv("REPOMAN_SKILLS_DIR", ".agents/skills")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     result = runner.invoke(app, ["install-skills"])
     assert result.exit_code == 0
-    assert (tmp_path / ".claude/skills/repoman/SKILL.md").exists()
+    assert (tmp_path / ".agents/skills/repoman/SKILL.md").exists()
+    # The router is the ONLY skill RepoMan installs — manager skills are
+    # tool-shipped (copyroom agent-files export) or genome-shipped (copyroom update).
+    assert not (tmp_path / ".agents/skills/devenv-run-commands").exists()
+    assert not (tmp_path / ".agents/skills/.devman-source").exists()
 
 
-def test_install_skills_also_installs_devman(monkeypatch, tmp_path):
-    monkeypatch.setenv("REPOMAN_MANAGERS", "copy test")
-    monkeypatch.setenv("REPOMAN_SKILLS_DIR", ".claude/skills")
-    monkeypatch.setenv("REPOMAN_DOCS_DIR", ".agents/devenv")
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    result = runner.invoke(app, ["install-skills"])
-    assert result.exit_code == 0
-    # A devman skill lands beside the entrypoint, and the docs export lands under docs_dir.
-    assert (tmp_path / ".claude/skills/devenv-run-commands/SKILL.md").exists()
-    assert (tmp_path / ".agents/devenv/lock-and-cache.md").exists()
-
-
-def test_doctor_reports_devman_checks(monkeypatch, tmp_path):
+def test_doctor_reports_skill_ownership(monkeypatch, tmp_path):
     _healthy_repo(tmp_path, monkeypatch, "copy test")
     result = runner.invoke(app, ["doctor", "--self-only"])
-    assert "devman:skills" in result.stdout
-    assert "devman:docs" in result.stdout
     # Nothing installed in the tmp repo → warn, but warn is non-fatal (exit stays 0).
-    assert "WARN devman:skills" in result.stdout
+    assert "WARN skill:tool-shipped" in result.stdout
+    assert result.exit_code == 0
+
+
+def test_doctor_ownership_ok_when_canonical_skills_present(monkeypatch, tmp_path):
+    _healthy_repo(tmp_path, monkeypatch, "copy test")
+    skills = tmp_path / ".agents/skills"
+    from repoman.devman.check import CANONICAL_COPYROOM_SKILLS
+
+    for name in CANONICAL_COPYROOM_SKILLS:
+        skill = skills / name
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+    result = runner.invoke(app, ["doctor", "--self-only"])
+    assert "skill:tool-shipped — canonical copyroom skills present" in result.stdout
     assert result.exit_code == 0

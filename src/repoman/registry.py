@@ -60,8 +60,7 @@ REGISTRY: dict[str, Manager] = {
         "copyroom",
         "core",
         "Templating / scaffolding / convergence (Copier)",
-        doctor=None,  # copyroom ships `doctor` (v0.4+), but repoman's copy verb is
-        # status — a scaffolder gets no doctor pass in the aggregate
+        doctor=["doctor"],  # copyroom 0.6+ ships `doctor` (env + agent-files checks)
         status=["status"],
         route_when="scaffold a repo, pull template updates, or check template drift",
     ),

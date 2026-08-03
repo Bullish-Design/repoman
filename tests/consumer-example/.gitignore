@@ -13,3 +13,13 @@ snippets/
 .typos.toml
 .docman/site/
 .docman/.cache/
+
+# Agent-files convention: .agents/skills/ + AGENTS.md + CLAUDE.md tracked;
+# the rest of .agents/ (tool runtime state) stays ignored (.agents/ dual-use).
+.agents/**
+!.agents/skills/
+!.agents/skills/**
+!.agents/devenv/
+!.agents/devenv/**
+!AGENTS.md
+!CLAUDE.md

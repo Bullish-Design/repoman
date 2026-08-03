@@ -1,66 +1,67 @@
-import repoman.devman.assets as assets
-import repoman.devman.install as install_mod
-from repoman.devman.assets import expected_articles, expected_docs, expected_skills
-from repoman.devman.install import MANIFEST, install_devman
+"""Tests for repoman's skill-ownership lint (devman/check.py).
+
+devman's static assets moved into the genome (template-py); RepoMan's only
+remaining devman role is classifying what's under `.agents/skills/` by
+ownership: tool-shipped (copyroom canonical set) vs genome-or-overlay.
+"""
+
+from __future__ import annotations
+
+from repoman.devman.check import CANONICAL_COPYROOM_SKILLS, skill_ownership_checks
 
 
-def test_expected_skills_non_empty():
-    # Guards the package-data globs: if assets don't ship, the self-check is blind.
-    skills = expected_skills()
-    assert skills, "devman ships no skills — package-data or scaffold is broken"
-    assert "devenv-run-commands" in skills
+def _names(result):
+    return {c.name: c for c in result}
 
 
-def test_expected_docs_and_articles_present():
-    assert "lock-and-cache.md" in expected_docs()
-    assert "the-lock-cache-loop.md" in expected_articles()
+def test_warns_when_skills_dir_missing(tmp_path):
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
+    names = _names(result)
+    assert names["skill:tool-shipped"].level == "warn"
+    assert "copyroom agent-files export" in names["skill:tool-shipped"].detail
 
 
-def test_install_writes_every_skill(tmp_path):
-    written = install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    for name in expected_skills():
-        skill = tmp_path / ".claude/skills" / name / "SKILL.md"
-        assert skill.exists()
-        assert skill in written
+def test_warns_when_canonical_skill_missing(tmp_path):
+    skills = tmp_path / ".agents/skills"
+    (skills / "repoman").mkdir(parents=True)
+    (skills / "repoman" / "SKILL.md").write_text("---\nname: repoman\n---\n")
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
+    names = _names(result)
+    assert names["skill:tool-shipped"].level == "warn"
+    for name in CANONICAL_COPYROOM_SKILLS:
+        assert name in names["skill:tool-shipped"].detail
 
 
-def test_install_writes_docs_and_articles(tmp_path):
-    install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    for name in expected_docs():
-        assert (tmp_path / ".agents/devenv" / name).exists()
-    for name in expected_articles():
-        assert (tmp_path / ".agents/devenv/articles" / name).exists()
+def test_ok_when_canonical_set_present(tmp_path):
+    skills = tmp_path / ".agents/skills"
+    for name in (*CANONICAL_COPYROOM_SKILLS, "repoman"):
+        skill = skills / name
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
+    names = _names(result)
+    assert names["skill:tool-shipped"].level == "ok"
 
 
-def test_install_writes_manifest_with_version(tmp_path):
-    install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    manifest = tmp_path / ".claude/skills" / MANIFEST
-    assert manifest.exists()
-    text = manifest.read_text()
-    assert "repoman version:" in text
-    assert "devenv-run-commands" in text
+def test_genome_overlay_skills_reported_present(tmp_path):
+    skills = tmp_path / ".agents/skills"
+    for name in (*CANONICAL_COPYROOM_SKILLS, "devenv-run-commands", "repo-local"):
+        skill = skills / name
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("# skill\n")
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
+    names = _names(result)
+    assert names["skill:tool-shipped"].level == "ok"
+    row = names["skill:genome-overlay"]
+    assert row.level == "ok"
+    assert "devenv-run-commands" in row.detail
+    assert "repo-local" in row.detail
+    # The entrypoint is RepoMan's own — never classified as genome/overlay.
+    assert "repoman" not in row.detail
 
 
-def test_install_is_idempotent(tmp_path):
-    first = install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    second = install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    assert first == second
+def test_warn_is_non_fatal(tmp_path):
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
+    from repoman.checks import self_check_exit
 
-
-def test_enumerators_tolerate_missing_dirs(tmp_path, monkeypatch):
-    # Defensive branch: if a shipped asset dir is absent, enumeration returns [] (no crash).
-    missing = tmp_path / "nope"
-    monkeypatch.setattr(assets, "SKILLS_SRC", missing)
-    monkeypatch.setattr(assets, "DOCS_SRC", missing)
-    monkeypatch.setattr(assets, "ARTICLES_SRC", missing)
-    assert expected_skills() == []
-    assert expected_docs() == []
-    assert expected_articles() == []
-
-
-def test_install_skips_missing_articles_dir(tmp_path, monkeypatch):
-    # If articles aren't shipped, install still writes skills + a manifest without erroring.
-    monkeypatch.setattr(install_mod, "ARTICLES_SRC", tmp_path / "nope")
-    written = install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    assert (tmp_path / ".claude/skills" / MANIFEST) in written
-    assert not (tmp_path / ".agents/devenv/articles").exists()
+    assert self_check_exit(result) == 0

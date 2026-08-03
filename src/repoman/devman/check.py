@@ -1,53 +1,95 @@
-"""devman self-checks for `repoman doctor` — are the literacy assets installed + current?
+"""Skill-ownership lint for `repoman doctor` — tool-shipped / genome / overlay.
 
-Reuses :class:`repoman.checks.SelfCheck` so the output and exit math stay uniform with the rest
-of the preflight. devman stays **warn**-only for now (it is not yet mandatory); flip the levels
-to ``fail`` once the literacy layer is required.
+devman's static assets (the devenv-literacy skills, docs export, articles)
+moved into the **genome** (template-py): they ship with the template and are
+converged by ``copyroom update``, so RepoMan no longer installs static copies
+and the ``.devman-source`` manifest is retired.
+
+``repoman doctor`` now lints what is actually present under ``<skills_dir>/``
+and classifies each skill by **ownership**:
+
+* ``repoman/`` — the generated entrypoint router (Repoman owns it; produced by
+  ``repoman install-skills`` at sync time);
+* the copyroom canonical set (``copyroom``, ``copyroom-adopt``,
+  ``copyroom-template-edit``) — **tool-shipped**: copyroom owns the content
+  (package assets), materialized by ``copyroom agent-files export``; copyroom's
+  own doctor checks currency;
+* anything else — **genome** (template-converged, e.g. the ``devenv-*`` skills)
+  or a repo **overlay** — reported as present, never judged (the two can't be
+  distinguished statically).
+
+All rows are ``warn``-level at most: a repo that hasn't adopted the convention
+yet is reported, never fatal.
 """
 
 from __future__ import annotations
 
-from importlib.metadata import version
 from pathlib import Path
 
 from ..checks import SelfCheck
-from .assets import expected_docs, expected_skills
-from .install import MANIFEST
+
+#: The canonical skills copyroom ships (package assets under agent/assets/skills/).
+CANONICAL_COPYROOM_SKILLS: tuple[str, ...] = (
+    "copyroom",
+    "copyroom-adopt",
+    "copyroom-template-edit",
+)
+
+#: The generated entrypoint skill Repoman itself owns.
+ENTRYPOINT_SKILL = "repoman"
 
 
-def devman_checks(repo_root: str, skills_dir: str, docs_dir: str) -> list[SelfCheck]:
-    """Are devman's skills + docs installed in this repo, and at the current version?"""
+def skill_ownership_checks(repo_root: str, skills_dir: str) -> list[SelfCheck]:
+    """Lint skill ownership under ``<repo_root>/<skills_dir>/``.
 
+    Returns one ``SelfCheck`` per ownership class:
+
+    - ``skill:tool-shipped`` — the copyroom canonical set is present (warn when
+      a canonical skill is missing → run ``copyroom agent-files export``);
+    - ``skill:genome-overlay`` — non-canonical, non-entrypoint skills present,
+      classified as genome-shipped or repo overlay (ok, informational).
+
+    The entrypoint presence itself is covered by ``checks.run_self_check``
+    (``skill:entrypoint``).
+    """
     root = Path(repo_root)
+    skills_root = root / skills_dir
     out: list[SelfCheck] = []
 
-    missing_skills = [n for n in expected_skills() if not (root / skills_dir / n / "SKILL.md").exists()]
-    out.append(
-        SelfCheck(
-            "devman:skills",
-            "ok" if not missing_skills else "warn",
-            "all installed" if not missing_skills else f"missing {missing_skills} — run `repoman install-skills`",
-        )
-    )
-
-    missing_docs = [n for n in expected_docs() if not (root / docs_dir / n).exists()]
-    out.append(
-        SelfCheck(
-            "devman:docs",
-            "ok" if not missing_docs else "warn",
-            docs_dir if not missing_docs else f"missing {len(missing_docs)} doc(s) — run `repoman install-skills`",
-        )
-    )
-
-    manifest = root / skills_dir / MANIFEST
-    if manifest.exists():
-        current = f"repoman version: {version('repoman')}"
-        fresh = current in manifest.read_text()
+    if not skills_root.is_dir():
         out.append(
             SelfCheck(
-                "devman:current",
-                "ok" if fresh else "warn",
-                "up to date" if fresh else "assets stale — re-run `repoman install-skills`",
+                "skill:tool-shipped",
+                "warn",
+                f"{skills_dir} missing — run `copyroom agent-files export` + `repoman install-skills`",
+            )
+        )
+        return out
+
+    present = {
+        p.name
+        for p in skills_root.iterdir()
+        if p.is_dir() and (p / "SKILL.md").is_file()
+    }
+
+    missing = [n for n in CANONICAL_COPYROOM_SKILLS if n not in present]
+    out.append(
+        SelfCheck(
+            "skill:tool-shipped",
+            "ok" if not missing else "warn",
+            "canonical copyroom skills present"
+            if not missing
+            else f"missing {missing} — run `copyroom agent-files export`",
+        )
+    )
+
+    others = sorted(present - {ENTRYPOINT_SKILL} - set(CANONICAL_COPYROOM_SKILLS))
+    if others:
+        out.append(
+            SelfCheck(
+                "skill:genome-overlay",
+                "ok",
+                "genome or overlay: " + ", ".join(others),
             )
         )
 

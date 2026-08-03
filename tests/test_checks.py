@@ -1,7 +1,6 @@
 import repoman.checks as checks
 from repoman.checks import run_self_check, self_check_exit
-from repoman.devman.check import devman_checks
-from repoman.devman.install import MANIFEST, install_devman
+from repoman.devman.check import skill_ownership_checks
 from repoman.registry import REGISTRY
 
 _GOOD_LOCK = '[repoman]\npackage="repoman"\nsource="path:/x"\n'
@@ -185,32 +184,25 @@ def test_full_roster_self_check_is_green(tmp_path, monkeypatch):
     assert {n for n in names if n.startswith("provisioned:")} == {"provisioned:doc"}
 
 
-# --- devman self-checks ----------------------------------------------------
+# --- skill-ownership self-checks --------------------------------------------
 
 
-def test_devman_warns_when_nothing_installed(tmp_path):
-    result = devman_checks(str(tmp_path), ".claude/skills", ".agents/devenv")
+def test_ownership_warns_when_nothing_installed(tmp_path):
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
     names = _names(result)
-    assert names["devman:skills"].level == "warn"
-    assert names["devman:docs"].level == "warn"
-    # No manifest yet → no devman:current row.
-    assert "devman:current" not in names
+    assert names["skill:tool-shipped"].level == "warn"
     # warn is non-fatal under the shared exit mapping.
     assert self_check_exit(result) == 0
 
 
-def test_devman_ok_after_install(tmp_path):
-    install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    result = devman_checks(str(tmp_path), ".claude/skills", ".agents/devenv")
+def test_ownership_ok_after_canonical_skills_present(tmp_path):
+    skills = tmp_path / ".agents/skills"
+    from repoman.devman.check import CANONICAL_COPYROOM_SKILLS
+
+    for name in CANONICAL_COPYROOM_SKILLS:
+        skill = skills / name
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
     names = _names(result)
-    assert names["devman:skills"].level == "ok"
-    assert names["devman:docs"].level == "ok"
-    assert names["devman:current"].level == "ok"
-
-
-def test_devman_stale_manifest_warns(tmp_path):
-    install_devman(".claude/skills", ".agents/devenv", str(tmp_path))
-    manifest = tmp_path / ".claude/skills" / MANIFEST
-    manifest.write_text("repoman version: 0.0.0-ancient\nskills: \n")
-    result = devman_checks(str(tmp_path), ".claude/skills", ".agents/devenv")
-    assert _names(result)["devman:current"].level == "warn"
+    assert names["skill:tool-shipped"].level == "ok"
