@@ -1,0 +1,35 @@
+# repoman.lock — the MACHINE toolchain manifest (project 12).
+#
+# Pins the pure-CLI managers that live in the single system-wide toolchain venv
+# ($REPOMAN_TOOLCHAIN_VENV, default ~/.local/share/repoman/venv). `repoman-sync --machine`
+# reads this file and installs EVERY entry (add-only `uv pip install`) — the consumer's
+# `repoman.managers` roster gates wiring/skills, not installation.
+#
+# testee is deliberately ABSENT: it runs inside the consumer's code, so it is declared as a
+# per-repo uv dev dependency in each consumer's pyproject.toml. See CONCEPT.md §3.
+#
+# source forms:
+#   path:/abs/path                      local checkout (dev; installed --editable)
+#   git+https://host/org/repo@vX.Y.Z    pinned git ref (fleet)
+#   wheel:<requirement>                 prebuilt wheel from vendomat's wheelhouse (UV_FIND_LINKS)
+
+[repoman]
+package = "repoman"
+source = "path:/home/andrew/Documents/Projects/repoman"
+
+[managers.copy]
+package = "copyroom"
+source = "path:/home/andrew/Documents/Projects/copyroom"
+
+[managers.git]
+package = "gitman"
+source = "path:/home/andrew/Documents/Projects/gitman"
+
+# gitman's native dep — not a manager. Resolved by the "<manager>-*" pseudo-entry rule.
+[managers.git-pyjutsu]
+package = "pyjutsu"
+source = "wheel:pyjutsu>=0.8"
+
+[managers.doc]
+package = "docman"
+source = "path:/home/andrew/Documents/Projects/docman"

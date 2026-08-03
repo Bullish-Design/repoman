@@ -7,3 +7,11 @@ inputs:
     url: github:nlewo/nix2container
   mk-shell-bin:
     url: github:rrbutani/nix-mk-shell-bin
+  # Machine-bootstrap only: vendomat's module exports UV_FIND_LINKS at the prebuilt pyjutsu
+  # wheelhouse, which `repoman-sync --machine` needs to resolve the wheel: source in the
+  # machine repoman.lock. Consumers no longer declare this input (project 12).
+  vendomat:
+    url: path:../vendomat        # fleet: github:Bullish-Design/vendomat
+
+imports:
+  - vendomat/modules
