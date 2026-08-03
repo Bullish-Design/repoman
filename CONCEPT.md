@@ -21,9 +21,10 @@ RepoMan does not invent a new architecture — it composes an existing one. Ever
 | **gitman** | version control | jujutsu + colocated git |
 | **testee** | verification (test / lint / typecheck / format) | pytest, ruff, ty |
 | **docman** | docs | _(skeleton)_ |
-| **zelligate** | live terminal / session surface | Zellij web + daemon |
-| **mypi-agent** | coding-agent runtime + secrets | Pi, secretspec |
-| **allium-env** | spec-driven agent workflow | Allium prompts / skills |
+| **shellij** | durable remote workbenches — **installed by default, not a roster manager** | Zellij, Yazi |
+
+shellij is the one non-roster member of the family: RepoMan wires it in by default —
+new repos get it without selecting anything, and it is auto-configured for use (see §4).
 
 They share a contract:
 
@@ -44,7 +45,7 @@ These were settled during brainstorming:
 
 - **Scope: per-repo conductor.** RepoMan lives inside one repo and orchestrates the
   `*man` tools for the agent. Fleet/workspace management is explicitly out of scope
-  for v1 (zelligate already covers cross-repo discovery if needed later).
+  for v1 (shellij's project registry already covers per-project session discovery if needed later).
 - **Primary form: a devenv meta-module.** RepoMan is *mainly* the single one-liner
   `devenv.yaml` import that pulls in and wires up the component managers. The Python
   side is a thin conductor.
@@ -103,7 +104,15 @@ Manager roster, in default tiers:
 
 - **Core (default on):** `copy` (copyroom), `git` (gitman), `test` (testee).
 - **Publish:** `doc` (docman).
-- **Situational:** `session` (zelligate), `agent` (mypi-agent), `spec` (allium).
+
+**shellij is not in the roster.** There is no `repoman.session.*` config, no
+`repoman.managers` entry, nothing to select or tune. It is **installed by default**:
+new-repo templates (copyroom's canonical template) declare the `shellij` input in
+`devenv.yaml`, and RepoMan presence-imports shellij's own devenv module — which
+installs `shellij` + `zellij` + `yazi` and appends a guarded `shellij open`
+enterShell hook — so the durable workbench is wired and auto-configured for use
+with zero repoman configuration. A repo that doesn't declare the input simply
+doesn't get shellij.
 
 ---
 
@@ -128,7 +137,7 @@ prints each result, and returns the worst exit code under the shared `0/1/2/3` c
 
 ## 6. How composition actually works
 
-Two layers, mirroring the proven allium-env / zelligate / testee patterns:
+Two layers, mirroring the proven family patterns:
 
 1. **Nix layer (the meta-module).** `modules/devenv.nix` declares `options.repoman.*`
    and statically imports one thin wiring module per manager from `modules/managers/`.
@@ -139,7 +148,7 @@ Two layers, mirroring the proven allium-env / zelligate / testee patterns:
 
 2. **Python/CLI layer (getting the tools into the repo).** The manager CLIs
    (copyroom, gitman, testee, …) are Python packages that must land in the devenv
-   venv. The proven family mechanism (allium-env) is a `*-sync` script that installs
+   venv. The proven family mechanism is a `*-sync` script that installs
    assets into the repo, optionally on `enterShell`. RepoMan generalizes this:
    `repoman-sync` installs the selected managers' Python packages into the venv and
    installs their skills under `skillsDir`.

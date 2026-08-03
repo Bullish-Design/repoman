@@ -36,25 +36,6 @@ source = "wheel:pyjutsu>=0.8"
 package = "testee"
 source = "path:/home/andrew/Documents/Projects/testee"
 
-[managers.session]
-package = "zelligate"
-source = "path:/home/andrew/Documents/Projects/zelligate"
-
-# Pure-Python coding-agent manager. Note the intentional mismatch: the lock key is
-# the manager *key* ("agent"), the package is the PyPI/dist name ("mypi-agent"), and
-# the console script is "mypi" (the command the registry maps "agent" to).
-[managers.agent]
-package = "mypi-agent"
-source = "path:/home/andrew/Documents/Projects/mypi-agent"
-
 [managers.doc]
 package = "docman"
 source = "path:/home/andrew/Documents/Projects/docman"
-
-# Spec manager. Like "agent", the names diverge deliberately: the lock key is the
-# manager key ("spec"), while the package/dist and the console script are both "alliman"
-# (the registry command). The third-party `allium` binary is NOT a manager entry — it's
-# provisioned by allium-env's own devenv at the nix layer, never via this lock.
-[managers.spec]
-package = "alliman"
-source = "path:/home/andrew/Documents/Projects/allium-env"

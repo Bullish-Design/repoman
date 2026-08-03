@@ -66,42 +66,12 @@ def test_format_self_check_unknown_level_is_question_marked():
     assert "? x — detail" in formatted
 
 
-def test_session_lock_and_installed_ok(tmp_path, monkeypatch):
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.session]\npackage="zelligate"\nsource="path:/x"\n')
-    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
-    result = run_self_check([REGISTRY["session"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["lock:session"].level == "ok"
-    assert _names(result)["installed:session"].level == "ok"
-
-
-def test_agent_lock_and_installed_ok(tmp_path, monkeypatch):
-    # agent's lock key/package/command mismatch: key "agent", package "mypi-agent",
-    # command "mypi". installed:agent checks shutil.which("mypi") — the command.
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.agent]\npackage="mypi-agent"\nsource="path:/x"\n')
-    monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
-    result = run_self_check([REGISTRY["agent"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["lock:agent"].level == "ok"
-    assert _names(result)["installed:agent"].level == "ok"
-
-
 def test_doc_lock_and_installed_ok(tmp_path, monkeypatch):
     (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.doc]\npackage="docman"\nsource="path:/x"\n')
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
     result = run_self_check([REGISTRY["doc"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:doc"].level == "ok"
     assert _names(result)["installed:doc"].level == "ok"
-
-
-def test_spec_lock_and_installed_ok(tmp_path, monkeypatch):
-    # spec's command is "alliman" (not the 3rd-party "allium"); installed:spec checks
-    # shutil.which("alliman").
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK + '[managers.spec]\npackage="alliman"\nsource="path:/x"\n')
-    seen = {}
-    monkeypatch.setattr(checks.shutil, "which", lambda c: seen.setdefault(c, "/usr/bin/" + c))
-    result = run_self_check([REGISTRY["spec"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["lock:spec"].level == "ok"
-    assert _names(result)["installed:spec"].level == "ok"
-    assert "alliman" in seen and "allium" not in seen  # never probes the 3rd-party binary
 
 
 def test_uninstalled_manager_fails(tmp_path, monkeypatch):
@@ -189,9 +159,9 @@ def test_no_provisioned_row_for_approach_a_manager(tmp_path, monkeypatch):
 def test_full_roster_self_check_is_green(tmp_path, monkeypatch):
     """The whole roster, healthy: lock + PATH + provisioning signals → all OK, exit 0.
 
-    Locks in the Phase 1-5 bridge wiring at the unit level: every selected manager
-    is installed (venv CLI) and — for the three approach-B managers — provisioned
-    (nix module imported). The capstone end-to-end re-verify lives in the
+    Locks in the manager wiring at the unit level: every selected manager is
+    installed (venv CLI) and — for the one remaining approach-B manager (doc) —
+    provisioned (nix module imported). The end-to-end re-verify lives in the
     consumer-example; this guards the self-check shape against regression.
     """
     managers = list(REGISTRY.values())
@@ -205,19 +175,14 @@ def test_full_roster_self_check_is_green(tmp_path, monkeypatch):
     skill.parent.mkdir(parents=True)
     skill.write_text("---\nname: repoman\n---\n")
     monkeypatch.setattr(checks.shutil, "which", lambda c: "/usr/bin/" + c)
-    for key in ("doc", "spec", "agent"):
-        monkeypatch.setenv(f"REPOMAN_PROVISIONED_{key.upper()}", "1")
+    monkeypatch.setenv("REPOMAN_PROVISIONED_DOC", "1")
 
     result = run_self_check(managers, str(tmp_path), ".claude/skills")
     names = _names(result)
     assert self_check_exit(result) == 0
     assert all(c.level == "ok" for c in result)
-    # Exactly the three approach-B managers get a provisioned: row, all OK.
-    assert {n for n in names if n.startswith("provisioned:")} == {
-        "provisioned:doc",
-        "provisioned:spec",
-        "provisioned:agent",
-    }
+    # Exactly the one approach-B manager gets a provisioned: row, OK.
+    assert {n for n in names if n.startswith("provisioned:")} == {"provisioned:doc"}
 
 
 # --- devman self-checks ----------------------------------------------------

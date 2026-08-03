@@ -5,7 +5,7 @@
 
 {
   repoman.enable = true;
-  repoman.managers = [ "copy" "git" "test" "doc" "session" "agent" "spec" ];
+  repoman.managers = [ "copy" "git" "test" "doc" ];
   repoman.nativeBuild = false;   # pyjutsu comes from vendomat's wheel — no Rust toolchain
 
   # vendomat: install pyjutsu from the prebuilt wheelhouse instead of compiling it.

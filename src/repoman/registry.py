@@ -46,7 +46,6 @@ class Manager:
 # skill renders only the steps whose manager is enabled; "change" (key None) is the
 # human/agent edit step and always appears.
 SPINE: list[tuple[str, str | None]] = [
-    ("spec", "spec"),
     ("scaffold", "copy"),
     ("change", None),
     ("verify", "test"),
@@ -89,34 +88,6 @@ REGISTRY: dict[str, Manager] = {
         "Docs build/lint/check (zensical)",
         route_when="build or check the docs",
         nix_input="docman",
-    ),
-    "session": Manager(
-        "session",
-        "zelligate",
-        "situational",
-        "Live terminal / session surface (Zellij)",
-        status=["list"],
-        route_when="open a live terminal/session for this repo",
-    ),
-    "agent": Manager(
-        "agent",
-        "mypi",
-        "situational",
-        "Coding-agent runtime + secrets (Pi)",
-        status=["paths"],
-        route_when="manage the coding-agent runtime or secrets",
-        nix_input="mypi-agent",
-    ),
-    "spec": Manager(
-        "spec",
-        "alliman",
-        "situational",  # NOT "allium" — that's the 3rd-party juxt/allium-tools binary (no doctor verb)
-        "Spec-driven agent workflow (Allium)",
-        # allium-env installs its manager skill under `allium-entrypoint`, not `alliman`,
-        # so point the sub-skill deferral check at the dir that actually ships.
-        skill="allium-entrypoint",
-        route_when="write or check a behavioural spec",
-        nix_input="allium-env",
     ),
 }
 

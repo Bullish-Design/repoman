@@ -18,11 +18,11 @@ inputs:
   docman:
     url: path:../../../docman
     flake: false
-  allium-env:
-    url: path:../../../allium-env
-    flake: false
-  mypi-agent:
-    url: path:../../../mypi-agent
+  # shellij is installed by default (not a roster manager): RepoMan presence-imports
+  # shellij's own devenv module (packages + guarded `shellij open` enterShell hook)
+  # when this input is declared — no repoman.managers entry, no repoman config.
+  shellij:
+    url: path:../../../shellij
     flake: false
   # vendomat is a real flake input (default flake: true): its module reads
   # inputs.vendomat.packages.<system>.wheelhouse to point UV_FIND_LINKS at the

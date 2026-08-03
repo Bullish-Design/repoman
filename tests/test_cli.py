@@ -14,29 +14,10 @@ def test_managers_lists_enabled(monkeypatch):
     assert "gitman" not in result.stdout
 
 
-def test_managers_lists_session(monkeypatch):
-    monkeypatch.setenv("REPOMAN_MANAGERS", "session")
-    result = runner.invoke(app, ["managers"])
-    assert result.exit_code == 0 and "zelligate" in result.stdout
-
-
-def test_managers_lists_agent(monkeypatch):
-    monkeypatch.setenv("REPOMAN_MANAGERS", "agent")
-    result = runner.invoke(app, ["managers"])
-    assert result.exit_code == 0 and "mypi" in result.stdout
-
-
 def test_managers_lists_doc(monkeypatch):
     monkeypatch.setenv("REPOMAN_MANAGERS", "doc")
     result = runner.invoke(app, ["managers"])
     assert result.exit_code == 0 and "docman" in result.stdout
-
-
-def test_managers_lists_spec(monkeypatch):
-    # spec maps to the family CLI `alliman`, not the 3rd-party `allium`.
-    monkeypatch.setenv("REPOMAN_MANAGERS", "spec")
-    result = runner.invoke(app, ["managers"])
-    assert result.exit_code == 0 and "alliman" in result.stdout
 
 
 def test_enabled_drops_unknown_manager_keys(monkeypatch):
@@ -154,9 +135,9 @@ def test_doctor_self_only_skips_manager_doctors(monkeypatch, tmp_path):
 
 
 def test_doctor_fails_when_selected_manager_unbuilt(monkeypatch, tmp_path):
-    # session selected but absent from lock and not on PATH → self-check FAIL, exit 2.
+    # test selected but absent from lock and not on PATH → self-check FAIL, exit 2.
     (tmp_path / "repoman.lock").write_text('[repoman]\npackage="repoman"\nsource="path:/x"\n')
-    monkeypatch.setenv("REPOMAN_MANAGERS", "session")
+    monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
     result = runner.invoke(app, ["doctor", "--self-only"])

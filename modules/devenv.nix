@@ -18,12 +18,12 @@
 # membership in `repoman.managers`. Imports cannot depend on `config`, so we
 # import every manager module statically and let each one decide whether to
 # activate — the standard devenv/NixOS module idiom.
-{ pkgs, lib, config, ... }:
+{ pkgs, lib, config, inputs ? {}, ... }:
 
 let
   cfg = config.repoman;
 
-  allManagers = [ "copy" "git" "test" "doc" "session" "agent" "spec" ];
+  allManagers = [ "copy" "git" "test" "doc" ];
 in
 {
   imports = [
@@ -31,11 +31,16 @@ in
     ./managers/copyroom.nix
     ./managers/gitman.nix   # contributes a Rust/maturin toolchain when "git" is selected,
                             # to build the unpublished pyjutsu native extension — see SPIKE.md
-    ./managers/zelligate.nix   # contributes pkgs.zellij when "session" is selected
-    ./managers/mypi.nix        # contributes pkgs.secretspec when "agent" is selected
-    ./managers/docman.nix      # activates when "doc" is selected (pure-Python; toolchain in docman's module)
-    ./managers/alliman.nix     # activates when "spec" is selected (pure-Python; `allium` binary stays in allium-env)
-  ];
+    ./managers/docman.nix   # activates when "doc" is selected (pure-Python; toolchain in docman's module)
+  ]
+  # shellij is NOT a roster manager: no `repoman.managers` entry, no repoman.session.*
+  # options, nothing to select. It is installed by default — new-repo templates
+  # (copyroom) declare the `shellij` input and RepoMan presence-imports shellij's own
+  # devenv module (packages: shellij/zellij/yazi + guarded `shellij open` enterShell
+  # hook), so it is wired and auto-configured for use with zero repoman config.
+  # Inputs aren't transitive across a remote module import, so a repo that doesn't
+  # declare the input simply doesn't get shellij.
+  ++ lib.optional (inputs ? shellij) (inputs.shellij + "/modules/devenv.nix");
 
   options.repoman = {
     enable = lib.mkEnableOption "RepoMan: the agentic repo lifecycle conductor";

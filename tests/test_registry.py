@@ -29,20 +29,6 @@ def test_core_managers_present():
     assert {"copy", "git", "test"} <= set(REGISTRY)
 
 
-def test_session_entry_shape():
-    m = REGISTRY["session"]
-    assert m.command == "zelligate"
-    assert m.tier == "situational"
-    assert m.doctor == ["doctor"] and m.status == ["list"]
-
-
-def test_agent_entry_shape():
-    m = REGISTRY["agent"]
-    assert m.command == "mypi"  # console script, not the dist name
-    assert m.tier == "situational"
-    assert m.doctor == ["doctor"] and m.status == ["paths"]
-
-
 def test_doc_entry_shape():
     m = REGISTRY["doc"]
     assert m.command == "docman"
@@ -53,25 +39,12 @@ def test_doc_entry_shape():
 
 
 def test_approach_b_managers_declare_their_nix_input():
-    # The three approach-B managers each need a presence-gated devenv.yaml input;
+    # The one remaining approach-B manager needs a presence-gated devenv.yaml input;
     # `repoman doctor` warns (provisioned:<key>) when it's missing.
     assert REGISTRY["doc"].nix_input == "docman"
-    assert REGISTRY["spec"].nix_input == "allium-env"
-    assert REGISTRY["agent"].nix_input == "mypi-agent"
 
 
 def test_approach_a_and_pure_python_managers_have_no_nix_input():
-    # Approach-A (copy/session) and pure-Python (test) + git need no consumer input.
-    for key in ("copy", "git", "test", "session"):
+    # Approach-A (copy) and pure-Python (test) + git need no consumer input.
+    for key in ("copy", "git", "test"):
         assert REGISTRY[key].nix_input == ""
-
-
-def test_spec_command_is_not_the_thirdparty_binary():
-    # Regression guard: `spec` must invoke the family manager CLI (`alliman`), NOT the
-    # third-party juxt/allium-tools `allium` binary, which has no `doctor` verb.
-    m = REGISTRY["spec"]
-    assert m.command == "alliman"  # NOT "allium"
-    assert m.tier == "situational" and m.status is None
-    assert m.doctor == ["doctor"]
-    # allium-env installs its manager skill as `allium-entrypoint`, not `alliman`.
-    assert m.skill == "allium-entrypoint"
