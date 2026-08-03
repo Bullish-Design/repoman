@@ -1,0 +1,20 @@
+[project]
+name = "consumer-example"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+# testee is the ONLY manager that runs INSIDE this codebase (its tools — pytest /
+# ruff / ty — import the app), so it is a declared per-repo uv dev dependency
+# (project 12). The other managers (repoman/gitman/copyroom/docman) come from the
+# system-wide toolchain venv and never appear here.
+dev = ["testee"]
+
+[tool.uv.sources]
+# fleet: testee = { git = "https://github.com/Bullish-Design/testee", ref = "vX.Y.Z" }
+testee = { path = "../../../testee" }
+
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"

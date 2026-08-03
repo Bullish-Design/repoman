@@ -1,8 +1,10 @@
 # yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
 #
 # Throwaway consumer for the RepoMan spike. It imports the meta-module by local
-# path and enables a single manager (test). This proves the "one import" wiring
-# end to end before the full roster exists.
+# path and enables the full roster (copy git test doc). This proves the "one
+# import" wiring end to end — including the project-12 split: the pure-CLI
+# managers come from the system-wide toolchain venv (no vendomat input, no
+# per-repo repoman.lock), testee is declared in pyproject.toml.
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
@@ -24,12 +26,6 @@ inputs:
   shellij:
     url: path:../../../shellij
     flake: false
-  # vendomat is a real flake input (default flake: true): its module reads
-  # inputs.vendomat.packages.<system>.wheelhouse to point UV_FIND_LINKS at the
-  # prebuilt pyjutsu wheel, so the wheel: source in repoman.lock resolves.
-  vendomat:
-    url: path:../../../vendomat
 
 imports:
   - repoman
-  - vendomat/modules

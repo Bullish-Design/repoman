@@ -24,12 +24,20 @@ activate. (RepoMan's `modules/devenv.nix` imports its managers exactly this way.
 
 ## 2. Put the CLI on PATH
 
-Two routes:
+Two install classes (project 12), picked by the `Manager.install` field in `repoman/registry.py`:
 
-- **From the venv** — the manager is a Python package pinned in `repoman.lock`; `repoman-sync`
-  `uv pip install`s it so its console script lands on PATH. Local checkouts install `--editable` so
-  code edits are picked up live.
-- **From nix `packages`** — for a non-Python tool, add the derivation to `packages`.
+- **`"toolchain"` — the system-wide shared venv.** A pure-CLI manager (repoman/gitman/copyroom/
+  docman) that never imports the consumer's code: pinned in the machine `repoman.lock` at the
+  repoman checkout, installed once per machine by `repoman-sync --machine` into
+  `$REPOMAN_TOOLCHAIN_VENV`, and prepended to every consumer's PATH. Local checkouts install
+  `--editable` so code edits are picked up live.
+- **`"uv"` — the consumer's uv graph.** A manager whose tools run *inside* the consumer's codebase
+  (today: testee — pytest/ruff/ty import the app): declared in the consumer's `pyproject.toml`
+  (`[dependency-groups] dev` + `[tool.uv.sources]`) and installed by `uv sync`. `repoman doctor`
+  validates it with `uv:<key>`; the other class gets `lock:<key>`.
+
+Either way the console script lands on PATH; the split is *where* it is installed and *who* the
+doctor asks about it.
 
 ## 3. Expose verbs through scripts/tasks, honoring the exit contract
 
@@ -46,8 +54,12 @@ contract). devman's own assets follow this exact discipline.
 
 ## 5. Pin it
 
-Add the manager to `repoman.lock` so `repoman-sync` installs it and `repoman doctor` validates it
-(a selected-but-absent manager is a self-check FAIL).
+- **A `"toolchain"` manager** → add it to the MACHINE `repoman.lock` at the repoman checkout (not
+  the consumer's) and set `install = "toolchain"` (the default). `repoman doctor` validates it
+  with `lock:<key>` against the recorded manifest; a selected-but-absent manager is a self-check
+  FAIL.
+- **A `"uv"` manager** → declare it in each consumer's `pyproject.toml` and set
+  `install = "uv"`; the doctor checks `uv:<key>` instead.
 
 For where a new manager sits in the lifecycle, see the `repoman` skill and
 `adopting-the-man-family.md`.

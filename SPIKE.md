@@ -49,6 +49,14 @@ like the rest of the family.
 
 ### Decision: `repoman.lock` manifest
 
+> **Superseded by project 12 (toolchain single instance).** This per-repo manifest +
+> per-repo `repoman-sync` install is what the current design replaces: the pure-CLI
+> managers now install once system-wide (`repoman-sync --machine` from the machine
+> `repoman.lock` at the repoman checkout), and testee is declared per-repo as a uv dev
+> dependency. Consumers have no `repoman.lock`. The resolver mechanics proven here
+> (TOML → targets, `path:`/`wheel:`/`git+` kinds, the `UV_FIND_LINKS` guard) are reused
+> verbatim by the machine mode.
+
 `repoman-sync` reads a single `repoman.lock` (TOML) that pins RepoMan itself plus
 every manager, so a repo's whole toolchain moves in lockstep (matches copyroom's
 convergence model). `source` is either `path:/abs` (dev) or

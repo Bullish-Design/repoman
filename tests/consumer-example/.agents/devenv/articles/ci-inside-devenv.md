@@ -8,9 +8,11 @@ shell** so CI uses exactly what you use.
 
     # any CI runner
     - run: nix profile install nixpkgs#devenv   # or cachix/install-nix-action + devenv
-    - run: devenv shell -- repoman-sync          # install the pinned toolchain
-    - run: devenv shell -- repoman doctor         # self-check the wiring
-    - run: devenv shell -- repoman status         # or the repo's verify/test verb
+    - run: devenv shell -- repoman-sync --machine  # bootstrap the shared toolchain (cacheable)
+    - run: devenv shell -- uv sync --all-extras    # app deps + the dev group (testee)
+    - run: devenv shell -- repoman-sync            # verify toolchain + install the entrypoint skill
+    - run: devenv shell -- repoman doctor          # self-check the wiring
+    - run: devenv shell -- repoman status          # or the repo's verify/test verb
 
 Every step is `devenv shell -- …` for the same reason agents must use it locally (the
 `devenv-run-commands` skill): the pinned PATH, env, and determinism vars only exist inside.

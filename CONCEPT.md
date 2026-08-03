@@ -137,6 +137,16 @@ prints each result, and returns the worst exit code under the shared `0/1/2/3` c
 
 ## 6. How composition actually works
 
+> **Superseded by project 12 (toolchain single instance).** §6.2 below described a
+> per-repo toolchain: `repoman-sync` installing the manager CLIs into *each consumer's*
+> devenv venv from a per-repo `repoman.lock` — the mechanism project 11 measured pruning
+> 33 packages when `uv sync` ran. Project 12 splits the family by install model: the
+> pure-CLI managers (repoman/gitman/copyroom/docman + pyjutsu) live ONCE system-wide in
+> `$REPOMAN_TOOLCHAIN_VENV`, installed by `repoman-sync --machine` from a machine
+> `repoman.lock` at the repoman checkout; testee is a per-repo uv dev dependency in each
+> consumer's `pyproject.toml`. Consumers have no `repoman.lock` and `uv sync` prunes
+> nothing. The nix wiring described here is unchanged.
+
 Two layers, mirroring the proven family patterns:
 
 1. **Nix layer (the meta-module).** `modules/devenv.nix` declares `options.repoman.*`

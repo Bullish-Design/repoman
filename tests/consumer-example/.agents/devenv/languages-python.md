@@ -14,8 +14,14 @@
 `venv.enable = true` **creates** a venv but does **not** install your project's dependencies. Until
 a sync runs, `import yourpkg` / third-party imports raise `ModuleNotFoundError`:
 
-    devenv shell -- uv sync --all-extras      # install deps into the venv
-    devenv shell -- uv pip install -e .       # editable install of the project itself
+    devenv shell -- uv sync --all-extras      # app deps + the `dev` group (testee + pytest/ruff/ty)
+    devenv shell -- uv pip install -e .       # project itself, EDITABLE — but installs NEITHER
+                                              # dependency groups NOR extras (project 12)
+
+Since project 12 the manager CLIs (repoman/gitman/copyroom/docman) no longer live in this venv —
+they come from the system-wide toolchain venv (`repoman-sync --machine`). This venv holds only the
+uv graph (app deps + testee + its tools), so plain `uv sync` prunes nothing. `uv pip install -e .`
+is add-only but skips `[dependency-groups]` and extras — prefer `uv sync --all-extras`.
 
 (Trigger + recovery: the `devenv-python-venv` skill.)
 

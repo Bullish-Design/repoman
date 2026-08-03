@@ -22,12 +22,19 @@ skills own *how to operate the shell those tools live in*. They co-install and c
    (`shell.md`).
 2. **Import RepoMan.** Add the `repoman` input with `flake: false` and import it
    (`inputs-and-imports.md`); set `repoman.enable = true` and `repoman.managers = [ … ]`.
-3. **Create `repoman.lock`.** Pin the `[repoman]` self entry plus each selected manager.
-4. **Run `repoman-sync`.** Installs the manager CLIs, generates the entrypoint skill, **and installs
-   devman's skills + docs export** in one step (`devenv shell -- repoman-sync`).
-5. **Verify.** `devenv shell -- repoman doctor` — the self-check validates the lock, the installed
-   CLIs, the entrypoint skill, and the `devman:skills` / `devman:docs` / `devman:current` rows.
-6. **Add managers incrementally.** Each new manager: pin it, select it, re-sync. Building one from
+3. **Bootstrap the machine toolchain (once per machine).** The pure-CLI managers
+   (repoman/gitman/copyroom/docman) live in ONE system-wide venv, populated from the machine
+   `repoman.lock` at the repoman checkout: `cd <repoman checkout> && devenv shell --
+   repoman-sync --machine`. There is no per-repo `repoman.lock` anymore (project 12).
+4. **Declare `testee` in `pyproject.toml`.** testee runs *inside* your code, so it is a per-repo uv
+   dev dependency: `[dependency-groups] dev = ["testee"]` + `[tool.uv.sources] testee = { … }`,
+   then `devenv shell -- uv sync --all-extras`.
+5. **Run `repoman-sync`.** Verifies the shared toolchain venv, then generates the entrypoint skill
+   (`devenv shell -- repoman-sync`) — it installs nothing into this repo's venv.
+6. **Verify.** `devenv shell -- repoman doctor` — the self-check validates the toolchain venv, the
+   recorded machine manifest, testee's uv declaration, the installed CLIs, and the entrypoint
+   skill.
+7. **Add managers incrementally.** Each new manager: select it and re-sync. Building one from
    scratch: `authoring-a-manager-module.md`.
 
 ## What you get for free
