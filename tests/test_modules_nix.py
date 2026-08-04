@@ -31,3 +31,12 @@ def test_meta_module_exports_toolchain_venv_in_enter_shell():
     text = (MODULES / "devenv.nix").read_text()
     assert "export REPOMAN_TOOLCHAIN_VENV=" in text
     assert 'export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"' in text
+
+
+def test_meta_module_prepends_consumer_venv_bin_for_tasks():
+    # Task-PATH fix (project-12 follow-up): `devenv tasks run` does not prepend the
+    # consumer venv bin (the interactive shell does). enterShell runs per task, so
+    # the prepend here fixes tasks shelling out to a venv console script (e.g.
+    # testee's lint-imports arch test) and is a harmless no-op for the shell.
+    text = (MODULES / "devenv.nix").read_text()
+    assert 'export PATH="${config.devenv.state}/venv/bin:$PATH"' in text

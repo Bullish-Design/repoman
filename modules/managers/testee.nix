@@ -2,8 +2,9 @@
 #
 # Imported unconditionally by ../devenv.nix; activates only when "test" is in
 # `repoman.managers`. Mirrors testee's own nix/testee.nix: it assumes the
-# `testee` console script is in the devenv venv (installed by repoman-sync) and
-# resolves ruff/ty/pytest relative to its own interpreter.
+# `testee` console script is in the consumer venv (project 12 — testee is a
+# per-repo uv dev dependency declared in pyproject.toml) and resolves
+# ruff/ty/pytest relative to its own interpreter.
 { lib, config, ... }:
 
 let

@@ -123,6 +123,13 @@ in
       # the consumer venv by a pre-migration repoman-sync.
       export REPOMAN_TOOLCHAIN_VENV="${toolchainVenvExpr}"
       export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"
+      # Task-PATH fix (project-12 follow-up): devenv's interactive shell prepends the
+      # consumer venv bin (.devenv/state/venv/bin) itself, but `devenv tasks run`
+      # does NOT — its PATH lacks the venv, so a task that shells out to a venv
+      # console script (e.g. testee's `lint-imports` arch test) fails. Tasks DO run
+      # this enterShell block (PROGRESS §0.2), so prepending here is harmless for the
+      # shell (already prepended) and fixes tasks.
+      export PATH="${config.devenv.state}/venv/bin:$PATH"
       if [ ! -x "$REPOMAN_TOOLCHAIN_VENV/bin/repoman" ]; then
         echo "RepoMan: shared toolchain not bootstrapped ($REPOMAN_TOOLCHAIN_VENV)." >&2
         echo "RepoMan:   cd <repoman checkout> && devenv shell -- repoman-sync --machine" >&2
