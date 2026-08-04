@@ -11,6 +11,16 @@ Project 12: the manager family splits by install model. Pure-CLI managers
 against the manifest `repoman-sync --machine` recorded inside it. uv-declared
 managers (`install == "uv"`, today: testee) live in the consumer's uv graph,
 validated against `pyproject.toml`.
+
+Two disciplines this module holds to, because it is the *diagnostic* layer:
+
+* **Never crash on the inputs it exists to diagnose.** Every filesystem read is
+  guarded (`OSError`, decode errors, malformed TOML). A doctor that raises is
+  strictly worse than one that reports ``fail``.
+* **Validate the binary that actually runs.** The nix tasks exec absolute paths
+  (``"$toolchainBin"/gitman``), so ``installed:<key>`` resolves the same absolute
+  path rather than trusting ``PATH`` — and flags the case where ``PATH`` would
+  hand you a *different* copy.
 """
 
 from __future__ import annotations
@@ -20,6 +30,7 @@ import re
 import shutil
 import tomllib
 from dataclasses import dataclass
+from importlib.metadata import Distribution, DistributionFinder
 from pathlib import Path
 
 from .registry import Manager
@@ -38,6 +49,12 @@ class SelfCheck:
     detail: str = ""
 
 
+def _normalize(name: str) -> str:
+    """PEP 503 name normalisation."""
+
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def toolchain_venv() -> Path:
     """The system-wide toolchain venv (project 12), mirroring repoman-sync.sh's resolution."""
 
@@ -46,6 +63,48 @@ def toolchain_venv() -> Path:
         return Path(env)
     data_home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(data_home) / _DEFAULT_TOOLCHAIN
+
+
+def consumer_venv_bin() -> Path | None:
+    """The consumer devenv venv's bin dir — where a uv-declared manager lands.
+
+    Mirrors ``modules/managers/testee.nix``, which execs ``${config.devenv.state}/venv/bin/testee``.
+    ``DEVENV_STATE`` is exported by devenv; fall back to the conventional layout
+    under ``DEVENV_ROOT`` so the check still works outside a devenv shell.
+    """
+
+    state = os.environ.get("DEVENV_STATE")
+    if state:
+        return Path(state) / "venv" / "bin"
+    root = os.environ.get("DEVENV_ROOT")
+    if root:
+        return Path(root) / ".devenv" / "state" / "venv" / "bin"
+    return None
+
+
+def manager_binary(manager: Manager) -> Path | None:
+    """The absolute path the nix tasks actually exec for ``manager``, if knowable.
+
+    ``None`` means "no absolute path is derivable here" — the caller falls back to
+    a ``PATH`` lookup.
+    """
+
+    if manager.install == "toolchain":
+        return toolchain_venv() / "bin" / manager.command
+    bin_dir = consumer_venv_bin()
+    return bin_dir / manager.command if bin_dir else None
+
+
+def _read_toml(path: Path) -> tuple[dict | None, str | None]:
+    """``(data, error)`` — never raises. ``error`` is a human-readable reason."""
+
+    try:
+        with open(path, "rb") as fh:
+            return tomllib.load(fh), None
+    except tomllib.TOMLDecodeError as exc:
+        return None, f"unparseable: {exc}"
+    except OSError as exc:
+        return None, f"unreadable: {exc.strerror or exc}"
 
 
 def _load_toolchain_manifest(venv: Path) -> tuple[dict | None, SelfCheck]:
@@ -57,24 +116,23 @@ def _load_toolchain_manifest(venv: Path) -> tuple[dict | None, SelfCheck]:
             "toolchain:lock", "warn",
             f"no manifest at {path} — re-run `repoman-sync --machine` to record one",
         )
-    try:
-        with open(path, "rb") as fh:
-            return tomllib.load(fh), SelfCheck("toolchain:lock", "ok", str(path))
-    except tomllib.TOMLDecodeError as exc:
-        return None, SelfCheck("toolchain:lock", "warn", f"unparseable: {exc}")
+    data, error = _read_toml(path)
+    if error is not None:
+        return None, SelfCheck("toolchain:lock", "warn", error)
+    return data, SelfCheck("toolchain:lock", "ok", str(path))
 
 
 def _requirement_name(req: str) -> str:
     """'testee>=0.3 ; python_version>"3.12"' -> 'testee' (PEP 508 head, normalized)."""
 
     head = re.split(r"[\s\[<>=!~;@()]", req.strip(), maxsplit=1)[0]
-    return re.sub(r"[-_.]+", "-", head).lower()
+    return _normalize(head)
 
 
 def uv_declared_in(pyproject: dict, package: str) -> str | None:
     """Which pyproject table declares ``package``, or None. Generic over any uv manager (D5)."""
 
-    target = re.sub(r"[-_.]+", "-", package).lower()
+    target = _normalize(package)
     project = pyproject.get("project") or {}
     tables: list[tuple[str, list]] = [("[project.dependencies]", project.get("dependencies") or [])]
     for extra, reqs in (project.get("optional-dependencies") or {}).items():
@@ -82,21 +140,233 @@ def uv_declared_in(pyproject: dict, package: str) -> str | None:
     for group, reqs in (pyproject.get("dependency-groups") or {}).items():
         tables.append((f"[dependency-groups] {group}", reqs or []))
     for label, reqs in tables:
-        # dependency-groups entries may be {include-group = "..."} dicts — skip non-strings.
+        # A malformed table may not be a list at all; and dependency-groups entries
+        # may be {include-group = "..."} dicts — skip anything that isn't a string.
+        if not isinstance(reqs, list):
+            continue
         if any(isinstance(r, str) and _requirement_name(r) == target for r in reqs):
             return label
     return None
 
 
-def _load_pyproject(repo_root: str) -> dict | None:
+def _load_pyproject(repo_root: str) -> tuple[dict | None, str | None]:
+    """``(data, error)`` for ``<repo_root>/pyproject.toml`` — never raises."""
+
     path = Path(repo_root) / "pyproject.toml"
     if not path.exists():
-        return None
+        return None, None  # genuinely absent, not broken
+    return _read_toml(path)
+
+
+# --------------------------------------------------------------------- versions
+
+#: Comparison operators this module evaluates. `~=` is deliberately absent: its
+#: PEP 440 semantics need full version parsing, and a wrong answer from the
+#: doctor is worse than no answer, so it degrades to "not evaluated".
+_SPECIFIER = re.compile(r"(==|!=|>=|<=|>|<)\s*([0-9][^,\s]*)")
+_GIT_REF = re.compile(r"@v?([0-9][^@/]*)$")
+
+
+def _site_packages(venv: Path) -> Path | None:
     try:
-        with open(path, "rb") as fh:
-            return tomllib.load(fh)
-    except tomllib.TOMLDecodeError:
+        candidates = sorted((venv / "lib").glob("python*/site-packages"))
+    except OSError:
         return None
+    for path in candidates:
+        if path.is_dir():
+            return path
+    return None
+
+
+def installed_versions(venv: Path) -> dict[str, str] | None:
+    """Distribution name → version for the packages inside ``venv``.
+
+    Reads the venv's own ``site-packages`` rather than this interpreter's, so the
+    answer is right regardless of which python is running ``repoman``. ``None``
+    means "couldn't inspect" — the caller then emits no version rows at all,
+    because a false staleness alarm is worse than a missing check.
+    """
+
+    site = _site_packages(venv)
+    if site is None:
+        return None
+    found: dict[str, str] = {}
+    try:
+        dists = list(Distribution.discover(context=DistributionFinder.Context(path=[str(site)])))
+    except OSError:
+        return None
+    for dist in dists:
+        try:
+            name = dist.metadata["Name"]
+            version = dist.version
+        except (OSError, KeyError, ValueError):
+            continue
+        if name and version:
+            found[_normalize(name)] = version
+    return found
+
+
+def _constraints(source: str) -> list[tuple[str, str]]:
+    """The version pins a lock ``source`` implies, as ``(operator, version)`` pairs.
+
+    ``path:`` sources are editable checkouts — always current by construction, so
+    they pin nothing. A ``git+…@vX.Y.Z`` ref is an exact pin.
+    """
+
+    if source.startswith("path:"):
+        return []
+    if source.startswith("wheel:"):
+        source = source[len("wheel:"):]
+    if source.startswith("git+"):
+        ref = _GIT_REF.search(source)
+        return [("==", ref.group(1))] if ref else []
+    return _SPECIFIER.findall(source)
+
+
+def _release(version: str) -> tuple[int, ...] | None:
+    """Numeric release segments, or ``None`` for anything with pre/post/dev parts.
+
+    Refusing to guess on ``1.0rc1`` keeps this honest: the caller treats ``None``
+    as "not evaluated" instead of inventing an ordering.
+    """
+
+    core = version.split("+", 1)[0]
+    parts = core.split(".")
+    out: list[int] = []
+    for part in parts:
+        if not part.isdigit():
+            return None
+        out.append(int(part))
+    return tuple(out) if out else None
+
+
+def _satisfies(installed: str, operator: str, wanted: str) -> bool | None:
+    """Whether ``installed <operator> wanted`` holds; ``None`` if not evaluable."""
+
+    left, right = _release(installed), _release(wanted)
+    if left is None or right is None:
+        return None
+    width = max(len(left), len(right))
+    left += (0,) * (width - len(left))
+    right += (0,) * (width - len(right))
+    return {
+        "==": left == right,
+        "!=": left != right,
+        ">=": left >= right,
+        "<=": left <= right,
+        ">": left > right,
+        "<": left < right,
+    }.get(operator)
+
+
+def version_checks(venv: Path, manifest: dict, managers: list[Manager]) -> list[SelfCheck]:
+    """Compare what's installed in the toolchain venv against what the lock pins.
+
+    This is the check that catches a *stale* toolchain: `lock:<key>` only proves a
+    key is present in the recorded manifest, and `uv pip install` is add-only, so
+    without this a machine that never re-synced reports entirely green.
+    """
+
+    versions = installed_versions(venv)
+    if versions is None:
+        return []  # can't inspect the venv — stay silent rather than cry wolf
+
+    keys = {m.key for m in managers if m.install == "toolchain"}
+    entries: dict[str, object] = {}
+    if isinstance(manifest.get("repoman"), dict):
+        entries["repoman"] = manifest["repoman"]
+    managers_table = manifest.get("managers")
+    if isinstance(managers_table, dict):
+        for key, entry in managers_table.items():
+            # native-dep pseudo-entry: "git-pyjutsu" belongs to the "git" manager.
+            # Rows are named by TOML path ("managers.git"), matching the lock itself
+            # and repoman-sync's error labels — and keeping the [repoman] self entry
+            # distinct from a manager that happened to be keyed "repoman".
+            if key.split("-", 1)[0] in keys:
+                entries[f"managers.{key}"] = entry
+
+    out: list[SelfCheck] = []
+    for key, entry in sorted(entries.items()):
+        if not isinstance(entry, dict):
+            continue  # malformed manifest entry; toolchain:lock shape is not our job
+        source = entry.get("source")
+        package = entry.get("package") or key
+        if not isinstance(source, str) or not isinstance(package, str):
+            continue
+        installed = versions.get(_normalize(package))
+        if installed is None:
+            out.append(SelfCheck(
+                f"version:{key}", "fail",
+                f"{package} is pinned in the machine lock but is not installed in {venv}"
+                " — run `repoman-sync --machine`",
+            ))
+            continue
+        violated = [
+            f"{op}{want}" for op, want in _constraints(source)
+            if _satisfies(installed, op, want) is False
+        ]
+        if violated:
+            out.append(SelfCheck(
+                f"version:{key}", "fail",
+                f"{package} {installed} installed but the machine lock pins "
+                f"{','.join(violated)} — re-run `repoman-sync --machine`",
+            ))
+        else:
+            out.append(SelfCheck(f"version:{key}", "ok", f"{package} {installed}"))
+    return out
+
+
+# ------------------------------------------------------------------ self-check
+
+
+def _installed_check(manager: Manager) -> SelfCheck:
+    """Validate the exact binary the nix tasks exec, not merely a PATH hit.
+
+    The manager tasks run absolute paths (``"$toolchainBin"/gitman``), so a green
+    ``PATH`` lookup can coexist with a task that dies on no-such-file. When both
+    exist but differ, that shadowing IS the finding — report it.
+    """
+
+    heal = "run `repoman-sync --machine`" if manager.install == "toolchain" else "run `uv sync`"
+    expected = manager_binary(manager)
+    on_path = shutil.which(manager.command)
+
+    if expected is None:
+        # No absolute path is derivable (uv manager outside a devenv shell) — PATH is
+        # the best available signal.
+        return SelfCheck(
+            f"installed:{manager.key}", "ok" if on_path else "fail",
+            on_path or f"{manager.command} not on PATH — {heal}",
+        )
+
+    if not expected.exists():
+        detail = f"{expected} missing — {heal}"
+        if on_path:
+            detail += f" (a different {manager.command} is on PATH at {on_path})"
+        return SelfCheck(f"installed:{manager.key}", "fail", detail)
+
+    if on_path:
+        try:
+            shadowed = Path(on_path).resolve() != expected.resolve()
+        except OSError:
+            shadowed = False
+        if shadowed:
+            return SelfCheck(
+                f"installed:{manager.key}", "warn",
+                f"{expected} is what the tasks run, but PATH resolves {manager.command}"
+                f" to {on_path} — the two can disagree",
+            )
+    return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
+
+
+def _skill_defers(path: Path) -> bool | None:
+    """Whether a sub-skill defers to the entrypoint; ``None`` if unreadable."""
+
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return "repoman` skill" in text or "repoman skill" in text
 
 
 def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> list[SelfCheck]:
@@ -120,7 +390,9 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
         if data is not None and "repoman" not in data:
             out.append(SelfCheck("toolchain:self", "warn", "no [repoman] self entry"))
 
-    pyproject = _load_pyproject(repo_root)
+    pyproject, pyproject_error = _load_pyproject(repo_root)
+    if pyproject_error is not None:
+        out.append(SelfCheck("pyproject", "fail", f"{repo_root}/pyproject.toml {pyproject_error}"))
     lock_keys = set((data or {}).get("managers", {}))
 
     for m in managers:
@@ -136,11 +408,16 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
         if data is None:
             continue  # no manifest to check against; toolchain:venv/lock already reported
         # tolerate native-dep pseudo-entries like "git-pyjutsu" (guide 1)
-        has = m.key in lock_keys or any(k.split("-", 1)[0] == m.key for k in lock_keys)
+        has = any(k.split("-", 1)[0] == m.key for k in lock_keys)
         out.append(SelfCheck(
             f"lock:{m.key}", "ok" if has else "fail",
             "" if has else "selected but absent from the machine repoman.lock",
         ))
+
+    # Currency: the lock says what SHOULD be installed; check what IS. Without this,
+    # an add-only sync that never upgraded anything still reports fully green.
+    if data is not None:
+        out.extend(version_checks(venv, data, managers))
 
     if (Path(repo_root) / "repoman.lock").exists():
         out.append(SelfCheck(
@@ -148,14 +425,9 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
             "per-repo repoman.lock is obsolete — the toolchain is machine-level; delete this file",
         ))
 
-    # --- installed:<key> (PATH presence) ---------------------------------------
+    # --- installed:<key> (the exact binary the tasks exec) ----------------------
     for m in managers:
-        present = shutil.which(m.command) is not None
-        heal = "run `repoman-sync --machine`" if m.install == "toolchain" else "run `uv sync`"
-        out.append(
-            SelfCheck(f"installed:{m.key}", "ok" if present else "fail",
-                      m.command if present else f"{m.command} not on PATH — {heal}")
-        )
+        out.append(_installed_check(m))
 
     # Nix-layer provisioning: an approach-B manager's nix module lives in the
     # manager's own repo and is pulled in by a presence-gated import that only
@@ -191,12 +463,14 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
         sub = Path(repo_root) / skills_dir / m.skill / "SKILL.md"
         if not sub.exists():
             continue  # not installed; not our artifact
-        text = sub.read_text()
-        defers = "repoman` skill" in text or "repoman skill" in text
-        out.append(
-            SelfCheck(f"skill:{m.key}:defers", "ok" if defers else "warn",
-                      "" if defers else "missing deferral to the repoman entrypoint")
-        )
+        defers = _skill_defers(sub)
+        if defers is None:
+            out.append(SelfCheck(f"skill:{m.key}:defers", "warn", f"unreadable: {sub}"))
+        else:
+            out.append(
+                SelfCheck(f"skill:{m.key}:defers", "ok" if defers else "warn",
+                          "" if defers else "missing deferral to the repoman entrypoint")
+            )
 
     return out
 

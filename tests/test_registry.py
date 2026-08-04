@@ -72,3 +72,17 @@ def test_install_model_is_validated():
         Manager("x", "xcli", "core", "s", install="bogus")
     Manager("x", "xcli", "core", "s", install="toolchain")
     Manager("x", "xcli", "core", "s", install="uv")
+
+
+def test_version_is_in_lockstep_with_pyproject():
+    # Two hand-maintained copies of the version drift silently; the flake sources the
+    # pyproject one, `repoman --version` the module one.
+    import tomllib
+    from pathlib import Path
+
+    import repoman
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    with open(pyproject, "rb") as fh:
+        declared = tomllib.load(fh)["project"]["version"]
+    assert repoman.__version__ == declared

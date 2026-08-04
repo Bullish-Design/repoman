@@ -30,29 +30,55 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
     assert "bogus" not in result.stdout
 
 
+#: Commands that live in the shared toolchain venv (testee is uv-declared, so it does not).
+_TOOLCHAIN_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
+
+
 def _healthy_repo(tmp_path, monkeypatch, managers):
-    """A tmp repo whose toolchain venv + pyproject satisfy the doctor self-check."""
+    """A tmp repo whose toolchain venv + consumer venv + pyproject satisfy the doctor.
+
+    Models the PATH order `modules/devenv.nix` establishes — toolchain ahead of the
+    consumer venv — so `installed:<key>` sees PATH agreeing with the absolute path the
+    nix tasks exec.
+    """
+    selected = managers.split()
+
     # fake bootstrapped SYSTEM-WIDE toolchain venv (project 12)
     venv = tmp_path / "toolchain"
-    (venv / "bin").mkdir(parents=True)
-    (venv / "bin" / "repoman").write_text("")
+    toolchain_bin = venv / "bin"
+    toolchain_bin.mkdir(parents=True)
+    for command in _TOOLCHAIN_COMMANDS:
+        (toolchain_bin / command).write_text("")
     manifest = '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
     for key in ("copy", "git", "doc"):
-        if key in managers.split():
+        if key in selected:
             manifest += f'[managers.{key}]\npackage = "{key}"\nsource = "path:/x"\n'
-    if "git" in managers.split():
+    if "git" in selected:
         manifest += '[managers.git-pyjutsu]\npackage = "pyjutsu"\nsource = "wheel:pyjutsu>=0.8"\n'
     (venv / "repoman-toolchain.toml").write_text(manifest)
-    # the consumer declares testee as a uv dev dependency
-    if "test" in managers.split():
+
+    # the consumer declares testee as a uv dev dependency and `uv sync` put it here
+    state = tmp_path / ".devenv" / "state"
+    consumer_bin = state / "venv" / "bin"
+    consumer_bin.mkdir(parents=True)
+    if "test" in selected:
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "x"\nversion = "0.0.0"\nrequires-python = ">=3.13"\n'
             'dependencies = []\n[dependency-groups]\ndev = ["testee"]\n'
         )
+        (consumer_bin / "testee").write_text("")
+
+    def which(command):
+        for directory in (toolchain_bin, consumer_bin):  # toolchain first, as on a real PATH
+            if (directory / command).exists():
+                return str(directory / command)
+        return None
+
     monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
+    monkeypatch.setenv("DEVENV_STATE", str(state))
     monkeypatch.setenv("REPOMAN_MANAGERS", managers)
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    monkeypatch.setattr("repoman.checks.shutil.which", lambda c: "/usr/bin/" + c)
+    monkeypatch.setattr("repoman.checks.shutil.which", which)
 
 
 def test_doctor_runs_every_enabled_manager(monkeypatch, tmp_path):
@@ -90,6 +116,7 @@ def test_doctor_exit_is_worst_of_self_and_sub(monkeypatch, tmp_path):
     # self side in too, not just the sub-doctors' worst.
     _healthy_repo(tmp_path, monkeypatch, "test")
     # installed:test fails → self_code 2, while the mocked sub-doctor returns 1.
+    (tmp_path / ".devenv" / "state" / "venv" / "bin" / "testee").unlink()
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
     monkeypatch.setattr(
         "repoman.cli.run_sub",
@@ -217,3 +244,137 @@ def test_doctor_ownership_ok_when_canonical_skills_present(monkeypatch, tmp_path
     result = runner.invoke(app, ["doctor", "--self-only"])
     assert "skill:tool-shipped — canonical copyroom skills present" in result.stdout
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------- roster semantics
+
+
+def test_empty_roster_is_not_the_default_roster(monkeypatch):
+    # `repoman.managers = [ ]` in nix exports REPOMAN_MANAGERS="". "Wire nothing" must
+    # not silently become the three core managers.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "")
+    result = runner.invoke(app, ["managers"])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == ""
+
+
+def test_unset_roster_falls_back_to_the_core_default(monkeypatch):
+    monkeypatch.delenv("REPOMAN_MANAGERS", raising=False)
+    result = runner.invoke(app, ["managers"])
+    assert result.exit_code == 0
+    for command in ("copyroom", "gitman", "testee"):
+        assert command in result.stdout
+
+
+def test_duplicate_roster_entries_are_collapsed(monkeypatch, tmp_path):
+    # "git git" must not run gitman's doctor twice.
+    _healthy_repo(tmp_path, monkeypatch, "git git test")
+    ran = []
+    monkeypatch.setattr(
+        "repoman.cli.run_sub",
+        lambda manager, args: (ran.append(manager.key),
+                               SubResult(manager.key, [manager.command, *args], 0, True))[1],
+    )
+    result = runner.invoke(app, ["doctor"])
+    assert ran == ["git", "test"]
+    assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------- reporting
+
+
+def test_unavailable_manager_explains_itself(monkeypatch, tmp_path):
+    # `repoman status` used to print a bare header and exit 2 with no explanation.
+    _healthy_repo(tmp_path, monkeypatch, "git")
+    monkeypatch.setattr(
+        "repoman.cli.run_sub",
+        lambda manager, args: SubResult(
+            manager.key, [manager.command, *args], 127, False,
+            reason="gitman is not installed — run `repoman-sync --machine`",
+        ),
+    )
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 2
+    assert "gitman is not installed" in result.output
+
+
+def test_manager_without_a_doctor_is_reported_as_skipped(monkeypatch, tmp_path):
+    from repoman.registry import Manager
+
+    _healthy_repo(tmp_path, monkeypatch, "git")
+    doctorless = Manager("git", "gitman", "core", "s", doctor=None)
+    monkeypatch.setattr("repoman.cli._enabled", lambda: [doctorless])
+    called = []
+    monkeypatch.setattr("repoman.cli.run_sub", lambda m, a: called.append(m.key))
+    result = runner.invoke(app, ["doctor"])
+    assert "no doctor, skipped" in result.stdout
+    assert called == []
+
+
+# ---------------------------------------------------------------- version / robustness
+
+
+def test_version_flag_reports_the_package_version():
+    from repoman import __version__
+
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert __version__ in result.stdout
+
+
+def test_absolute_skills_dir_is_rejected(monkeypatch, tmp_path):
+    # Path(repo_root) / "/abs" collapses to "/abs", so install-skills would write
+    # outside the repo entirely.
+    outside = tmp_path / "outside"
+    monkeypatch.setenv("REPOMAN_MANAGERS", "test")
+    monkeypatch.setenv("REPOMAN_SKILLS_DIR", str(outside))
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path / "repo"))
+    result = runner.invoke(app, ["install-skills"])
+    assert result.exit_code == 3  # invalid usage
+    assert not outside.exists()
+
+
+def test_parent_traversal_skills_dir_is_rejected(monkeypatch, tmp_path):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "test")
+    monkeypatch.setenv("REPOMAN_SKILLS_DIR", "../escape/skills")
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path / "repo"))
+    result = runner.invoke(app, ["install-skills"])
+    assert result.exit_code == 3
+    assert not (tmp_path / "escape").exists()
+
+
+def test_unexpected_exception_exits_infra_not_domain(monkeypatch, capsys):
+    # A crashed conductor exiting 1 would read as "a domain decision is needed".
+    import repoman.cli as cli
+
+    monkeypatch.setattr(cli, "app", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    try:
+        cli.main()
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:  # pragma: no cover - main() must not return normally here
+        raise AssertionError("main() swallowed the failure")
+    assert "internal error" in capsys.readouterr().err
+
+
+def test_keyboard_interrupt_exits_130(monkeypatch):
+    import repoman.cli as cli
+
+    monkeypatch.setattr(cli, "app", lambda: (_ for _ in ()).throw(KeyboardInterrupt))
+    try:
+        cli.main()
+    except SystemExit as exc:
+        assert exc.code == 130
+
+
+def test_normal_exit_codes_pass_through_the_crash_guard(monkeypatch):
+    # The guard must not rewrite a deliberate typer.Exit — only unexpected exceptions.
+    import repoman.cli as cli
+
+    monkeypatch.setattr(cli, "app", lambda: (_ for _ in ()).throw(SystemExit(1)))
+    try:
+        cli.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:  # pragma: no cover
+        raise AssertionError("main() swallowed the exit")
