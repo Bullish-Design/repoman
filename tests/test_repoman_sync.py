@@ -59,6 +59,7 @@ def _run(
     toolchain_venv=None,
     lock_dir=None,
     root_env=None,
+    lock_env=None,
 ):
     """Run the script against ``lock_body``; returns the CompletedProcess.
 
@@ -86,6 +87,8 @@ def _run(
         env["UV_FIND_LINKS"] = find_links
     if root_env is not None:
         env["REPOMAN_ROOT"] = root_env
+    if lock_env is not None:
+        env["REPOMAN_LOCK"] = lock_env
 
     cmd = ["bash", str(SCRIPT)] + (argv or (["--machine"] if mode == "machine" else []))
     return subprocess.run(cmd, env=env, capture_output=True, text=True)
@@ -242,6 +245,29 @@ def test_machine_respects_REPOMAN_ROOT(tmp_path):
     assert r.returncode == 0, r.stderr
     manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
     assert manifest.read_text().startswith("# synced from " + str(lock_dir / "repoman.lock"))
+
+
+def test_machine_respects_REPOMAN_LOCK(tmp_path):
+    # WS-3 (project-12 follow-up): REPOMAN_LOCK overrides the lock path ENTIRELY — a
+    # CI runner can point at a fleet-shaped lock without editing the checkout.
+    fleet_lock = tmp_path / "fleet-repoman.lock"
+    fleet_lock.write_text(REPO_SELF + GIT_MANAGER)
+    r = _run(tmp_path, None, lock_env=str(fleet_lock))
+    assert r.returncode == 0, r.stderr
+    manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
+    assert manifest.read_text().startswith("# synced from " + str(fleet_lock))
+
+
+def test_machine_REPOMAN_LOCK_wins_over_default(tmp_path):
+    # an override points elsewhere even when a default repoman.lock exists at DEVENV_ROOT
+    default = tmp_path / "repoman.lock"
+    default.write_text(GIT_MANAGER)  # would fail the self-entry assertions if used
+    fleet_lock = tmp_path / "fleet-repoman.lock"
+    fleet_lock.write_text(REPO_SELF + GIT_MANAGER)
+    r = _run(tmp_path, None, lock_env=str(fleet_lock))
+    assert r.returncode == 0, r.stderr
+    manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
+    assert manifest.read_text().startswith("# synced from " + str(fleet_lock))
 
 
 # ---------------------------------------------------------------- consumer mode

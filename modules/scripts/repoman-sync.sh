@@ -56,7 +56,11 @@ fi
 
 # ---------------------------------------------------------------- machine mode
 root="${REPOMAN_ROOT:-${DEVENV_ROOT:-$PWD}}"
-lock="$root/repoman.lock"
+# WS-3 (project-12 follow-up): REPOMAN_LOCK overrides the lock path ENTIRELY — a CI
+# runner can point at a fleet-shaped lock (git+https@ref sources) without editing
+# the checkout. Pure env-var override; unset = current behaviour (the machine lock
+# at the repoman checkout root).
+lock="${REPOMAN_LOCK:-$root/repoman.lock}"
 
 if [ ! -f "$lock" ]; then
   echo "repoman-sync --machine: no machine repoman.lock at $lock" >&2

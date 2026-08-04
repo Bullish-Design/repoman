@@ -12,6 +12,11 @@
 #   path:/abs/path                      local checkout (dev; installed --editable)
 #   git+https://host/org/repo@vX.Y.Z    pinned git ref (fleet)
 #   wheel:<requirement>                 prebuilt wheel from vendomat's wheelhouse (UV_FIND_LINKS)
+#
+# The committed file is the DEV shape for this machine. The FLEET shape swaps each
+# path: for git+https://github.com/Bullish-Design/<repo>@vX.Y.Z; a CI runner can
+# point repoman-sync --machine at a fleet-shaped lock via REPOMAN_LOCK without
+# editing this checkout (WS-3, project-12 follow-up).
 
 [repoman]
 package = "repoman"

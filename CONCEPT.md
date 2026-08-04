@@ -146,6 +146,15 @@ prints each result, and returns the worst exit code under the shared `0/1/2/3` c
 > `repoman.lock` at the repoman checkout; testee is a per-repo uv dev dependency in each
 > consumer's `pyproject.toml`. Consumers have no `repoman.lock` and `uv sync` prunes
 > nothing. The nix wiring described here is unchanged.
+>
+> **Lock shape (WS-3, project-12 follow-up):** the committed `repoman.lock` at the
+> checkout is the **dev** shape — `path:` sources installed `--editable` for this
+> machine. The **fleet** shape swaps each `path:` for
+> `git+https://github.com/Bullish-Design/<repo>@vX.Y.Z` (the resolver passes git
+> sources verbatim; proven by `test_git_https_source_passes_through_verbatim`). One
+> lock does NOT serve both — machine locks are per-machine by design. A CI runner
+> can point `repoman-sync --machine` at a fleet-shaped lock with the `REPOMAN_LOCK`
+> env override (WS-3 flag) without editing the checkout.
 
 Two layers, mirroring the proven family patterns:
 
