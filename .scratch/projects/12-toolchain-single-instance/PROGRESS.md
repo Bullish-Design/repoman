@@ -1,7 +1,183 @@
 # PROGRESS — 12-toolchain-single-instance (implementation)
 
-**Repo:** `/home/andrew/Documents/Projects/repoman` · **Status:** implemented + validated
+**Repo:** `/home/andrew/Documents/Projects/repoman` · **Status:** implemented + validated + follow-ups in progress
 **Commits:** `448b9cf` PR-A (machine sync) · `4509d1f` lock follow-up · `b6bddce` PR-B (semantic switch) · `fa6d7f5` PR-C (fixture/docs)
+
+---
+
+# Follow-ups log (kickoff session)
+
+## Re-baseline (kickoff §2) — all green
+
+- **Shared toolchain venv:** present — `~/.local/share/repoman/venv/bin` has `repoman gitman copyroom docman`
+  (+ pyjutsu wheel), `repoman-toolchain.toml` present.
+- **Acceptance test (reference consumer):** `image-gen-pipeline` → `devenv shell -- uv sync --all-extras --dry-run`
+  = **"Would make no changes"** (42 packages), held at session start and after the jj cleanup.
+- **VCS per consumer (decides `repoman.lock` deletion):** jj = argentic, flora, foreman, forgelab, image-gen-pipeline,
+  inferference, lodestar, nix-paseo, shellij; git = flora-core, loci.nvim, nix-desktop, nix-nvim, nix-secrets, poddantic.
+  `fleetman` = false positive (a `*man` tool itself — no `repoman.lock`). All 15 candidates hold a `repoman.lock`.
+- **Ambient pollution found:** `/tmp/pyproject.toml` (a boomtube scratch) carried `--cov` addopts that broke pytest
+  runs in `/tmp`-born repos (`pytest: unrecognized arguments: --cov=boomtube`). Moved to `/tmp/pyproject.toml.boomtube-scratch.bak`.
+
+## §2.2 image-gen-pipeline jj-side cleanup — DONE (jj change `owpzkyrt`)
+
+Committed as a jj change on top of `main*` (WIP Phase-1 untouched):
+1. `devenv.yaml` — vendomat input + `vendomat/modules` import removed.
+2. `devenv.nix` — `vendor.enable = true` + comment removed; venv comment updated (hosts app + testee).
+3. `repoman.lock` deleted via jj (plain `rm` — jj snapshots the deletion; never `git rm`).
+4. `uv.lock` **committed** (42 pkgs, testee group intact — no row-9 anomaly).
+Post: `repoman doctor --self-only` has **no `lock:orphan` row**; all `toolchain:*`/`lock:*`/`uv:test` OK;
+acceptance dry-run still "Would make no changes".
+
+## WS-1 — sibling PRs — DONE, both validated
+
+### copyroom PR (branch `project-12-sibling-template`, commit `0ace576`)
+`demo/fixtures/minimal-python-package/template/pyproject.toml.jinja`: `[project.optional-dependencies] dev
+= [pytest, ruff]` → `[dependency-groups] dev = ["testee"]` + `[tool.uv.sources] testee = { path =
+"{{ testee_dev_root }}/testee" }`. Added the `testee_dev_root` copier question (default
+`/home/andrew/Documents/Projects`) + demo-answers entry — the fixture had no dev-root variable.
+**Observation (deviation):** the guide's §11 "fixture expected-output assertions" do NOT exist for the copyroom
+demo fixture (no test references it; only stale `.devenv` shell files). The real assertions are template-py's
+`golden/`, refreshed below.
+
+### template-py PR (branch `feat/verify-agent-files`, commits `6826bb1` + `4b1f132`, tag `v0.1.6`)
+- `template/pyproject.toml.jinja` — same change as copyroom; reused the existing `repoman_dev_root` scenario
+  variable (no new question needed — deviation from the kickoff's `testee_dev_root`, same effect).
+- **deleted `template/repoman.lock.jinja`**; dropped the `test -f repoman.lock` check from `copyroom.yml`.
+- `template/devenv.yaml.jinja` — vendomat input + import removed.
+- `template/devenv.nix.jinja` — `vendor.enable` removed; venv comment updated.
+- `.agents/devenv/**` — 5 files (adopting-the-man-family, authoring-a-manager-module, ci-inside-devenv,
+  command-not-found-in-shell, languages-python) replaced with the canonical post-project-12 text from the
+  repoman fixture (byte-identical base, only the doc-surgery regions differed). `devenv-python-venv` +
+  `devenv-troubleshoot` skills fixed (uv sync = recommended; manager CLIs → `repoman-sync --machine`).
+- `AGENTS.md`, `README.md`, born-repo `README.md.jinja` — no per-repo lock; `uv sync --all-extras` safe again.
+- `golden/py/basic` refreshed at v0.1.6 (workshop flow: feat commit → tag → `golden --refresh`); `repoman.lock`
+  deleted from golden. `copyroom golden py basic` = clean. `release-check` matrix/worktree pass; probe-scenario
+  golden "diffs" is pre-existing (probe has no golden by design, checks are advisory in v0.x).
+
+### Row-6 validation — **PASSED (zero manual edits)**
+1. **copyroom-born** (`copyroom new` on the fixture): `uv sync --all-extras` ✓, `testee verify --mode quick`
+   PASSED ✓, `gitman status` ✓ (after `gitman init --colocate`, the born-repo bootstrap), `repoman doctor
+   --self-only` exit 0 ✓, dry-run = no changes ✓. Born repo: no `repoman.lock`/vendomat/`vendor.enable`.
+   (The minimal fixture has no devenv, so `DEVENV_ROOT` + `--allow-outside-devenv` substituted for the devenv
+   shell's env — noted; the real row-6 target is the genome, below.)
+2. **genome-born** (`copyroom new` on template-py @ v0.1.6 with `--trust`): `devenv shell -- uv sync
+   --all-extras` ✓, `testee verify --mode quick` all-passed ✓, `gitman status` clean ✓, `repoman doctor
+   --self-only` **all-OK including `skill:entrypoint`/`tool-shipped`** ✓, acceptance dry-run = "Would make no
+   changes" ✓. Born repo has no `repoman.lock`, no vendomat, no `vendor.enable`.
+
+## WS-2 — fleet migration — DONE (12/14 committed; flora unmigrated, forgelab partial)
+
+**Migration log** (VCS → files → dry-run uninstall count vs real sync → doctor → acceptance):
+
+| Consumer | VCS | Committed (sha) | Files touched | Dry-run uninstall | Real sync | Doctor | Acceptance |
+|---|---|---|---|---|---|---|---|
+| image-gen-pipeline | jj | `owpzkyrt` (§2.2) | devenv.yaml, devenv.nix, repoman.lock del, uv.lock | n/a (pre-session) | ✓ | all OK | Would make no changes |
+| argentic | jj | `wxwlnpqp` | pyproject, devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, uv.lock, .agents/skills/repoman | 17 (toolchain closure) | ✓ | all OK | Would make no changes |
+| flora-core | git | `2862ad5` | pyproject, devenv.yaml, devenv.nix, .gitignore (un-ignore uv.lock), uv.lock, repoman.lock del, .agents/skills/repoman | 0 (venv empty) | ✓ | all OK | Would make no changes |
+| foreman | jj | `tllkqpyz` | pyproject, devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, uv.lock, .agents/skills/repoman | 20 (toolchain closure) | ✓ | all OK | Would make no changes |
+| forgelab | jj | `mpsvnnnt` | devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, .agents/skills/repoman | 13 BUT **app closure** (fornix + deps) — uv sync NOT run | — | toolchain OK | n/a (no uv graph) |
+| inferference | jj | `qllttmup` | pyproject, devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, uv.lock, .agents/skills/repoman | 18 (toolchain closure) | ✓ (needs NIXPKGS_ALLOW_UNFREE=1) | all OK | Would make no changes |
+| loci.nvim | git | `e9e6863` | devenv.nix, repoman.lock del | n/a (no pyproject) | n/a | toolchain OK | n/a |
+| lodestar | jj | `mynppsqw` | pyproject (testee appended to existing dev group), devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, uv.lock, .agents/skills/repoman | 0 (venv empty) | ✓ | all OK | Would make no changes |
+| nix-desktop | git | `b188ad5` | devenv.nix, repoman.lock del | n/a | n/a | toolchain OK | n/a |
+| nix-nvim | git | `a369b66` | devenv.nix, repoman.lock del | n/a | n/a | toolchain OK | n/a |
+| nix-paseo | jj | `qoozvzzx` | devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, .agents/skills/repoman | n/a | n/a | toolchain OK | n/a |
+| nix-secrets | git | `14f5223` | devenv.nix, repoman.lock del | n/a | n/a | toolchain OK | n/a |
+| poddantic | git | `9ad60a5` | pyproject, devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, uv.lock, .agents/skills/repoman | 0 (venv empty) | ✓ | all OK | Would make no changes |
+| shellij | jj | `zpvsvtvs` | pyproject, devenv.yaml, devenv.nix, devenv.lock, repoman.lock del, uv.lock, .agents/skills/repoman | 0 (venv empty) | ✓ | all OK | Would make no changes |
+| **flora** | jj | **UNMIGRATED** | — | 53 BUT **app closure** (flora-qc + QC stack via venv.requirements) — uv sync NOT run | — | — | — |
+
+**Left unmigrated / partial, with reason:**
+- **flora** — the venv is `venv.requirements`-managed (QC stack `-e .[qc,qc-embed,matte]` +
+  import-linter installed ADDITIVELY outside the uv graph; the devenv.nix comment says exactly
+  "uv sync would PRUNE every package outside uv.lock"). A dry-run uninstalls 53 pkgs incl.
+  flora-qc + the QC deps — app closure, NOT the toolchain closure. Its WIP (feat(089) phase 3)
+  was committed by another session mid-migration; tree left clean + untouched. Owner decision:
+  convert the QC stack to uv extras/groups (then `uv sync --all-extras` is safe) or keep
+  venv.requirements and skip uv sync. The pre-existing footgun stays live by design.
+- **forgelab** — same venv.requirements class (its app dep fornix is an editable outside the uv
+  graph). The devenv/lock split + orphan deletion ARE committed (the committed state is
+  consistent: no vendomat anywhere); `uv sync` deliberately NOT run (would prune fornix). The
+  venv stays venv.requirements-managed. Also: `devenv.nix` carries the in-flight FORNIX
+  mkForce edit from the working copy (same file — noted in the commit message).
+
+**Procedure notes (VCS-aware, jj):** on jj repos, `jj commit <paths...>` puts only the selected
+paths into the commit and moves the rest to a new working copy — used to keep owner WIP
+(skills/, .scratch/, src/) separate from migration commits (foreman, lodestar, argentic,
+forgelab). When devenv.yaml changes, `devenv.update` regens devenv.lock and that MUST be folded
+into the migration commit or the committed state is inconsistent (lodestar: folded via
+`jj edit` + `jj restore devenv.lock --from <wc>` + `jj squash --into <mig>` + re-describe —
+`jj squash --into` replaces the destination description with the source's). In argentic a 1-line
+pyproject description change was swept into the migration commit (content preserved; noted
+here).
+
+## WS-3 — fleet lock shape — DECISION + flag
+
+- **Decision (kept):** the committed `repoman.lock` at the checkout stays the DEV shape
+  (`path:` sources, `--editable`). One lock does NOT serve both dev and fleet — machine locks
+  are per-machine by design (D2 + guide §1).
+- **Fleet form:** swap each `path:` for `git+https://github.com/Bullish-Design/<repo>@vX.Y.Z`
+  (resolver passes git sources verbatim — `test_git_https_source_passes_through_verbatim`).
+  Documented in `repoman.lock`'s header + `CONCEPT.md` §6.
+- **Flag (implemented, e0689c1):** `REPOMAN_LOCK` env override — `repoman-sync --machine` uses
+  it instead of `$REPOMAN_ROOT/repoman.lock`, so a CI runner can point at a fleet-shaped lock
+  without editing the checkout. Pure env-var override (unset = current behaviour), add-only,
+  two tests. **Flagged for owner acknowledgement** — the kickoff marked it "only if the owner
+  wants CI convenience"; implemented per its full spec since it is inert + additive, and
+trivially revertible (revert e0689c1).
+
+## WS-4 — in-repo leftovers — DONE (committed separately)
+
+1. **testee.nix comment** — 5207977: "installed by repoman-sync" → "per-repo uv dev dependency
+   (project 12)". Comment only; `${venvBin}/testee` wiring unchanged.
+2. **Task-PATH quirk — FIXED** (5207977): `devenv tasks run` doesn't prepend the consumer venv
+   bin; enterShell runs per task, so `export PATH="${config.devenv.state}/venv/bin:$PATH"` in
+   the meta-module's enterShell fixes tasks and is a no-op for the shell. Guarded by
+   `test_meta_module_prepends_consumer_venv_bin_for_tasks`; validated with `devenv tasks run
+   repoman:test` in image-gen-pipeline — previously `FileNotFoundError: lint-imports` (the arch
+   test), now passes.
+3. **Release tag** — 382c717: version 0.3.0 → 0.4.0 (meta-module contract changed), tagged
+   `v0.4.0`; `repoman-sync --machine` re-run upgrades the shared venv to 0.4.0 (verified
+   `repoman.__version__` = 0.4.0). Consumer pickup: `devenv update repoman` + eval-cache refresh.
+4. **Row-9 anomaly** — no code; not observed during WS-2 (all lock writes kept testee intact).
+
+## Deviations from the kickoff (with rationale)
+
+1. **copyroom fixture has no expected-output assertions** — guide §11's "update the fixture's
+   expected-output assertions" doesn't apply to `demo/fixtures/minimal-python-package` (no test
+   references it). The real assertions are template-py's `golden/`, refreshed at v0.1.6.
+2. **template-py uses `repoman_dev_root`** (its existing scenario variable) for the testee uv
+   source, not the kickoff's `testee_dev_root` — same effect, zero new scenario churn. The
+   copyroom fixture got a NEW `testee_dev_root` copier question (it had no dev-root variable).
+3. **flora + forgelab are venv.requirements-managed** — not uv-graph-managed; `uv sync` would
+   prune the APP closure (flora-qc / fornix), violating the dry-run rule. flora left unmigrated;
+   forgelab committed the safe split only. Both documented for the owner.
+4. **WS-3 flag implemented** although gated "if the owner wants it" — see WS-3 note above.
+5. **jj working-copy WIP handling** — path-scoped `jj commit` + the squash dance above; a 1-line
+   description (argentic) and 2-line FORNIX env edit (forgelab) were swept into migration
+   commits (content preserved, noted in messages/log).
+6. **`devenv.lock` must ride with the migration** — `devenv update` after the devenv.yaml edit
+   regenerates it; the committed devenv.yaml/lock pair must be consistent (lodestar case).
+7. **inferference eval needs `NIXPKGS_ALLOW_UNFREE=1`** (CUDA/llama.cpp deps) — pre-existing
+   repo requirement, not migration-related; recorded so future shells know.
+8. **image-gen-pipeline's tree is live** — a parallel session added phase-2 WIP to the working
+   copy after §2.2; my §2.2 change is committed and untouched.
+9. **flora-core un-ignored uv.lock** — the .gitignore line "uv lockfile (project uses devenv +
+   repoman, not raw uv)" was project-11 doc surgery; uv.lock is now commit-worthy.
+
+## Remaining follow-ups
+
+- **flora** — owner decides venv.requirements vs uv-graph (or keeps old model); then the
+  migration + the stale "repoman-sync installs the manager CLIs" comment in its venv.requirements
+  block.
+- **forgelab** — owner decides the fornix venv.requirements arrangement before any `uv sync`.
+- **Sibling PRs** — copyroom `project-12-sibling-template` (0ace576), template-py
+  `feat/verify-agent-files` (6826bb1 + 4b1f132, tag v0.1.6) need review + merge + push.
+- **repoman v0.4.0** — tag is local; consumers pick it up via `devenv update repoman` (+ the
+  eval-cache refresh, deviation 6).
+- **The fleet-form lock** — build one (`git+https@ref` sources) when a non-dev machine or CI
+  needs it; `REPOMAN_LOCK` already points at it.
 
 ---
 
