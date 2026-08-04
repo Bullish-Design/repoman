@@ -62,7 +62,13 @@ examples, so templates must declare:
 _preserve_symlinks: true
 _copy_without_render:
   - ".agents/skills/**"
+  - ".agents/devenv/**"   # only if the template ships docs there (the genome does)
 ```
+
+`_preserve_symlinks: true` is **required** — without it, `CLAUDE.md` lands as a
+regular file on both `new` and `update`. `_copy_without_render` is required for
+every tracked `.agents/` subtree: skills (and the genome's `.agents/devenv/`
+docs) contain literal `{{ }}` examples that must survive byte-for-byte.
 
 ## `.agents/` is dual-use
 
