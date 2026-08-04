@@ -33,6 +33,17 @@ def test_meta_module_exports_toolchain_venv_in_enter_shell():
     assert 'export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"' in text
 
 
+def test_toolchain_bin_is_prepended_after_the_consumer_venv_so_it_wins():
+    # Both lines PREPEND, so the one written LAST ends up FIRST on PATH. The toolchain
+    # must win: otherwise a stale pre-migration manager CLI in .devenv/state/venv/bin
+    # shadows the shared toolchain, and `repoman doctor` and `devenv tasks run` resolve
+    # different binaries. The bug this guards was exactly these two lines swapped.
+    text = (MODULES / "devenv.nix").read_text()
+    venv_prepend = text.index('export PATH="${config.devenv.state}/venv/bin:$PATH"')
+    toolchain_prepend = text.index('export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"')
+    assert venv_prepend < toolchain_prepend
+
+
 def test_meta_module_prepends_consumer_venv_bin_for_tasks():
     # Task-PATH fix (project-12 follow-up): `devenv tasks run` does not prepend the
     # consumer venv bin (the interactive shell does). enterShell runs per task, so

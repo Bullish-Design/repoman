@@ -3,6 +3,7 @@
 # resolves the WHOLE machine lock into the shared toolchain venv (add-only `uv pip install`);
 # consumer mode installs nothing and only verifies the shared venv + installs skills.
 import os
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -173,7 +174,7 @@ def test_machine_creates_venv_when_absent(tmp_path):
     r = _run(tmp_path, REPO_SELF + GIT_MANAGER)
     assert r.returncode == 0, r.stderr
     log = _uv_log(tmp_path)
-    venv_lines = [l for l in log if l.startswith("venv --python")]
+    venv_lines = [line for line in log if line.startswith("venv --python")]
     assert len(venv_lines) == 1
     assert venv_lines[0] == "venv --python 3.13 " + str(tmp_path / "toolchain-venv")
 
@@ -186,7 +187,7 @@ def test_machine_skips_venv_creation_when_present(tmp_path):
     py.chmod(0o755)  # the gate is -x on bin/python
     r = _run(tmp_path, REPO_SELF + GIT_MANAGER, toolchain_venv=str(venv))
     assert r.returncode == 0, r.stderr
-    assert not any(l.startswith("venv ") for l in _uv_log(tmp_path))
+    assert not any(line.startswith("venv ") for line in _uv_log(tmp_path))
 
 
 def test_machine_installs_into_shared_venv(tmp_path):
@@ -194,10 +195,12 @@ def test_machine_installs_into_shared_venv(tmp_path):
     # inside another devenv venv (VIRTUAL_ENV set) and must never target that.
     r = _run(tmp_path, REPO_SELF + GIT_MANAGER)
     assert r.returncode == 0, r.stderr
-    install_lines = [l for l in _uv_log(tmp_path) if l.startswith("pip install")]
+    install_lines = [line for line in _uv_log(tmp_path) if line.startswith("pip install")]
     assert len(install_lines) == 1
+    # --upgrade is load-bearing: without it a range pin (`wheel:pyjutsu>=0.8`) counts as
+    # already satisfied, so re-syncing after a toolchain bump silently installs nothing.
     assert install_lines[0].startswith(
-        "pip install --python " + str(tmp_path / "toolchain-venv" / "bin" / "python")
+        "pip install --upgrade --python " + str(tmp_path / "toolchain-venv" / "bin" / "python")
     )
     assert "--editable=/repo/gitman" in install_lines[0]
 
@@ -233,7 +236,7 @@ def test_machine_missing_lock_exits_2(tmp_path):
     assert "REPOMAN_ROOT" in r.stderr
 
 
-def test_machine_respects_REPOMAN_ROOT(tmp_path):
+def test_machine_respects_repoman_root_env(tmp_path):
     lock_dir = tmp_path / "somewhere-else"
     lock_dir.mkdir()
     r = _run(
@@ -247,7 +250,7 @@ def test_machine_respects_REPOMAN_ROOT(tmp_path):
     assert manifest.read_text().startswith("# synced from " + str(lock_dir / "repoman.lock"))
 
 
-def test_machine_respects_REPOMAN_LOCK(tmp_path):
+def test_machine_respects_repoman_lock_env(tmp_path):
     # WS-3 (project-12 follow-up): REPOMAN_LOCK overrides the lock path ENTIRELY — a
     # CI runner can point at a fleet-shaped lock without editing the checkout.
     fleet_lock = tmp_path / "fleet-repoman.lock"
@@ -258,7 +261,7 @@ def test_machine_respects_REPOMAN_LOCK(tmp_path):
     assert manifest.read_text().startswith("# synced from " + str(fleet_lock))
 
 
-def test_machine_REPOMAN_LOCK_wins_over_default(tmp_path):
+def test_machine_repoman_lock_env_wins_over_default(tmp_path):
     # an override points elsewhere even when a default repoman.lock exists at DEVENV_ROOT
     default = tmp_path / "repoman.lock"
     default.write_text(GIT_MANAGER)  # would fail the self-entry assertions if used
@@ -273,17 +276,38 @@ def test_machine_REPOMAN_LOCK_wins_over_default(tmp_path):
 # ---------------------------------------------------------------- consumer mode
 
 
+def _toolchain_repoman(toolchain_venv, log):
+    """An executable, argv-logging `repoman` inside the SHARED venv."""
+    repoman = Path(toolchain_venv) / "bin" / "repoman"
+    repoman.parent.mkdir(parents=True, exist_ok=True)
+    repoman.write_text(f'#!/usr/bin/env bash\necho "toolchain: $@" >> {log}\nexit 0\n')
+    repoman.chmod(0o755)  # consumer mode's gate is -x on the shared repoman
+    return repoman
+
+
 def test_consumer_installs_nothing(tmp_path):
     toolchain_venv = str(tmp_path / "toolchain-venv")
     _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", toolchain_venv=toolchain_venv)
-    repoman = Path(toolchain_venv) / "bin" / "repoman"
-    repoman.write_text("")
-    repoman.chmod(0o755)  # consumer mode's gate is -x on the shared repoman
+    _toolchain_repoman(toolchain_venv, tmp_path / "repoman.log")
     r = _run(tmp_path, REPO_SELF, mode="consumer", toolchain_venv=toolchain_venv)
     assert r.returncode == 0, r.stderr
     assert _uv_log(tmp_path) == []  # consumer mode never invokes uv
     assert "install-skills" in (tmp_path / "repoman.log").read_text()
     assert "shared toolchain →" in r.stdout
+
+
+def test_consumer_runs_the_repoman_it_verified_not_the_one_on_path(tmp_path):
+    # The gate is `-x $toolchain_venv/bin/repoman`, so that is the binary that must run.
+    # A stale pre-migration repoman earlier on PATH used to win — verifying one copy and
+    # running another.
+    toolchain_venv = str(tmp_path / "toolchain-venv")
+    _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", repoman_log=tmp_path / "path-repoman.log",
+              toolchain_venv=toolchain_venv)
+    _toolchain_repoman(toolchain_venv, tmp_path / "repoman.log")
+    r = _run(tmp_path, REPO_SELF, mode="consumer", toolchain_venv=toolchain_venv)
+    assert r.returncode == 0, r.stderr
+    assert "toolchain: install-skills" in (tmp_path / "repoman.log").read_text()
+    assert not (tmp_path / "path-repoman.log").exists()  # the PATH stub never ran
 
 
 def test_consumer_fails_without_shared_venv(tmp_path):
@@ -296,9 +320,7 @@ def test_consumer_fails_without_shared_venv(tmp_path):
 def test_consumer_warns_on_orphan_lock(tmp_path):
     toolchain_venv = str(tmp_path / "toolchain-venv")
     _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", toolchain_venv=toolchain_venv)
-    repoman = Path(toolchain_venv) / "bin" / "repoman"
-    repoman.write_text("")
-    repoman.chmod(0o755)
+    _toolchain_repoman(toolchain_venv, tmp_path / "repoman.log")
     r = _run(tmp_path, REPO_SELF, mode="consumer", toolchain_venv=toolchain_venv)
     assert r.returncode == 0, r.stderr
     assert "ORPHAN" in r.stderr
@@ -308,3 +330,94 @@ def test_unknown_argument_exits_2(tmp_path):
     r = _run(tmp_path, REPO_SELF, argv=["--wat"])
     assert r.returncode == 2
     assert "unknown argument" in r.stderr
+
+
+# ---------------------------------------------------------------- lock validation
+
+
+def test_lock_entry_without_source_fails_cleanly(tmp_path):
+    # Used to escape as a raw KeyError traceback with exit 1 — which under the shared
+    # contract means "a domain decision is needed", not "your config is broken".
+    r = _run(tmp_path, '[repoman]\npackage = "repoman"\n')
+    assert r.returncode == 2
+    assert "Traceback" not in r.stderr
+    assert "no `source` key" in r.stderr and "[repoman]" in r.stderr
+
+
+def test_lock_entry_that_is_not_a_table_fails_cleanly(tmp_path):
+    r = _run(tmp_path, REPO_SELF + '[managers]\ngit = "oops"\n')
+    assert r.returncode == 2
+    assert "Traceback" not in r.stderr
+    assert "must be a table" in r.stderr and "managers.git" in r.stderr
+
+
+def test_lock_entry_with_empty_source_fails_cleanly(tmp_path):
+    r = _run(tmp_path, REPO_SELF + '[managers.git]\npackage = "gitman"\nsource = ""\n')
+    assert r.returncode == 2
+    assert "non-empty string" in r.stderr
+
+
+def test_invalid_toml_lock_fails_cleanly(tmp_path):
+    r = _run(tmp_path, "this is = = not toml [")
+    assert r.returncode == 2
+    assert "Traceback" not in r.stderr
+    assert "not valid TOML" in r.stderr
+
+
+def test_newline_in_source_cannot_inject_an_extra_uv_argument(tmp_path):
+    # The resolver→bash protocol is NUL-delimited precisely so a stray newline in a
+    # (possibly generated, per the REPOMAN_LOCK fleet story) lock cannot smuggle an
+    # extra argv entry such as --index-url into `uv pip install`.
+    r = _run(tmp_path, '[repoman]\npackage = "r"\nsource = "path:/a\\n--index-url=http://evil"\n')
+    assert r.returncode == 2
+    assert "embedded newline" in r.stderr
+    assert not any("evil" in line for line in _uv_log(tmp_path))
+
+
+def test_source_with_spaces_stays_one_argument(tmp_path):
+    r = _run(tmp_path, '[repoman]\npackage = "r"\nsource = "path:/a b/c"\n')
+    assert r.returncode == 0, r.stderr
+    install_lines = [line for line in _uv_log(tmp_path) if line.startswith("pip install")]
+    assert install_lines[0].endswith("--editable=/a b/c")
+
+
+# ---------------------------------------------------------------- argv / preconditions
+
+
+def test_extra_argument_after_machine_is_rejected(tmp_path):
+    # `repoman-sync --machine --dry-run` silently doing a real sync is the surprise
+    # this guard prevents.
+    r = _run(tmp_path, REPO_SELF, argv=["--machine", "--dry-run"])
+    assert r.returncode == 2
+    assert "unexpected extra argument" in r.stderr
+    assert _uv_log(tmp_path) == []
+
+
+def test_missing_uv_fails_with_a_pointer(tmp_path):
+    lock = tmp_path / "repoman.lock"
+    lock.write_text(REPO_SELF)
+    env = dict(os.environ)
+    env["PATH"] = str(tmp_path / "empty-bin")   # no uv anywhere
+    env["DEVENV_ROOT"] = str(tmp_path)
+    env["REPOMAN_TOOLCHAIN_VENV"] = str(tmp_path / "toolchain-venv")
+    (tmp_path / "empty-bin").mkdir()
+    bash = shutil.which("bash")                 # resolved before PATH is gutted
+    r = subprocess.run([bash, str(SCRIPT), "--machine"], env=env, capture_output=True, text=True)
+    assert r.returncode == 2
+    assert "`uv` is not on PATH" in r.stderr
+
+
+def test_help_prints_only_the_header_block(tmp_path):
+    r = _run(tmp_path, None, argv=["--help"])
+    assert r.returncode == 0
+    assert "repoman-sync --machine" in r.stdout
+    assert "set -euo pipefail" not in r.stdout   # the range used to spill into the code
+
+
+def test_manifest_is_written_atomically(tmp_path):
+    # A half-written manifest reads as "unparseable" forever; the temp file must not survive.
+    r = _run(tmp_path, REPO_SELF + GIT_MANAGER)
+    assert r.returncode == 0, r.stderr
+    venv = tmp_path / "toolchain-venv"
+    assert (venv / "repoman-toolchain.toml").exists()
+    assert not (venv / "repoman-toolchain.toml.tmp").exists()

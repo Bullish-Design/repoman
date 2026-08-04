@@ -52,6 +52,11 @@ in
   # hook), so it is wired and auto-configured for use with zero repoman config.
   # Inputs aren't transitive across a remote module import, so a repo that doesn't
   # declare the input simply doesn't get shellij.
+  #
+  # CAVEAT: `imports` cannot depend on `config`, so this import is gated on the INPUT
+  # only — not on `repoman.enable`. A repo that declares the shellij input but sets
+  # `repoman.enable = false` still gets shellij's module (it self-gates on its own
+  # `shellij.enable`). To opt out entirely, drop the input from devenv.yaml.
   ++ lib.optional (inputs ? shellij) (inputs.shellij + "/modules/devenv.nix");
 
   options.repoman = {
@@ -118,18 +123,23 @@ in
     # (This whole block is inside `config = lib.mkIf cfg.enable`, so no inner
     # enable guard is needed — the optionalString below only pads a constant.)
     enterShell = ''
-      # D1: runtime shell expression — prepend the SYSTEM-WIDE toolchain bin (NOT the
-      # consumer venv). Prepending (not appending) shadows a stale toolchain left in
-      # the consumer venv by a pre-migration repoman-sync.
       export REPOMAN_TOOLCHAIN_VENV="${toolchainVenvExpr}"
-      export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"
-      # Task-PATH fix (project-12 follow-up): devenv's interactive shell prepends the
-      # consumer venv bin (.devenv/state/venv/bin) itself, but `devenv tasks run`
-      # does NOT — its PATH lacks the venv, so a task that shells out to a venv
-      # console script (e.g. testee's `lint-imports` arch test) fails. Tasks DO run
-      # this enterShell block (PROGRESS §0.2), so prepending here is harmless for the
-      # shell (already prepended) and fixes tasks.
+      # ORDER IS LOAD-BEARING. Both prepends below are needed, and the toolchain must
+      # end up FIRST — the two lines are written in reverse of the PATH order they
+      # produce, because each one prepends.
+      #
+      # 1. Consumer venv bin. devenv's interactive shell prepends this itself, but
+      #    `devenv tasks run` does NOT — its PATH lacks the venv, so a task that shells
+      #    out to a venv console script (e.g. testee's `lint-imports` arch test) fails.
+      #    Tasks DO run this enterShell block (PROGRESS §0.2), so prepending here is a
+      #    no-op for the shell and fixes tasks.
       export PATH="${config.devenv.state}/venv/bin:$PATH"
+      # 2. D1: runtime shell expression for the SYSTEM-WIDE toolchain bin. This lands
+      #    ahead of the consumer venv so a stale pre-migration copy of a manager CLI
+      #    left in .devenv/state/venv/bin cannot shadow the shared toolchain. Getting
+      #    this backwards is silent: `repoman doctor` and `devenv tasks run` would
+      #    resolve different binaries (doctor's installed:<key> flags exactly that).
+      export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"
       if [ ! -x "$REPOMAN_TOOLCHAIN_VENV/bin/repoman" ]; then
         echo "RepoMan: shared toolchain not bootstrapped ($REPOMAN_TOOLCHAIN_VENV)." >&2
         echo "RepoMan:   cd <repoman checkout> && devenv shell -- repoman-sync --machine" >&2

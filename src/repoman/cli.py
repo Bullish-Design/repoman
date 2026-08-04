@@ -8,31 +8,81 @@ and aggregates their own CLIs. Each manager keeps its own report and its own ski
 from __future__ import annotations
 
 import os
+import sys
 
 import typer
 
-from .aggregate import run_sub, worst_exit
+from . import __version__
+from .aggregate import SubResult, run_sub, worst_exit
 from .checks import format_self_check, run_self_check, self_check_exit
 from .devman.check import skill_ownership_checks
 from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
-from .skills import install_entrypoint
+from .skills import SkillsDirError, install_entrypoint
 
 app = typer.Typer(
     help="RepoMan - the single agentic front door to a devenv.sh repo's lifecycle.",
     no_args_is_help=True,
 )
 
+#: Exit code for "the conductor itself is broken" under the shared 0/1/2/3 contract.
+#: Notably NOT 1 — that means "a domain decision is needed", which is what a caller
+#: would otherwise read out of an unhandled traceback.
+_INFRA = 2
+
+
+def _skills_dir() -> str:
+    return os.environ.get("REPOMAN_SKILLS_DIR", ".agents/skills")
+
+
+def _repo_root() -> str:
+    return os.environ.get("DEVENV_ROOT", os.getcwd())
+
 
 def _enabled() -> list[Manager]:
     """Managers wired into this repo, from ``REPOMAN_MANAGERS`` or the core default.
 
-    Unknown keys in ``REPOMAN_MANAGERS`` are dropped (never a KeyError): the
-    registry is the trusted filter against a stale or hand-edited env.
+    An *unset* ``REPOMAN_MANAGERS`` means "nobody configured a roster" → the core
+    default. An *empty* one means the nix module was given ``managers = [ ]``, i.e.
+    wire nothing — which must not silently become the three default managers.
+
+    Unknown keys are dropped (never a KeyError): the registry is the trusted filter
+    against a stale or hand-edited env. Duplicates are collapsed, so a roster of
+    ``"git git"`` can't run gitman's doctor twice.
     """
 
-    raw = os.environ.get("REPOMAN_MANAGERS", "").split()
-    keys = raw or DEFAULT_MANAGERS
-    return [REGISTRY[key] for key in keys if key in REGISTRY]
+    raw = os.environ.get("REPOMAN_MANAGERS")
+    keys = raw.split() if raw is not None else DEFAULT_MANAGERS
+    enabled: list[Manager] = []
+    seen: set[str] = set()
+    for key in keys:
+        if key in REGISTRY and key not in seen:
+            seen.add(key)
+            enabled.append(REGISTRY[key])
+    return enabled
+
+
+def _report(result: SubResult) -> SubResult:
+    """Echo why a manager produced no report, so the failure isn't a silent header."""
+
+    if not result.available and result.reason:
+        typer.echo(f"repoman: {result.reason}", err=True)
+    return result
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"repoman {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _main(
+    version: bool = typer.Option(
+        False, "--version", callback=_version_callback, is_eager=True,
+        help="Show the RepoMan version and exit.",
+    ),
+) -> None:
+    """RepoMan - the single agentic front door to a devenv.sh repo's lifecycle."""
 
 
 @app.command()
@@ -56,12 +106,10 @@ def doctor(
     """
 
     enabled = _enabled()
-    skills_dir = os.environ.get("REPOMAN_SKILLS_DIR", ".agents/skills")
-    repo_root = os.environ.get("DEVENV_ROOT", os.getcwd())
 
     typer.echo("=== repoman (self-check) ===")
-    self_checks = run_self_check(enabled, repo_root, skills_dir)
-    self_checks += skill_ownership_checks(repo_root, skills_dir)
+    self_checks = run_self_check(enabled, _repo_root(), _skills_dir())
+    self_checks += skill_ownership_checks(_repo_root(), _skills_dir())
     typer.echo(format_self_check(self_checks))
     self_code = self_check_exit(self_checks)
 
@@ -74,7 +122,7 @@ def doctor(
             typer.echo(f"\n=== {manager.key} ({manager.command}) — no doctor, skipped ===")
             continue
         typer.echo(f"\n=== {manager.key} ({manager.command}) ===")
-        results.append(run_sub(manager, manager.doctor))
+        results.append(_report(run_sub(manager, manager.doctor)))
     raise typer.Exit(code=max(self_code, worst_exit(results)))
 
 
@@ -87,7 +135,7 @@ def status() -> None:
         if manager.status is None:
             continue
         typer.echo(f"\n=== {manager.key} ({manager.command}) ===")
-        results.append(run_sub(manager, manager.status))
+        results.append(_report(run_sub(manager, manager.status)))
     raise typer.Exit(code=worst_exit(results))
 
 
@@ -100,16 +148,31 @@ def install_skills() -> None:
     or genome-shipped (converged by `copyroom update`).
     """
 
-    skills_dir = os.environ.get("REPOMAN_SKILLS_DIR", ".agents/skills")
-    repo_root = os.environ.get("DEVENV_ROOT", os.getcwd())
-    dest = install_entrypoint(_enabled(), skills_dir, repo_root)
+    try:
+        dest = install_entrypoint(_enabled(), _skills_dir(), _repo_root())
+    except SkillsDirError as exc:
+        typer.echo(f"repoman: {exc}", err=True)
+        raise typer.Exit(code=3) from exc  # 3 = invalid usage
     typer.echo(f"repoman: wrote entrypoint skill → {dest}")
 
 
 def main() -> None:
-    """Entry point for the repoman CLI."""
+    """Entry point for the repoman CLI.
 
-    app()
+    Anything unexpected exits ``2`` (infra/config), never the ``1`` that a bare
+    traceback would produce — under the shared contract ``1`` means "a domain
+    decision is needed", so a crashed conductor must not masquerade as one.
+    """
+
+    try:
+        app()
+    except (KeyboardInterrupt, BrokenPipeError):
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - the conductor must not die with a traceback
+        print(f"repoman: internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        raise SystemExit(_INFRA) from exc
 
 
 if __name__ == "__main__":

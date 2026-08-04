@@ -5,4 +5,6 @@ from __future__ import annotations
 
 __all__ = ["__version__"]
 
-__version__ = "0.4.0"
+# Kept in lockstep with pyproject.toml's `project.version`; test_version_is_in_lockstep
+# fails the build if the two drift.
+__version__ = "0.5.0"
