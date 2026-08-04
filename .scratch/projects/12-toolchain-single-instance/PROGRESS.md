@@ -179,6 +179,28 @@ trivially revertible (revert e0689c1).
 - **The fleet-form lock** — build one (`git+https@ref` sources) when a non-dev machine or CI
   needs it; `REPOMAN_LOCK` already points at it.
 
+## Release pass — merge + tag + fleet update (post-session follow-up)
+
+- **copyroom** — `project-12-sibling-template` merged into `main` (fa93333), version
+  0.6.0 → **0.6.1** (4d50a93, fixture-only template change), tagged `v0.6.1`; full test
+  suite green post-merge.
+- **gitman** — version 0.4.2 was already bumped but untagged → tagged `v0.4.2`.
+- **pyjutsu** — v0.15.0 already tagged (pyproject + Cargo in sync; the earlier survey's
+  "v0.9.0" was lexical `git tag | tail` sorting). Shared venv already on 0.15.0.
+- **template-py** — already on main at v0.1.6 (tagged). repoman v0.4.0 / docman v0.1.0 /
+  testee v0.2.0 already tagged.
+- **Machine toolchain re-synced** (`repoman-sync --machine`): shared venv now serves
+  repoman 0.4.0 · gitman 0.4.2 · copyroom 0.6.1 · docman 0.1.0 · pyjutsu 0.15.0;
+  manifest re-recorded.
+- **Consumer wiring sweep** — `devenv shell -- repoman doctor --self-only` in all 12
+  migrated consumers: 0 FAIL rows, `lock:copy`/`lock:git` OK, `uv:test` OK where test is
+  wired, no `lock:orphan` anywhere; each re-evaluated the v0.4.0 meta-module (path
+  inputs are content-hashed, so the task-PATH fix + new module are live). inferference
+  needs `NIXPKGS_ALLOW_UNFREE=1` for its devenv eval (CUDA deps — pre-existing).
+- **Consumers pick up family tags** via `devenv update <input>` only when an input is a
+  git source; the dev shape is `path:` (live). The fleet form (`git+https@ref`) is what
+  pins versions on non-dev machines — see WS-3 note.
+
 ---
 
 ## Step 0 — unverified-mechanics gap (the kickoff required closing this first)
