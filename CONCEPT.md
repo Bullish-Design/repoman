@@ -109,10 +109,10 @@ Manager roster, in default tiers:
 `repoman.managers` entry, nothing to select or tune. It is **installed by default**:
 new-repo templates (copyroom's canonical template) declare the `shellij` input in
 `devenv.yaml`, and RepoMan presence-imports shellij's own devenv module — which
-installs `shellij` + `zellij` + `yazi` and appends a guarded `shellij open`
-enterShell hook — so the durable workbench is wired and auto-configured for use
-with zero repoman configuration. A repo that doesn't declare the input simply
-doesn't get shellij.
+installs `shellij` + `zellij` + `yazi`, appends a guarded `shellij open`
+enterShell hook, and points `YAZI_CONFIG_HOME` at the packaged Yazi assets — so
+the durable workbench is wired and auto-configured for use with zero repoman
+configuration. A repo that doesn't declare the input simply doesn't get shellij.
 
 ---
 

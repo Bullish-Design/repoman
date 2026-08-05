@@ -47,16 +47,19 @@ in
   ]
   # shellij is NOT a roster manager: no `repoman.managers` entry, no repoman.session.*
   # options, nothing to select. It is installed by default — new-repo templates
-  # (copyroom) declare the `shellij` input and RepoMan presence-imports shellij's own
-  # devenv module (packages: shellij/zellij/yazi + guarded `shellij open` enterShell
-  # hook), so it is wired and auto-configured for use with zero repoman config.
-  # Inputs aren't transitive across a remote module import, so a repo that doesn't
-  # declare the input simply doesn't get shellij.
+  # (copyroom's canonical template) declare the `shellij` input and RepoMan
+  # presence-imports shellij's own devenv module (packages: shellij/zellij/yazi,
+  # the guarded `shellij open` enterShell hook, and YAZI_CONFIG_HOME pointing at
+  # the packaged Yazi assets), so it is wired and auto-configured for use with
+  # zero repoman config. Inputs aren't transitive across a remote module import,
+  # so a repo that doesn't declare the input simply doesn't get shellij.
   #
-  # CAVEAT: `imports` cannot depend on `config`, so this import is gated on the INPUT
-  # only — not on `repoman.enable`. A repo that declares the shellij input but sets
-  # `repoman.enable = false` still gets shellij's module (it self-gates on its own
-  # `shellij.enable`). To opt out entirely, drop the input from devenv.yaml.
+  # CAVEAT: `imports` cannot depend on `config`, so this import is gated on the
+  # INPUT only — not on `repoman.enable`. A repo that declares the shellij input
+  # but sets `repoman.enable = false` still gets shellij's module (the input
+  # declaration IS the gate — the module itself is unconditional; it has no
+  # `shellij.enable` option). To opt out entirely, drop the input from
+  # devenv.yaml.
   ++ lib.optional (inputs ? shellij) (inputs.shellij + "/modules/devenv.nix");
 
   options.repoman = {
