@@ -359,6 +359,32 @@ def _installed_check(manager: Manager) -> SelfCheck:
     return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
 
 
+def _is_machine_lock(repo_root: str, manifest: dict | None) -> bool:
+    """Whether ``<repo_root>/repoman.lock`` is the MACHINE lock, not a consumer orphan.
+
+    The repoman checkout itself keeps its machine manifest (the file `repoman-sync
+    --machine` syncs from) at the repo root under the same filename a pre-project-12
+    consumer lock would use. The recorded toolchain manifest (inside the venv) pins
+    where it was synced from via its `[repoman]` source: a ``path:`` entry pointing at
+    this repo root means the file IS the machine lock. Anything else — no recorded
+    manifest, no `[repoman]` self entry, a fleet ``git+`` source, a different checkout —
+    still warns as an orphan.
+    """
+
+    if manifest is None:
+        return False
+    entry = manifest.get("repoman")
+    if not isinstance(entry, dict):
+        return False
+    source = entry.get("source")
+    if not isinstance(source, str) or not source.startswith("path:"):
+        return False
+    try:
+        return Path(source[len("path:"):]).resolve() == Path(repo_root).resolve()
+    except OSError:
+        return False
+
+
 def _skill_defers(path: Path) -> bool | None:
     """Whether a sub-skill defers to the entrypoint; ``None`` if unreadable."""
 
@@ -419,7 +445,8 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     if data is not None:
         out.extend(version_checks(venv, data, managers))
 
-    if (Path(repo_root) / "repoman.lock").exists():
+    repo_lock = Path(repo_root) / "repoman.lock"
+    if repo_lock.exists() and not _is_machine_lock(repo_root, data):
         out.append(SelfCheck(
             "lock:orphan", "warn",
             "per-repo repoman.lock is obsolete — the toolchain is machine-level; delete this file",

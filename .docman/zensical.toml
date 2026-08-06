@@ -1,0 +1,71 @@
+# .docman/zensical.toml
+#
+# Seeded ONCE by docman from your devenv.nix `docman.*` options.
+# Once this file exists, docman never regenerates or overwrites it — it is yours.
+# Edit freely. Full schema: https://zensical.org/docs/
+#
+# Uses zensical's canonical `[project.*]` schema. The markdown_extensions block
+# below is a snapshot of zensical's curated defaults (pinned to the zensical
+# version docman ships) plus `pymdownx.snippets`. Zensical only auto-applies its
+# defaults when NO markdown_extensions are declared, so they are listed here
+# explicitly to keep every content type at full fidelity AND enable snippets.
+#
+# NOTE: zensical resolves docs_dir/site_dir relative to THIS config file
+# (.docman/) and forbids '..'. docman creates a `docs` symlink here pointing at
+# the repo-root docs/ so your content stays visible, and writes output to
+# .docman/site/ (gitignored). Snippet partials live in a repo-root `snippets/`
+# dir (base_path below is relative to where zensical runs, the repo root).
+
+[project]
+site_name = "Documentation"
+# site_url = ""
+docs_dir = "docs"
+site_dir = "site"
+
+[project.theme]
+name = "material"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+
+# --- Markdown extensions (zensical defaults snapshot + snippets) -------------
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
+# Snippet includes: --8<-- "file.md" pulls in a partial from the repo-root
+# snippets/ dir (so partials are reusable and not built as standalone pages).
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["snippets"]

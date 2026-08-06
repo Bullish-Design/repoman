@@ -126,6 +126,16 @@ lint      # ruff
 format    # ruff format
 ```
 
+Repoman's own dev shell is a first-class managed repo: it imports the meta-module
+(`devenv.yaml` → `imports: [repoman]`, `repoman.managers = [copy git test doc]`), so the
+full manager suite is wired and the shared toolchain (`copyroom`, `gitman`, `docman`) is on
+PATH inside it. That makes this checkout the canonical **host** for bootstrapping a new
+repo — no need to hop into another repo's shell:
+
+```bash
+cd <repoman checkout> && devenv shell -- copyroom new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
+```
+
 Design notes live in [`CONCEPT.md`](CONCEPT.md), the skill architecture in
 [`docs/SKILLS.md`](docs/SKILLS.md), and the agent-files convention in
 [`docs/AGENT-FILES.md`](docs/AGENT-FILES.md).

@@ -326,6 +326,22 @@ def test_consumer_warns_on_orphan_lock(tmp_path):
     assert "ORPHAN" in r.stderr
 
 
+def test_consumer_does_not_warn_on_the_machine_lock_itself(tmp_path):
+    # Self-hosting (project 14 seam): the repoman checkout keeps its machine manifest
+    # at the repo root — consumer mode must not tell it to delete that file. The venv
+    # manifest records its origin on the first line (`# synced from <lock>`); same
+    # fingerprint as checks.py's lock:orphan exemption.
+    toolchain_venv = str(tmp_path / "toolchain-venv")
+    _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", toolchain_venv=toolchain_venv)
+    _toolchain_repoman(toolchain_venv, tmp_path / "repoman.log")
+    manifest = Path(toolchain_venv) / "repoman-toolchain.toml"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(f"# synced from {tmp_path}/repoman.lock\n{REPO_SELF}{GIT_MANAGER}\n")
+    r = _run(tmp_path, REPO_SELF + GIT_MANAGER, mode="consumer", toolchain_venv=toolchain_venv)
+    assert r.returncode == 0, r.stderr
+    assert "ORPHAN" not in r.stderr
+
+
 def test_unknown_argument_exits_2(tmp_path):
     r = _run(tmp_path, REPO_SELF, argv=["--wat"])
     assert r.returncode == 2

@@ -49,8 +49,12 @@ if [ "$mode" = consumer ]; then
   fi
   echo "repoman-sync: shared toolchain → $toolchain_venv"
 
-  # Migration aid (CONCEPT §9.7): per-repo locks are orphans now.
-  if [ -f "$root/repoman.lock" ]; then
+  # Migration aid (CONCEPT §9.7): per-repo locks are orphans now — UNLESS this IS the
+  # machine lock the toolchain was synced from (the repoman checkout keeps its own
+  # machine manifest at the repo root). The venv manifest records its origin on the
+  # first line (`# synced from <lock>`); same fingerprint as checks.py's lock:orphan.
+  if [ -f "$root/repoman.lock" ] \
+     && ! grep -qF "# synced from $root/repoman.lock" "$toolchain_manifest" 2>/dev/null; then
     echo "repoman-sync: warning: $root/repoman.lock is an ORPHAN manifest — the toolchain is" >&2
     echo "  machine-level now (see repoman CONCEPT.md §6). Delete it; declare testee in" >&2
     echo "  pyproject.toml under [dependency-groups] dev instead." >&2

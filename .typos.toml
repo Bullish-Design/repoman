@@ -1,0 +1,9 @@
+# docman: typos spell-check config (seeded once by docs-init, then yours to tune).
+#
+# Read by `typos` via `docs-lint`. Add project-specific words/identifiers here so
+# they are not flagged. Full config: https://github.com/crate-ci/typos
+[default.extend-words]
+# zensical = "zensical"   # example: keep a project term out of the dictionary
+
+[files]
+extend-exclude = [".docman/site/", ".docman/.cache/"]

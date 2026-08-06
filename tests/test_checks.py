@@ -442,6 +442,35 @@ def test_orphan_repo_lock_warns(toolchain, consumer_venv, tmp_path):
     assert self_check_exit(result) == 0
 
 
+def test_machine_lock_at_the_repoman_checkout_does_not_warn(toolchain, tmp_path):
+    # Self-hosting (project 14 seam): the repoman checkout's own repo-root repoman.lock
+    # IS the machine manifest the venv was synced from — not an obsolete consumer lock.
+    # The recorded [repoman] source (path:<repo_root>) is the fingerprint. Deleting this
+    # file would break `repoman-sync --machine`, so the doctor must not demand it.
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
+    machine = _GOOD_LOCK.replace(
+        'source = "path:/x"\n[managers.copy]', f'source = "path:{tmp_path}"\n[managers.copy]'
+    )
+    (tmp_path / "repoman.lock").write_text(machine)
+    toolchain.write(machine)
+    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
+    assert "lock:orphan" not in _names(result)
+
+
+def test_machine_lock_with_a_fleet_git_source_still_warns_orphan(toolchain, tmp_path):
+    # A fleet-shaped machine manifest records [repoman].source as a git ref, not a
+    # path — no repo-root lock can be fingerprinted as THE machine lock then, so a
+    # stray repoman.lock still warns as an orphan.
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
+    fleet = _GOOD_LOCK.replace(
+        'source = "path:/x"', 'source = "git+https://github.com/Bullish-Design/repoman@v0.5.0"'
+    )
+    toolchain.write(fleet)
+    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["lock:orphan"].level == "warn"
+
+
 # ---------------------------------------------------------------- skill:*
 
 

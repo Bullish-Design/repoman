@@ -13,5 +13,22 @@ inputs:
   vendomat:
     url: path:../vendomat        # fleet: github:Bullish-Design/vendomat
 
+  # Self-hosting (project 14 seam): repoman's OWN dev shell is a first-class managed repo.
+  # Importing the meta-module from ./modules puts the whole manager suite on PATH inside
+  # `cd repoman && devenv shell` — the canonical host for `copyroom new <target>` bootstraps,
+  # with no dependency on another repo's shell. The `repoman` input name matches what
+  # consumers declare (github:Bullish-Design/repoman?dir=modules).
+  repoman:
+    url: path:./modules          # fleet: github:Bullish-Design/repoman?dir=modules
+    flake: false
+
+  # Approach-B provisioning for the "doc" manager: docman's own nix module (toolchain +
+  # enterShell config seeding) is pulled through the presence-gated import in
+  # modules/managers/docman.nix — only fire it here by declaring the input.
+  docman:
+    url: path:../docman          # fleet: github:Bullish-Design/docman
+    flake: false
+
 imports:
   - vendomat/modules
+  - repoman

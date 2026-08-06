@@ -2,15 +2,15 @@
 name = "repoman"
 # Keep in lockstep with `repoman.__version__` — tests/test_registry.py asserts they
 # match, and flake.nix sources the package version from this field.
-version = "0.5.0"
+version = "0.5.1"
 description = "The agentic repo lifecycle conductor for devenv.sh repos — one import that composes the *man manager family."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Bullish-Design" }]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 classifiers = [
     "Private :: Do Not Upload",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "pydantic>=2.0.0",
@@ -26,6 +26,20 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
 ]
+
+[dependency-groups]
+# testee is the ONLY manager that runs inside this codebase (its tools — pytest / ruff /
+# ty — import the app), so it is a declared per-repo uv dev dependency (project 12), exactly
+# as the README tells consumers. Self-hosting the full roster in repoman's own devenv shell
+# (devenv.nix: repoman.managers = [copy git test doc]) requires it — otherwise `repoman
+# doctor` would flag uv:test and the repoman:test tasks would have no testee console script.
+# testee 0.2.0 needs Python >=3.13, which is why requires-python and the dev venv moved to
+# 3.13 (matching the rest of the family and the machine toolchain venv).
+dev = ["testee"]
+
+[tool.uv.sources]
+# fleet: testee = { git = "https://github.com/Bullish-Design/testee", ref = "vX.Y.Z" }
+testee = { path = "../testee" }
 
 [project.scripts]
 repoman = "repoman.cli:main"

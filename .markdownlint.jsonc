@@ -1,0 +1,19 @@
+// docman: markdownlint rules (seeded once by docs-init, then yours to tune).
+//
+// Read by markdownlint-cli2 via `docs-lint`. Full rule list:
+// https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+{
+  // MD013 (line length) fights prose and wrapped paragraphs — off by default.
+  "MD013": false,
+  // Pages carry a frontmatter `title:`; don't count it as a second H1 so an
+  // in-body `# Heading` is still allowed (and still singly-enforced).
+  "MD025": { "front_matter_title": "" },
+  // Admonitions / content tabs indent their body 4 spaces, which markdownlint
+  // reads as indented code blocks — that conflicts with real fenced blocks.
+  // Disable code-block-style enforcement so Material/zensical syntax lints clean.
+  "MD046": false,
+  // Allow inline HTML; Material/zensical content sometimes needs it.
+  "MD033": false,
+  // First line need not be a top-level heading (pages use frontmatter).
+  "MD041": false
+}

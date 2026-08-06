@@ -17,12 +17,18 @@
   vendor.enable = true;
   vendor.libs = [ "pyjutsu" ];
 
-  scripts = {
-    repoman-sync = {
-      description = "Sync the SYSTEM-WIDE repoman toolchain venv from this checkout's repoman.lock.";
-      exec = ''REPOMAN_ROOT="''${DEVENV_ROOT:-$PWD}" exec ${pkgs.bash}/bin/bash ${./modules/scripts/repoman-sync.sh} "$@"'';
-    };
+  # Self-hosting (project 14 seam): this shell is a real managed repo with the full roster
+  # wired — copy/git/test/doc — so the shared toolchain (copyroom, gitman, docman) is on
+  # PATH here and `copyroom new <target> --answers … --trust` can birth new repos from this
+  # checkout's shell (no host-repo trick). The meta-module (devenv.yaml `imports: [repoman]`)
+  # owns the `repoman-sync` script now — consumer mode installs skills, `--machine` syncs
+  # the shared toolchain; repoman-sync.sh itself defaults REPOMAN_ROOT to DEVENV_ROOT.
+  repoman = {
+    enable = true;
+    managers = [ "copy" "git" "test" "doc" ];
+  };
 
+  scripts = {
     test = {
       exec = ''
         pytest "$@"
@@ -48,7 +54,7 @@
   languages = {
     python = {
       enable = true;
-      version = "3.12";
+      version = "3.13";
       venv.enable = true;
       uv.enable = true;
     };
