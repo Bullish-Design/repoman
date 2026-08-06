@@ -1,6 +1,6 @@
 # Project 13 — `repoman doctor` outside a managed repo gives misleading diagnostics
 
-**Status:** open · discovered 2026-08-06 while bootstrapping `talkee`
+**Status:** implemented 2026-08-06 (repoman 0.6.0) · discovered 2026-08-06 while bootstrapping `talkee`
 (the first consumer of the project-12 toolchain split).
 
 ## 1. The issue, observed

@@ -4,6 +4,10 @@
 B's relabel folded in · **Scope:** `repoman doctor` (+ `--self-only`); `status`/`managers`/
 `install-skills` are NOT in scope (see §9).
 
+**Implemented 2026-08-06 (repoman 0.6.0):** preflight + `--json` + lock-row detail landed per
+this guide; 181 tests green, lint clean, machine toolchain re-synced (stale `repoman 0.4.0`
+dist in the shared venv fixed → `0.6.0`).
+
 Verified 2026-08-06 against repoman **0.5.1** (post self-hosting) on this machine.
 
 ---

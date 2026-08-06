@@ -7,14 +7,23 @@ and aggregates their own CLIs. Each manager keeps its own report and its own ski
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+from pathlib import Path
 
 import typer
 
 from . import __version__
 from .aggregate import SubResult, run_sub, worst_exit
-from .checks import format_self_check, run_self_check, self_check_exit
+from .checks import (
+    Context,
+    SelfCheck,
+    detect_context,
+    format_self_check,
+    run_self_check,
+    self_check_exit,
+)
 from .devman.check import skill_ownership_checks
 from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
 from .skills import SkillsDirError, install_entrypoint
@@ -28,6 +37,11 @@ app = typer.Typer(
 #: Notably NOT 1 — that means "a domain decision is needed", which is what a caller
 #: would otherwise read out of an unhandled traceback.
 _INFRA = 2
+
+#: Project-14 seam: once the bootstrap ceremony doc exists, drop its path here and
+#: the `not-a-repo` doctor message gains a "bootstrapping a new repo?" pointer to
+#: it. Inert while the file is absent — nothing else in this pass depends on it.
+_BOOTSTRAP_DOC = "docs/BOOTSTRAP.md"
 
 
 def _skills_dir() -> str:
@@ -69,6 +83,82 @@ def _report(result: SubResult) -> SubResult:
     return result
 
 
+def _context_hint(context: Context) -> str:
+    """The invocation that fixes a wrong-context doctor run."""
+
+    if context.kind == "not-a-repo":
+        # No repo is detectable, so `<repo>` is honestly a placeholder — the shape
+        # of the fix, not a path we can know.
+        return "cd <repo> && devenv shell -- repoman doctor"
+    return f"cd {context.repo_root} && devenv shell -- repoman doctor"
+
+
+def format_context_failure(context: Context) -> str:
+    """The plain-text report for a doctor run outside a managed-repo shell.
+
+    This IS the report: no ``=== repoman (self-check) ===`` header, no row lines.
+    """
+
+    hint = _context_hint(context)
+    if context.kind == "not-a-repo":
+        lines = [
+            "repoman: not inside a repoman-managed repo",
+            "",
+            "There is no managed repo here (no gitman.toml/.gitman and no REPOMAN_* shell",
+            "environment). `repoman doctor` checks a repo's RepoMan wiring; run it from",
+            "inside a managed repo's devenv shell:",
+            "",
+            f"    {hint}",
+        ]
+        bootstrap = Path(context.repo_root) / _BOOTSTRAP_DOC
+        if bootstrap.exists():
+            lines += ["", f"(Bootstrapping a brand-new repo? See the bootstrap ceremony: {bootstrap})"]
+        return "\n".join(lines)
+    return "\n".join([
+        "repoman: managed repo found, but not inside its devenv shell",
+        "",
+        "This looks like a RepoMan-managed repo (gitman.toml/.gitman present), but the",
+        "REPOMAN_* shell environment is missing — the manager toolchain is only wired",
+        "onto PATH inside the repo's devenv shell.",
+        "",
+        "Enter the shell, then run:",
+        "",
+        f"    {hint}",
+    ])
+
+
+def context_json(context: Context, checks: list[SelfCheck], exit_code: int) -> str:
+    """The doctor's own output as family-shaped JSON (copyroom's doctor row shape).
+
+    ``checks`` serializes ``{"name", "ok", "detail", "warn_only"}`` — ``ok`` for
+    an ``ok`` row, ``warn_only`` for a ``warn`` row, both false for a ``fail``.
+    ``exit`` repeats the code the process exits with, so a caller can read the
+    verdict without parsing ``$?``. Sub-manager reports are not composed here —
+    they stream plain and own their own format (noted follow-up).
+    """
+
+    verdict: dict[str, object] = {"ok": context.kind == "managed-repo-shell", "kind": context.kind}
+    if context.kind != "managed-repo-shell":
+        verdict["detail"] = context.reason
+        verdict["hint"] = _context_hint(context)
+    return json.dumps(
+        {
+            "context": verdict,
+            "checks": [
+                {
+                    "name": c.name,
+                    "ok": c.level == "ok",
+                    "detail": c.detail,
+                    "warn_only": c.level == "warn",
+                }
+                for c in checks
+            ],
+            "exit": exit_code,
+        },
+        indent=2,
+    )
+
+
 def _version_callback(value: bool) -> None:
     if value:
         typer.echo(f"repoman {__version__}")
@@ -98,23 +188,48 @@ def doctor(
     self_only: bool = typer.Option(
         False, "--self-only", help="Run only the RepoMan preflight; skip the manager doctors."
     ),
+    json_out: bool = typer.Option(
+        False, "--json", help="Emit the context verdict + self-check rows as one JSON document."
+    ),
 ) -> None:
     """Self-check the RepoMan wiring, then run every enabled manager's doctor.
 
+    Context preflight: doctor only runs its rows inside a managed repo's devenv
+    shell (``REPOMAN_MANAGERS`` set). From a bare shell in a managed repo, or
+    from a non-repo directory, it short-circuits with one context message and
+    exit 2 (infra/config) instead of a pile of misleading per-row failures.
+
     Exit = worst of the self-check contribution and the sub-doctors' worst exit
-    code, under the shared 0/1/2/3 contract.
+    code, under the shared 0/1/2/3 contract. With ``--json``, the context verdict
+    and self-check rows are emitted as one JSON document whose ``exit`` repeats
+    the process's exit code; sub-manager reports still stream plain.
     """
+
+    context = detect_context(os.getcwd())
+    if context.kind != "managed-repo-shell":
+        if json_out:
+            typer.echo(context_json(context, [], _INFRA))
+        else:
+            typer.echo(format_context_failure(context))
+        raise typer.Exit(code=_INFRA)
 
     enabled = _enabled()
 
-    typer.echo("=== repoman (self-check) ===")
     self_checks = run_self_check(enabled, _repo_root(), _skills_dir())
     self_checks += skill_ownership_checks(_repo_root(), _skills_dir())
-    typer.echo(format_self_check(self_checks))
     self_code = self_check_exit(self_checks)
 
     if self_only:
+        if json_out:
+            typer.echo(context_json(context, self_checks, self_code))
+        else:
+            typer.echo("=== repoman (self-check) ===")
+            typer.echo(format_self_check(self_checks))
         raise typer.Exit(code=self_code)
+
+    if not json_out:
+        typer.echo("=== repoman (self-check) ===")
+        typer.echo(format_self_check(self_checks))
 
     results = []
     for manager in enabled:
@@ -123,7 +238,13 @@ def doctor(
             continue
         typer.echo(f"\n=== {manager.key} ({manager.command}) ===")
         results.append(_report(run_sub(manager, manager.doctor)))
-    raise typer.Exit(code=max(self_code, worst_exit(results)))
+
+    exit_code = max(self_code, worst_exit(results))
+    if json_out:
+        # JSON last: `exit` is the TRUE final code (self + sub-doctors composed),
+        # so the document never lies about the verdict an agent would get from $?.
+        typer.echo(context_json(context, self_checks, exit_code))
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()

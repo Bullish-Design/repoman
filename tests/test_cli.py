@@ -1,3 +1,5 @@
+import json
+
 from typer.testing import CliRunner
 
 from repoman.aggregate import SubResult
@@ -278,6 +280,97 @@ def test_duplicate_roster_entries_are_collapsed(monkeypatch, tmp_path):
     result = runner.invoke(app, ["doctor"])
     assert ran == ["git", "test"]
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------- context preflight (project 13)
+
+
+def test_doctor_outside_a_repo_short_circuits(monkeypatch, tmp_path):
+    # Not-a-repo: one clear message + exit 2 — NOT a pile of plausible-looking rows.
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 2
+    assert "not inside a repoman-managed repo" in result.stdout
+    assert "devenv shell" in result.stdout
+    assert "===" not in result.stdout  # no self-check header, no sub-doctor headers
+    assert "FAIL" not in result.stdout and "skill:" not in result.stdout
+
+
+def test_doctor_self_only_short_circuits_identically(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["doctor", "--self-only"])
+    assert result.exit_code == 2
+    assert "not inside a repoman-managed repo" in result.stdout
+    assert "===" not in result.stdout
+
+
+def test_doctor_bare_shell_in_a_repo_short_circuits(monkeypatch, tmp_path):
+    # Managed repo, bare shell: "enter the devenv shell" — NOT the not-a-repo
+    # message (acceptance criterion 3 distinguishes the two contexts).
+    repo = tmp_path / "managed-repo"
+    repo.mkdir()
+    (repo / "gitman.toml").write_text("")
+    (repo / ".gitman").mkdir()
+    monkeypatch.chdir(repo)
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 2
+    assert "managed repo found, but not inside its devenv shell" in result.stdout
+    assert str(repo) in result.stdout  # the hint names the detected repo
+    assert "not inside a repoman-managed repo" not in result.stdout
+
+
+def test_doctor_in_shell_passes_through_unscathed(monkeypatch, tmp_path):
+    # The regression baseline: in-shell doctor behaves exactly as before — same
+    # rows, same exit. (The existing _healthy_repo tests cover the row shapes;
+    # this pins that the preflight doesn't interfere with the in-shell path.)
+    _healthy_repo(tmp_path, monkeypatch, "copy test")
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["doctor", "--self-only"])
+    assert result.exit_code == 0
+    assert "=== repoman (self-check) ===" in result.stdout
+    assert "OK   toolchain:venv" in result.stdout
+
+
+def test_doctor_json_context_error(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["doctor", "--json"])
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert payload["context"]["ok"] is False
+    assert payload["context"]["kind"] == "not-a-repo"
+    assert "devenv shell" in payload["context"]["hint"]
+    assert payload["checks"] == []
+    assert payload["exit"] == 2
+
+
+def test_doctor_json_bare_shell(monkeypatch, tmp_path):
+    repo = tmp_path / "managed-repo"
+    repo.mkdir()
+    (repo / "gitman.toml").write_text("")
+    monkeypatch.chdir(repo)
+    result = runner.invoke(app, ["doctor", "--json"])
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert payload["context"]["ok"] is False
+    assert payload["context"]["kind"] == "managed-repo-bare-shell"
+    assert "devenv shell" in payload["context"]["hint"]
+    assert payload["checks"] == []
+    assert payload["exit"] == 2
+
+
+def test_doctor_json_in_shell(monkeypatch, tmp_path):
+    _healthy_repo(tmp_path, monkeypatch, "copy test")
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["doctor", "--self-only", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["context"]["ok"] is True
+    assert payload["context"]["kind"] == "managed-repo-shell"
+    assert payload["exit"] == 0
+    assert payload["checks"]
+    for check in payload["checks"]:
+        # family row shape, no extra keys (copyroom's doctor --json convention)
+        assert set(check) == {"name", "ok", "detail", "warn_only"}
 
 
 # ---------------------------------------------------------------- reporting

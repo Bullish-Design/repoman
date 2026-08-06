@@ -2,7 +2,7 @@
 name = "repoman"
 # Keep in lockstep with `repoman.__version__` — tests/test_registry.py asserts they
 # match, and flake.nix sources the package version from this field.
-version = "0.5.1"
+version = "0.6.0"
 description = "The agentic repo lifecycle conductor for devenv.sh repos — one import that composes the *man manager family."
 readme = "README.md"
 license = { text = "MIT" }

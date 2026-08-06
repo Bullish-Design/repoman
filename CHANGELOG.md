@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.6.0 — doctor context preflight (project 13)
+
+`repoman doctor` no longer answers the wrong question. It classifies where it's
+running *before* it runs any row check — a managed repo's devenv shell
+(`REPOMAN_MANAGERS` set), a managed repo in a bare shell (`gitman.toml`/`.gitman`
+present), or no managed repo at all. The two wrong contexts short-circuit with one
+true statement plus the correct invocation (`cd <repo> && devenv shell -- repoman
+doctor`) and exit `2` — instead of a pile of plausible-looking FAILs from a context
+that was never established.
+
+### Added
+
+- **Context preflight (`checks.detect_context`).** `REPOMAN_MANAGERS` (exported
+  only by the meta-module's `config.env`) proves a managed-repo shell — even the
+  empty string, matching `_enabled()`'s unset-vs-empty distinction; `gitman.toml` /
+  `.gitman/` in the cwd or an ancestor proves a managed repo in a bare shell;
+  `DEVENV_*` / `REPOMAN_TOOLCHAIN_VENV` alone are explicitly NOT signals. `doctor`
+  and `doctor --self-only` short-circuit identically with exit `2` and zero rows.
+- **`repoman doctor --json`.** The context verdict + self-check rows as one JSON
+  document — `{"context": {"ok","kind","detail","hint"}, "checks":
+  [{"name","ok","detail","warn_only"}], "exit"}` — matching copyroom's doctor
+  row shape, with `exit` repeating the process's exit code. Sub-manager reports
+  still stream plain (composing sub JSON is a noted follow-up).
+- **Project-14 seam.** The `not-a-repo` message will point at the bootstrap
+  ceremony doc once it exists (guarded constant; inert today).
+
+### Fixed
+
+- **`lock:<key>` fail detail no longer implies a per-repo file.** Modern consumers
+  have no `repoman.lock` (project 12); the row now names the recorded toolchain
+  manifest it actually checks (`<venv>/repoman-toolchain.toml`) and re-runs
+  `repoman-sync --machine`.
+
+### Changed
+
+- README: the `lock:<key>` / `toolchain:lock` row table names the recorded
+  toolchain manifest explicitly; the Commands list gains `--json`; new "Running
+  `repoman doctor` outside a repo" note.
+
 ## 0.5.1 — self-hosting dev shell (project 14 seam)
 
 Repoman's own devenv shell is now a first-class managed repo. Before, the shared

@@ -81,6 +81,7 @@ REPOMAN_LOCK=/path/to/fleet-repoman.lock repoman-sync --machine
 repoman managers        # what's wired into this repo
 repoman doctor          # preflight + every enabled manager's doctor
 repoman doctor --self-only   # just RepoMan's own wiring
+repoman doctor --json   # context verdict + self-check rows as JSON (exit repeats the exit code)
 repoman status          # each manager's status side by side
 repoman install-skills  # regenerate the entrypoint (router) skill
 repoman --version
@@ -95,8 +96,8 @@ preflight and every sub-doctor.
 | Row | Means |
 |---|---|
 | `toolchain:venv` | the shared machine venv exists |
-| `toolchain:lock` | the manifest `repoman-sync --machine` recorded inside it |
-| `lock:<key>` | this manager is present in that manifest |
+| `toolchain:lock` | the manifest `repoman-sync --machine` recorded inside the shared venv (`repoman-toolchain.toml`) |
+| `lock:<key>` | this manager is present in the recorded toolchain manifest (`repoman-toolchain.toml` in the shared venv) |
 | `version:<entry>` | what's **installed** still satisfies what the lock **pins** (catches a stale toolchain) |
 | `uv:<key>` | a uv manager is declared in `pyproject.toml` |
 | `installed:<key>` | the exact binary the nix tasks exec is present (warns if `PATH` would give you a different copy) |
@@ -104,6 +105,16 @@ preflight and every sub-doctor.
 | `skill:*` | the entrypoint router and skill-ownership lint |
 
 `warn` never fails the run; `fail` contributes exit `2`.
+
+### Running `repoman doctor` outside a repo
+
+`doctor` checks a repo's RepoMan wiring, and it knows where it's allowed to run.
+From a bare shell in a managed repo (no devenv) it says "enter the devenv shell";
+from a non-repo directory it says "not inside a repoman-managed repo" — one clear
+block, exit `2`, and **zero self-check rows**, so the wrong context can't masquerade
+as a pile of per-row failures. The fix is always the same invocation:
+
+    cd <repo> && devenv shell -- repoman doctor
 
 ## Environment
 

@@ -49,6 +49,67 @@ class SelfCheck:
     detail: str = ""
 
 
+@dataclass(frozen=True)
+class Context:
+    """Where ``repoman doctor`` is running, and why (project 13 preflight).
+
+    ``kind`` is one of:
+
+    * ``managed-repo-shell`` — inside a managed repo's devenv shell
+      (``REPOMAN_MANAGERS`` exported by the meta-module's ``config.env``).
+    * ``managed-repo-bare-shell`` — inside a managed repo, but with no shell
+      environment (``gitman.toml`` / ``.gitman`` markers present).
+    * ``not-a-repo`` — neither.
+
+    ``repo_root`` is ``DEVENV_ROOT`` when in-shell, else the detected repo root
+    (first marker match walking up from ``start``) or ``start`` itself.
+    ``reason`` is one human sentence for the report.
+    """
+
+    kind: str
+    repo_root: str
+    reason: str
+
+
+def detect_context(start: str) -> Context:
+    """Classify the context a ``doctor`` run finds itself in.
+
+    Marker precedence:
+
+    1. ``REPOMAN_MANAGERS`` set in the environment — **even the empty string** —
+       means a managed-repo **shell**. The meta-module exports it via
+       ``config.env``, so it is present in both ``devenv shell`` and ``devenv
+       tasks run``, and nowhere else. Empty = "wire nothing" is still a managed
+       repo, mirroring ``_enabled()``'s unset-vs-empty distinction.
+    2. ``gitman.toml`` or ``.gitman/`` in ``start`` or any ancestor means a
+       managed repo in a **bare shell**. gitman init/seed creates these, so every
+       real consumer has one. Absence does not prove not-a-repo (a freshly
+       rendered, not-yet-inited repo has none) — accepted limitation; the message
+       still names the right invocation.
+    3. Neither → ``not-a-repo``.
+
+    Explicitly NOT signals: ``DEVENV_ROOT`` / ``DEVENV_STATE`` /
+    ``REPOMAN_TOOLCHAIN_VENV`` alone. Plenty of devenv projects don't use repoman;
+    only ``REPOMAN_MANAGERS`` proves a repoman-managed shell.
+
+    Walks ``start`` → root and stops at the first match, so a repo nested under
+    another repo resolves to the nearest one.
+    """
+
+    if "REPOMAN_MANAGERS" in os.environ:
+        root = os.environ.get("DEVENV_ROOT") or start
+        return Context("managed-repo-shell", root, "inside a RepoMan-managed devenv shell")
+    current = Path(start).resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / "gitman.toml").exists() or (candidate / ".gitman").is_dir():
+            return Context(
+                "managed-repo-bare-shell",
+                str(candidate),
+                "inside a RepoMan-managed repo, but not its devenv shell",
+            )
+    return Context("not-a-repo", start, "not inside a repoman-managed repo")
+
+
 def _normalize(name: str) -> str:
     """PEP 503 name normalisation."""
 
@@ -435,9 +496,15 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
             continue  # no manifest to check against; toolchain:venv/lock already reported
         # tolerate native-dep pseudo-entries like "git-pyjutsu" (guide 1)
         has = any(k.split("-", 1)[0] == m.key for k in lock_keys)
+        # Never read as "a per-repo repoman.lock file is missing": modern consumers
+        # have none (project 12). Name the recorded toolchain manifest this row
+        # actually checks — the venv's repoman-toolchain.toml.
         out.append(SelfCheck(
             f"lock:{m.key}", "ok" if has else "fail",
-            "" if has else "selected but absent from the machine repoman.lock",
+            "" if has else (
+                "selected but absent from the recorded toolchain manifest "
+                f"({venv / 'repoman-toolchain.toml'}) — re-run `repoman-sync --machine`"
+            ),
         ))
 
     # Currency: the lock says what SHOULD be installed; check what IS. Without this,

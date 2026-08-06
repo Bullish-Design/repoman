@@ -139,6 +139,88 @@ def test_missing_self_entry_warns(toolchain):
     assert _names(result)["toolchain:self"].level == "warn"
 
 
+# ---------------------------------------------------------------- context detection
+
+
+def test_detect_shell_when_managers_set(tmp_path, monkeypatch):
+    # REPOMAN_MANAGERS proves a managed-repo devenv shell — regardless of cwd.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "git copy")
+    ctx = checks.detect_context(str(tmp_path))
+    assert ctx.kind == "managed-repo-shell"
+    # No DEVENV_ROOT exported here → repo_root falls back to the start dir.
+    assert ctx.repo_root == str(tmp_path)
+
+
+def test_detect_shell_when_managers_empty_string(tmp_path, monkeypatch):
+    # Empty REPOMAN_MANAGERS = "wire nothing" is still a managed repo shell —
+    # matching _enabled()'s unset-vs-empty distinction.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "")
+    assert checks.detect_context(str(tmp_path)).kind == "managed-repo-shell"
+
+
+def test_detect_bare_repo_from_gitman_toml(tmp_path):
+    (tmp_path / "gitman.toml").write_text("")
+    ctx = checks.detect_context(str(tmp_path))
+    assert ctx.kind == "managed-repo-bare-shell"
+    assert ctx.repo_root == str(tmp_path)
+
+
+def test_detect_bare_repo_from_dot_gitman(tmp_path):
+    (tmp_path / ".gitman").mkdir()
+    ctx = checks.detect_context(str(tmp_path))
+    assert ctx.kind == "managed-repo-bare-shell"
+    assert ctx.repo_root == str(tmp_path)
+
+
+def test_detect_bare_repo_from_parent_marker(tmp_path):
+    # Walking up: a marker in an ancestor of the cwd still identifies the repo.
+    repo = tmp_path / "repo"
+    (repo / "inner").mkdir(parents=True)
+    (repo / "gitman.toml").write_text("")
+    ctx = checks.detect_context(str(repo / "inner"))
+    assert ctx.kind == "managed-repo-bare-shell"
+    assert ctx.repo_root == str(repo)
+
+
+def test_detect_nearest_marker_wins(tmp_path):
+    # A repo nested under another repo: the nearest (innermost) marker decides.
+    inner = tmp_path / "outer" / "inner"
+    inner.mkdir(parents=True)
+    (tmp_path / "outer" / "gitman.toml").write_text("")
+    (inner / ".gitman").mkdir()
+    ctx = checks.detect_context(str(inner / "deep"))
+    assert ctx.kind == "managed-repo-bare-shell"
+    assert ctx.repo_root == str(inner)
+
+
+def test_detect_not_a_repo(tmp_path):
+    ctx = checks.detect_context(str(tmp_path / "nowhere"))
+    assert ctx.kind == "not-a-repo"
+    assert ctx.repo_root == str(tmp_path / "nowhere")
+
+
+def test_devenv_vars_alone_are_not_a_repo(tmp_path, monkeypatch):
+    # DEVENV_ROOT / DEVENV_STATE / REPOMAN_TOOLCHAIN_VENV alone are explicitly NOT
+    # signals — plenty of devenv projects don't use repoman; only REPOMAN_MANAGERS
+    # proves a repoman-managed shell.
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+    monkeypatch.setenv("DEVENV_STATE", str(tmp_path / ".devenv" / "state"))
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "toolchain"))
+    assert checks.detect_context(str(tmp_path)).kind == "not-a-repo"
+
+
+def test_lock_fail_detail_names_the_recorded_manifest(toolchain):
+    # A selected manager absent from the recorded toolchain manifest must not read
+    # like a missing per-repo file: modern consumers have no repoman.lock
+    # (project 12) — the row checks the venv's repoman-toolchain.toml instead.
+    toolchain.write('[repoman]\npackage = "repoman"\nsource = "path:/x"\n')
+    row = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["lock:git"]
+    assert row.level == "fail"
+    assert "repoman-toolchain.toml" in row.detail
+    assert "repoman-sync --machine" in row.detail
+    assert "missing file" not in row.detail
+
+
 # ---------------------------------------------------------------- lock:<key>
 
 
