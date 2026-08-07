@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.0 — doctor context preflight (project 13)
+## 0.7.0 — doctor context preflight (project 13)
+
+First release carrying the project-13 preflight (the 0.6.0 intermediate was never
+released; 0.5.x/0.6.0 changelog history below describes the unreleased hardening
+and self-hosting passes). Tagged `v0.7.0`.
 
 `repoman doctor` no longer answers the wrong question. It classifies where it's
 running *before* it runs any row check — a managed repo's devenv shell
