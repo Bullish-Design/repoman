@@ -35,9 +35,17 @@ copyroom's `agent.skills_dir`; each manager's own self-adoption).
   tool (the devenv-literacy layer: `devenv-*` skills, the `.agents/devenv/` docs
   export) live in the **genome** (template-py, under `template/.agents/`) and are
   converged by `copyroom update`.
+- **Personal** — skills that belong to the *user* rather than to any tool,
+  genome, or single repo: true in every repo they work in, versioned on their own
+  schedule. These ship as their own **Copier overlay layer** (`my-ai`, recorded
+  in `.copier-answers.my-ai.yml`) and are converged by
+  `copyroom update --layer my-ai`. They cannot live in a tool's package (wrong
+  owner, wrong release cadence) nor in one genome (that only reaches repos
+  generated from it). See copyroom's `docs/user/layers.md`.
 - **Repoman's router** — the generated entrypoint skill stays *generated* at
   sync time (it depends on the runtime manager roster). Repoman owns exactly one
-  skill.
+  skill. Because it is generated **per repo** from that repo's roster, it must
+  never be redistributed as a static copy — a snapshot is wrong wherever it lands.
 - **Overlay** — a repo's own additions/modifications under `.agents/skills/`.
   Permanent divergence is declared in `copyroom.project.yml` `agent.overlay`,
   which `copyroom update` maps to Copier `--exclude` so the template stops
@@ -69,6 +77,22 @@ _copy_without_render:
 regular file on both `new` and `update`. `_copy_without_render` is required for
 every tracked `.agents/` subtree: skills (and the genome's `.agents/devenv/`
 docs) contain literal `{{ }}` examples that must survive byte-for-byte.
+
+An **overlay layer** template (the personal layer) declares two more:
+
+```yaml
+_answers_file: .copier-answers.my-ai.yml   # the layer's identity — keeps its link
+                                            # out of the genome's answers file
+_skip_if_exists:
+  - "AGENTS.md"                             # seed only; AGENTS.md belongs to the repo
+```
+
+`_answers_file` is what makes layering possible at all: Copier scopes both `copy`
+and `update` to a single answers file, so each layer is an independent merge
+lineage. `_skip_if_exists` is what lets one overlay serve dozens of repos that
+each own their `AGENTS.md` — it holds on the update path too. Note that the
+genome ships an `AGENTS.md` as well, so whichever gets there first seeds it:
+bring a repo's base layer current *before* adding an overlay.
 
 ## `.agents/` is dual-use
 
