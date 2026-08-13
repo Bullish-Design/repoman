@@ -29,6 +29,14 @@ inputs:
     url: path:../docman          # fleet: github:Bullish-Design/docman
     flake: false
 
+  # shellij: durable Zellij workbenches, installed by default (not a roster
+  # manager). This repo imports the meta-module below, so declaring the input is
+  # enough — modules/devenv.nix presence-imports shellij's own devenv module,
+  # exactly as it does for a template-py consumer.
+  shellij:
+    url: path:../shellij         # fleet: github:Bullish-Design/shellij
+    flake: false
+
 imports:
   - vendomat/modules
   - repoman

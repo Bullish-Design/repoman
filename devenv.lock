@@ -203,7 +203,6 @@
     "pyjutsu": {
       "flake": false,
       "locked": {
-        "ref": "refs/heads/main",
         "type": "git",
         "url": "file:///home/andrew/Documents/Projects/pyjutsu"
       },
@@ -233,8 +232,21 @@
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-python": "nixpkgs-python",
         "repoman": "repoman",
+        "shellij": "shellij",
         "vendomat": "vendomat"
       }
+    },
+    "shellij": {
+      "flake": false,
+      "locked": {
+        "path": "../shellij",
+        "type": "path"
+      },
+      "original": {
+        "path": "../shellij",
+        "type": "path"
+      },
+      "parent": []
     },
     "vendomat": {
       "inputs": {
