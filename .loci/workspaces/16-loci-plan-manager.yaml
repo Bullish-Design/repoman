@@ -1,0 +1,11 @@
+schema: 1
+id: 01a01b22-19f4-7666-a897-2999fdced5bf
+name: 16-loci-plan-manager
+documents:
+  - ref: 01a01b22-19ef-7000-bb30-335ead87db4c
+  - ref: 01a01b22-19f4-7000-a204-356f9228e41c
+files:
+  - path: src/repoman/registry.py
+  - path: src/repoman/checks.py
+  - path: modules/devenv.nix
+archived: false
