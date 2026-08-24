@@ -79,4 +79,28 @@
     echo "  2. Run tests: test"
     echo ""
   '';
+
+  # devman — the automation plane (CONCEPT.md §5). `base` alone: this repository
+  # ships no scheduled work and writes none of its own files.
+  devman = {
+    enable = true;
+    project = "repoman";
+    groups = [ "base" ];
+  };
+
+  # https://devenv.sh/tasks/
+  #
+  # The two task names the `base` group calls (groups/base/README.md). devenv
+  # owns each implementation; Dagu owns the composition (§6).
+  #
+  # `base:test` forwards to `repoman:test` — the repository's own gate, defined
+  # by the testee manager module (`testee verify --mode quick`); duplicating it
+  # would be a second implementation (PROPOSAL.md §6 rule 6). `base:check` is
+  # the fast one: ruff over the repo's own `src` scope (`uv run --group dev`
+  # because the venv bin is not on the task runner's PATH).
+  tasks = {
+    "repoman:lint".exec = "uv run --group dev ruff check src";
+    "base:check".after = [ "repoman:lint" ];
+    "base:test".after = [ "repoman:test" ];
+  };
 }
