@@ -490,8 +490,42 @@ Fill in when decided. Cite the reason, not just the choice.
 | **D1 — who owns `plan`** | loci / foreman on loci / both / nobody | | | |
 | **D2 — directory** | separate / unify on `.loci/` / discover `.scratch/**` | | | |
 | **D3 — distribution** | publish / ssh / wheel / flake input | | | |
-| **D4 — granularity** | per-repo / fleet / both | | | |
+| **D4 — granularity** | per-repo / fleet / both | **per-repo** | 2026-08-25 | owner decision — see below |
 | **Cross-lane** | accept partial / read lanes / adopt-on-trunk | | | |
+
+### D4 — per-repo, permanently
+
+Decided by the owner, 2026-08-25, in
+`~/Documents/Projects/.scratch/projects/021-local-first-plane/` (**D-07**).
+
+**This is stronger than §4's recommendation.** §4 recommended "per-repo **now**",
+resting on SP-4: ids live in files, so a fleet vault added later inherits the
+graph at no migration cost. The owner's decision keeps the per-repo answer and
+**removes the later**. A fleet vault is ruled out, not deferred.
+
+**Reason.** Cross-repo needs are routed to tools that already own that domain —
+**fleetman** (what exists and how it integrates), **vendomat** (shared build
+outputs), **devman** (what runs, when, across repos). loci keeps one job: what a
+change is for, inside one repo.
+
+**Consequences for this project:**
+
+- **SP-5 is demoted.** The `**/`-prefixed exclude-default patch was the gate on a
+  fleet vault. With no fleet vault, it is upstream hygiene. Still worth raising
+  (§7.5); no longer blocking anything.
+- **Option D's headline opportunity is void.** §3's Option D was recommended in
+  part because it "unlocks a fleet vault later at zero migration cost". That
+  benefit no longer counts toward D. Re-weigh D against C on its remaining
+  merits — fleet-wide default, one convention, sixty red doctors until
+  convergence — before choosing a bundle.
+- **The cross-lane sub-decision is unchanged.** SP-6's lane isolation and the
+  "adopt on trunk, plan on the lane" rule are per-repo facts. They do not depend
+  on granularity.
+- **§5's comparison row "Answers 'in flight across fleet'"** now reads *no* for
+  every option including D, where it read "later, free". Only E answers it, and
+  only by building foreman.
+
+**Unaffected:** D1, D2, D3, and the bundle choice all remain open.
 
 ## 9. References
 
