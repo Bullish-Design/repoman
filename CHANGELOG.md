@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased — coherent machine toolchain (project 18)
+
+`repoman-sync --machine` could report success against a shared venv that no
+installed manager supported. A `path:` manager is installed `--editable`, so its
+code follows the checkout while its recorded metadata stays at the last sync. On
+this machine gitman's code was 0.6.0 (`pyjutsu>=0.20.0`) and its metadata was
+0.4.2 (`pyjutsu>=0.15.0`), so pyjutsu 0.15.0 satisfied every constraint the
+resolver, `uv pip check`, and `repoman doctor` could see — and `gitman status`
+died on `AttributeError: 'Workspace' object has no attribute 'git'`.
+
+### Fixed
+
+- **`repoman-sync --machine` rebuilds every editable manager.** Each `path:` entry
+  gets `--reinstall-package=<name>`, so the resolver reads the checkout's current
+  requirements instead of the last build's snapshot.
+- **`repoman-sync --machine` verifies the result, not the command.** After the
+  install it checks that each `path:` manager's installed version matches its
+  checkout, and that every installed distribution's own `Requires-Dist` holds. A
+  finding names the package, the constraint, and the installed version; the sync
+  exits `2` and records no manifest.
+- **A failed resolution exits `2`.** An unsatisfiable constraint set is
+  infra/config, not the domain decision `1` used to imply.
+- **`version:<key>` catches stale editable metadata.** A `path:` source was read as
+  "always current by construction", so the row reported `OK gitman 0.4.2` for a
+  checkout running 0.6.0. It now compares the installed version with the
+  checkout's `[project].version`.
+
+### Added
+
+- **`deps:toolchain` self-check rows.** `version:<entry>` compares the venv against
+  the lock; this compares it against the managers. A loose pseudo-entry
+  (`wheel:pyjutsu>=0.8`) can satisfy the lock while leaving a version no manager
+  supports — only the managers' own metadata says so.
+
+### Changed
+
+- **`repoman.lock` pseudo-entries state a floor, not the requirement.**
+  `[managers.git-pyjutsu]` now floors at `pyjutsu>=0.20.0`, matching what gitman
+  declares. Enforcement no longer depends on that floor being current.
+
 ## 0.7.0 — doctor context preflight (project 13)
 
 First release carrying the project-13 preflight (the 0.6.0 intermediate was never

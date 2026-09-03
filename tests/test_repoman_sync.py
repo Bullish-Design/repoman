@@ -1,6 +1,6 @@
 # Drives the real, embedded resolver in modules/scripts/repoman-sync.sh against fixture
 # locks, with `uv`/`repoman` stubbed on PATH. Covers both modes (project 12): machine mode
-# resolves the WHOLE machine lock into the shared toolchain venv (add-only `uv pip install`);
+# resolves the WHOLE machine lock into the shared toolchain venv in one `uv pip install`;
 # consumer mode installs nothing and only verifies the shared venv + installs skills.
 import os
 import shutil
@@ -26,7 +26,7 @@ def _stub_bin(tmp_path, *, uv_log, repoman_log=None, toolchain_venv=None):
     stub_bin.mkdir(parents=True, exist_ok=True)
 
     repoman = stub_bin / "repoman"
-    repoman.write_text(f"#!/usr/bin/env bash\necho \"$@\" >> {repoman_log or '/dev/null'}\nexit 0\n")
+    repoman.write_text(f'#!/usr/bin/env bash\necho "$@" >> {repoman_log or "/dev/null"}\nexit 0\n')
     repoman.chmod(0o755)
 
     uv = stub_bin / "uv"
@@ -301,8 +301,9 @@ def test_consumer_runs_the_repoman_it_verified_not_the_one_on_path(tmp_path):
     # A stale pre-migration repoman earlier on PATH used to win — verifying one copy and
     # running another.
     toolchain_venv = str(tmp_path / "toolchain-venv")
-    _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", repoman_log=tmp_path / "path-repoman.log",
-              toolchain_venv=toolchain_venv)
+    _stub_bin(
+        tmp_path, uv_log=tmp_path / "uv.log", repoman_log=tmp_path / "path-repoman.log", toolchain_venv=toolchain_venv
+    )
     _toolchain_repoman(toolchain_venv, tmp_path / "repoman.log")
     r = _run(tmp_path, REPO_SELF, mode="consumer", toolchain_venv=toolchain_venv)
     assert r.returncode == 0, r.stderr
@@ -413,11 +414,12 @@ def test_missing_uv_fails_with_a_pointer(tmp_path):
     lock = tmp_path / "repoman.lock"
     lock.write_text(REPO_SELF)
     env = dict(os.environ)
-    env["PATH"] = str(tmp_path / "empty-bin")   # no uv anywhere
+    env["PATH"] = str(tmp_path / "empty-bin")  # no uv anywhere
     env["DEVENV_ROOT"] = str(tmp_path)
     env["REPOMAN_TOOLCHAIN_VENV"] = str(tmp_path / "toolchain-venv")
     (tmp_path / "empty-bin").mkdir()
-    bash = shutil.which("bash")                 # resolved before PATH is gutted
+    bash = shutil.which("bash")  # resolved before PATH is gutted
+    assert bash is not None, "bash must be on PATH to run the script at all"
     r = subprocess.run([bash, str(SCRIPT), "--machine"], env=env, capture_output=True, text=True)
     assert r.returncode == 2
     assert "`uv` is not on PATH" in r.stderr
@@ -427,7 +429,7 @@ def test_help_prints_only_the_header_block(tmp_path):
     r = _run(tmp_path, None, argv=["--help"])
     assert r.returncode == 0
     assert "repoman-sync --machine" in r.stdout
-    assert "set -euo pipefail" not in r.stdout   # the range used to spill into the code
+    assert "set -euo pipefail" not in r.stdout  # the range used to spill into the code
 
 
 def test_manifest_is_written_atomically(tmp_path):

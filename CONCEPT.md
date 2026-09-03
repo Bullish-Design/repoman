@@ -182,7 +182,11 @@ Two layers, mirroring the proven family patterns:
 > `languages.rust.enable`, gated on `"git" ∈ managers` (repos without gitman never pull
 > Rust). Native deps that `uv pip install` can't resolve from `[tool.uv.sources]` get an
 > explicit `repoman.lock` pseudo-entry (`[managers.<m>-<dep>]`) that `repoman-sync`
-> installs alongside the manager. See `SPIKE.md`.
+> installs alongside the manager. A pseudo-entry states a **floor**, never the whole
+> requirement: `repoman-sync --machine` resolves it together with the manager's own
+> metadata, so a loose floor cannot weaken the manager's stricter requirement, and the
+> sync verifies the installed result before it records a manifest (project 18). See
+> `SPIKE.md`.
 
 > **De-risking note.** The original open question was "does devenv support transitive
 > *nix inputs* from an imported remote module." The spike shows that for Python-based

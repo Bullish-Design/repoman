@@ -1,0 +1,12 @@
+Gitman doctor — WARNINGS
+  ok devenv         inside devenv shell
+  ok pyjutsu        pyjutsu 0.20.0 (jj-lib 0.44.0)
+  ok git            git on PATH
+  ok colocated      .git + .jj present
+  ok remote         git remote configured
+  ok trunk          frozen trunk 'main' present
+  ok uv             uv on PATH
+  !! config         gitman.toml: [version] is ignored — gitman reads and writes the version through uv (`uv version`). Delete the table; it becomes an error in 0.7.0.
+  ok colocated-head git HEAD reachable from a bookmark
+  ok colocated-refs jj bookmarks ↔ git refs in sync
+EXIT=0

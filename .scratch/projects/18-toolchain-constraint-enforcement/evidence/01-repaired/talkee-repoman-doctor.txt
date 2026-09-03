@@ -1,0 +1,49 @@
+=== repoman (self-check) ===
+OK   toolchain:venv — /home/andrew/.local/share/repoman/venv
+OK   toolchain:lock — /home/andrew/.local/share/repoman/venv/repoman-toolchain.toml
+OK   lock:copy
+OK   lock:git
+OK   uv:test — uv-declared — [dependency-groups] dev
+OK   version:managers.copy — copyroom 0.7.4
+OK   version:managers.git — gitman 0.6.0
+OK   version:managers.git-pyjutsu — pyjutsu 0.20.0
+OK   version:repoman — repoman 0.7.1
+OK   deps:toolchain — 33 package(s) mutually compatible
+OK   installed:copy — /home/andrew/.local/share/repoman/venv/bin/copyroom
+OK   installed:git — /home/andrew/.local/share/repoman/venv/bin/gitman
+OK   installed:test — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/testee
+OK   skill:entrypoint — /home/andrew/Documents/Projects/talkee/.agents/skills/repoman/SKILL.md
+OK   skill:copy:defers
+OK   skill:git:defers
+OK   skill:tool-shipped — canonical copyroom skills present
+OK   skill:genome-overlay — genome or overlay: devenv-authoring, devenv-inputs, devenv-lock, devenv-module-edits, devenv-processes, devenv-python-venv, devenv-run-commands, devenv-troubleshoot, gitman, my-ai
+
+=== copy (copyroom) ===
+OK  copier — 9.18.1
+OK  git — git version 2.55.0
+OK  cache — /home/andrew/.cache/copyroom/templates
+OK  agent-files — conformant
+OK  template-source — 2 layer(s) resolve
+
+=== git (gitman) ===
+Gitman doctor — WARNINGS
+  ok devenv         inside devenv shell
+  ok pyjutsu        pyjutsu 0.20.0 (jj-lib 0.44.0)
+  ok git            git on PATH
+  ok colocated      .git + .jj present
+  ok remote         git remote configured
+  ok trunk          frozen trunk 'main' present
+  ok uv             uv on PATH
+  !! config         gitman.toml: [version] is ignored — gitman reads and writes the version through uv (`uv version`). Delete the table; it becomes an error in 0.7.0.
+  ok colocated-head git HEAD reachable from a bookmark
+  ok colocated-refs jj bookmarks ↔ git refs in sync
+
+=== test (testee) ===
+OK   devenv shell — /home/andrew/Documents/Projects/talkee
+OK   tool: ruff — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/ruff
+OK   tool: ty — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/ty
+OK   tool: pytest — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/pytest
+OK   pytest-json-report — importable
+OK   config — default_mode=quick; quick tools=['ruff', 'ruff-format', 'ty', 'pytest']
+OK   artifact dir writable — /home/andrew/Documents/Projects/talkee/.testee
+EXIT=0

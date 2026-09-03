@@ -44,8 +44,8 @@ class Manager:
     route_when: str = ""  # "when you want to…" cell in the routing table
     nix_input: str = ""  # devenv.yaml input the manager's approach-B nix module needs; "" = none
     install: str = "toolchain"  # "toolchain" = system-wide shared venv (machine repoman.lock);
-                                # "uv" = declared in the consumer's pyproject.toml, installed by uv sync
-    package: str = ""           # distribution name; defaults to `command`
+    # "uv" = declared in the consumer's pyproject.toml, installed by uv sync
+    package: str = ""  # distribution name; defaults to `command`
 
     def __post_init__(self) -> None:
         if not self.skill:

@@ -70,22 +70,29 @@ def run_sub(manager: Manager, args: list[str]) -> SubResult:
     executable = resolve(manager)
     if executable is None:
         return SubResult(
-            manager.key, cmd, exit_code=127, available=False,
+            manager.key,
+            cmd,
+            exit_code=127,
+            available=False,
             reason=f"{manager.command} is not installed — "
-                   + ("run `repoman-sync --machine`" if manager.install == "toolchain"
-                      else "run `uv sync`"),
+            + ("run `repoman-sync --machine`" if manager.install == "toolchain" else "run `uv sync`"),
         )
     try:
         proc = subprocess.run([executable, *args], timeout=_timeout())  # noqa: S603 - trusted roster
     except subprocess.TimeoutExpired:
         return SubResult(
-            manager.key, cmd, exit_code=2, available=False,
-            reason=f"{manager.command} timed out after {_timeout():.0f}s "
-                   "(raise or disable with REPOMAN_SUB_TIMEOUT)",
+            manager.key,
+            cmd,
+            exit_code=2,
+            available=False,
+            reason=f"{manager.command} timed out after {_timeout():.0f}s (raise or disable with REPOMAN_SUB_TIMEOUT)",
         )
     except OSError as exc:
         return SubResult(
-            manager.key, cmd, exit_code=2, available=False,
+            manager.key,
+            cmd,
+            exit_code=2,
+            available=False,
             reason=f"{manager.command} could not be executed: {exc.strerror or exc}",
         )
     return SubResult(manager.key, cmd, exit_code=proc.returncode, available=True)

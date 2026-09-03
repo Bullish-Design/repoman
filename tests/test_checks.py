@@ -21,7 +21,7 @@ _GOOD_LOCK = (
 # The consumer pyproject that declares testee the uv-native way (D4).
 _PYPROJECT_TESTEE = (
     '[project]\nname = "x"\nversion = "0.0.0"\nrequires-python = ">=3.13"\n'
-    'dependencies = []\n'
+    "dependencies = []\n"
     '[dependency-groups]\ndev = ["testee"]\n'
 )
 
@@ -51,7 +51,8 @@ def toolchain(tmp_path, monkeypatch):
     monkeypatch.delenv("DEVENV_STATE", raising=False)
     monkeypatch.delenv("DEVENV_ROOT", raising=False)
     monkeypatch.setattr(
-        checks.shutil, "which",
+        checks.shutil,
+        "which",
         lambda c: str(bin_dir / c) if (bin_dir / c).exists() else None,
     )
 
@@ -322,18 +323,14 @@ def test_uv_declared_manager_is_ok_from_dependency_groups(toolchain, tmp_path):
 def test_uv_declared_manager_is_ok_from_optional_dependencies(toolchain, tmp_path):
     # the pre-PEP-735 style is still recognized (D4 keeps [dependency-groups] canonical).
     (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n'
-        '[project.optional-dependencies]\ndev = ["testee>=0.2"]\n'
+        '[project]\nname = "x"\nversion = "0.0.0"\n[project.optional-dependencies]\ndev = ["testee>=0.2"]\n'
     )
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "ok"
 
 
 def test_uv_declared_manager_is_ok_from_project_dependencies(toolchain, tmp_path):
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n'
-        'dependencies = ["testee"]\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\ndependencies = ["testee"]\n')
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "ok"
 
@@ -350,8 +347,8 @@ def test_uv_manager_not_declared_fails(toolchain, tmp_path):
 def test_uv_manager_requirement_specifier_and_extras_are_stripped(toolchain, tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\nversion = "0.0.0"\n'
-        '[dependency-groups]\n'
-        'dev = ["testee[all]>=0.3 ; python_version>\'3.12\'"]\n'
+        "[dependency-groups]\n"
+        "dev = [\"testee[all]>=0.3 ; python_version>'3.12'\"]\n"
     )
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "ok"
@@ -360,8 +357,7 @@ def test_uv_manager_requirement_specifier_and_extras_are_stripped(toolchain, tmp
 def test_uv_manager_name_normalisation(toolchain, tmp_path):
     # PEP 503 normalisation: "TESTEE" matches package "testee" (case-folded).
     (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n'
-        '[dependency-groups]\ndev = ["TESTEE"]\n'
+        '[project]\nname = "x"\nversion = "0.0.0"\n[dependency-groups]\ndev = ["TESTEE"]\n'
     )
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "ok"
@@ -370,8 +366,7 @@ def test_uv_manager_name_normalisation(toolchain, tmp_path):
 def test_include_group_entries_are_skipped(toolchain, tmp_path):
     # dependency-groups entries may be {include-group = "lint"} dicts — don't crash.
     (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n'
-        '[dependency-groups]\ndev = [{include-group = "lint"}]\n'
+        '[project]\nname = "x"\nversion = "0.0.0"\n[dependency-groups]\ndev = [{include-group = "lint"}]\n'
     )
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "fail"
@@ -379,9 +374,7 @@ def test_include_group_entries_are_skipped(toolchain, tmp_path):
 
 def test_non_list_dependency_table_is_skipped(toolchain, tmp_path):
     # A hand-mangled pyproject must produce a finding, not a TypeError.
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\ndependencies = "testee"\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\ndependencies = "testee"\n')
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "fail"
 
@@ -419,14 +412,25 @@ def test_uv_manager_gets_no_lock_row(toolchain, tmp_path):
 # ---------------------------------------------------------------- version:<key>
 
 
-def _install_dist(venv, name, version):
+def _install_dist(venv, name, version, requires=()):
     """Materialise a dist-info inside the fake toolchain venv's site-packages."""
 
     site = venv / "lib" / "python3.13" / "site-packages"
     dist = site / f"{name}-{version}.dist-info"
     dist.mkdir(parents=True)
-    (dist / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+    lines = ["Metadata-Version: 2.1", f"Name: {name}", f"Version: {version}"]
+    lines += [f"Requires-Dist: {r}" for r in requires]
+    (dist / "METADATA").write_text("\n".join(lines) + "\n")
     return dist
+
+
+def _checkout(tmp_path, name, version):
+    """A `path:` source checkout whose pyproject declares ``version``."""
+
+    root = tmp_path / "checkouts" / name
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text(f'[project]\nname = "{name}"\nversion = "{version}"\n')
+    return root
 
 
 def test_no_version_rows_when_site_packages_is_uninspectable(toolchain):
@@ -501,15 +505,110 @@ def test_version_does_not_guess_on_prerelease_versions(toolchain):
 @pytest.mark.parametrize(
     ("installed", "operator", "wanted", "expected"),
     [
-        ("1.0", "==", "1.0.0", True),      # zero-padded equality, per PEP 440
+        ("1.0", "==", "1.0.0", True),  # zero-padded equality, per PEP 440
         ("0.9", ">=", "0.8", True),
         ("0.7", ">=", "0.8", False),
-        ("1.2.3", "<", "1.10.0", True),    # numeric, not lexicographic
-        ("1.0rc1", ">=", "1.0", None),     # not evaluable → not evaluated
+        ("1.2.3", "<", "1.10.0", True),  # numeric, not lexicographic
+        ("1.0rc1", ">=", "1.0", None),  # not evaluable → not evaluated
     ],
 )
 def test_satisfies_matrix(installed, operator, wanted, expected):
     assert checks._satisfies(installed, operator, wanted) is expected
+
+
+# ------------------------------------------------- version:<key> — editable freshness
+
+
+def test_version_fails_when_editable_metadata_is_behind_its_checkout(toolchain, tmp_path):
+    # The project-18 failure: an editable manager's CODE follows the checkout while its
+    # recorded metadata stays at the last sync, so this row used to read "OK gitman
+    # 0.4.2" for a venv that was actually running 0.6.0 against 0.4.2's requirements.
+    checkout = _checkout(tmp_path, "gitman", "0.6.0")
+    toolchain.write(
+        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
+        f'[managers.git]\npackage = "gitman"\nsource = "path:{checkout}"\n'
+    )
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(toolchain.venv, "gitman", "0.4.2")
+    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
+    row = _names(result)["version:managers.git"]
+    assert row.level == "fail"
+    assert "0.4.2" in row.detail and "0.6.0" in row.detail and str(checkout) in row.detail
+    assert self_check_exit(result) == 2
+
+
+def test_version_ok_when_editable_metadata_matches_its_checkout(toolchain, tmp_path):
+    checkout = _checkout(tmp_path, "gitman", "0.6.0")
+    toolchain.write(
+        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
+        f'[managers.git]\npackage = "gitman"\nsource = "path:{checkout}"\n'
+    )
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(toolchain.venv, "gitman", "0.6.0")
+    assert _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git"].level == "ok"
+
+
+def test_version_makes_no_claim_for_a_dynamic_version_checkout(toolchain, tmp_path):
+    checkout = tmp_path / "checkouts" / "gitman"
+    checkout.mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text('[project]\nname = "gitman"\ndynamic = ["version"]\n')
+    toolchain.write(
+        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
+        f'[managers.git]\npackage = "gitman"\nsource = "path:{checkout}"\n'
+    )
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(toolchain.venv, "gitman", "0.4.2")
+    assert _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git"].level == "ok"
+
+
+# ---------------------------------------------------------------- deps:toolchain
+
+
+def test_deps_fail_when_a_manager_needs_more_than_the_lock_demands(toolchain):
+    # `wheel:pyjutsu>=0.8` is satisfied by 0.15.0, so every version: row is green — but
+    # gitman itself needs 0.20.0. Only the managers' own metadata says so.
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(toolchain.venv, "gitman", "0.6.0", requires=["pyjutsu>=0.20.0"])
+    _install_dist(toolchain.venv, "pyjutsu", "0.15.0")
+    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
+    rows = [c for c in result if c.name == "deps:toolchain"]
+    assert [c.level for c in rows] == ["fail"]
+    assert "pyjutsu>=0.20.0" in rows[0].detail and "pyjutsu 0.15.0 is installed" in rows[0].detail
+    assert self_check_exit(result) == 2
+
+
+def test_deps_ok_when_the_toolchain_is_coherent(toolchain):
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(toolchain.venv, "gitman", "0.6.0", requires=["pyjutsu>=0.20.0"])
+    _install_dist(toolchain.venv, "pyjutsu", "0.20.0")
+    rows = [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
+    assert [c.level for c in rows] == ["ok"]
+
+
+def test_deps_ignore_extras_and_markers(toolchain):
+    # `pygithub>=2.3; extra == 'github'` is not installed and must not be a finding.
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(
+        toolchain.venv,
+        "gitman",
+        "0.6.0",
+        requires=["pyjutsu>=0.20.0", "pygithub>=2.3; extra == 'github'"],
+    )
+    _install_dist(toolchain.venv, "pyjutsu", "0.20.0")
+    rows = [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
+    assert [c.level for c in rows] == ["ok"]
+
+
+def test_deps_report_a_missing_requirement(toolchain):
+    _install_dist(toolchain.venv, "repoman", "0.5.0")
+    _install_dist(toolchain.venv, "gitman", "0.6.0", requires=["pyjutsu>=0.20.0"])
+    rows = [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
+    assert [c.level for c in rows] == ["fail"]
+    assert "pyjutsu is not installed" in rows[0].detail
+
+
+def test_no_deps_row_when_site_packages_is_uninspectable(toolchain):
+    assert not [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
 
 
 # ---------------------------------------------------------------- lock:orphan
@@ -530,9 +629,7 @@ def test_machine_lock_at_the_repoman_checkout_does_not_warn(toolchain, tmp_path)
     # The recorded [repoman] source (path:<repo_root>) is the fingerprint. Deleting this
     # file would break `repoman-sync --machine`, so the doctor must not demand it.
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    machine = _GOOD_LOCK.replace(
-        'source = "path:/x"\n[managers.copy]', f'source = "path:{tmp_path}"\n[managers.copy]'
-    )
+    machine = _GOOD_LOCK.replace('source = "path:/x"\n[managers.copy]', f'source = "path:{tmp_path}"\n[managers.copy]')
     (tmp_path / "repoman.lock").write_text(machine)
     toolchain.write(machine)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
@@ -545,9 +642,7 @@ def test_machine_lock_with_a_fleet_git_source_still_warns_orphan(toolchain, tmp_
     # stray repoman.lock still warns as an orphan.
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
     (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
-    fleet = _GOOD_LOCK.replace(
-        'source = "path:/x"', 'source = "git+https://github.com/Bullish-Design/repoman@v0.5.0"'
-    )
+    fleet = _GOOD_LOCK.replace('source = "path:/x"', 'source = "git+https://github.com/Bullish-Design/repoman@v0.5.0"')
     toolchain.write(fleet)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:orphan"].level == "warn"
@@ -684,10 +779,7 @@ def test_ownership_survives_an_unreadable_skills_dir(tmp_path):
 
 def test_malformed_manifest_entries_are_skipped_not_crashed(toolchain):
     # A hand-mangled machine manifest must not take the version check down with it.
-    toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        '[managers]\ngit = "oops-not-a-table"\n'
-    )
+    toolchain.write('[repoman]\npackage = "repoman"\nsource = "path:/x"\n[managers]\ngit = "oops-not-a-table"\n')
     _install_dist(toolchain.venv, "repoman", "0.5.0")
     result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
     names = _names(result)
@@ -697,8 +789,7 @@ def test_malformed_manifest_entries_are_skipped_not_crashed(toolchain):
 
 def test_manifest_entry_with_non_string_source_is_skipped(toolchain):
     toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        '[managers.git]\npackage = "gitman"\nsource = 42\n'
+        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n[managers.git]\npackage = "gitman"\nsource = 42\n'
     )
     _install_dist(toolchain.venv, "repoman", "0.5.0")
     _install_dist(toolchain.venv, "gitman", "0.4.2")

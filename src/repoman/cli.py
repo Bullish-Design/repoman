@@ -114,17 +114,19 @@ def format_context_failure(context: Context) -> str:
         if bootstrap.exists():
             lines += ["", f"(Bootstrapping a brand-new repo? See the bootstrap ceremony: {bootstrap})"]
         return "\n".join(lines)
-    return "\n".join([
-        "repoman: managed repo found, but not inside its devenv shell",
-        "",
-        "This looks like a RepoMan-managed repo (gitman.toml/.gitman present), but the",
-        "REPOMAN_* shell environment is missing — the manager toolchain is only wired",
-        "onto PATH inside the repo's devenv shell.",
-        "",
-        "Enter the shell, then run:",
-        "",
-        f"    {hint}",
-    ])
+    return "\n".join(
+        [
+            "repoman: managed repo found, but not inside its devenv shell",
+            "",
+            "This looks like a RepoMan-managed repo (gitman.toml/.gitman present), but the",
+            "REPOMAN_* shell environment is missing — the manager toolchain is only wired",
+            "onto PATH inside the repo's devenv shell.",
+            "",
+            "Enter the shell, then run:",
+            "",
+            f"    {hint}",
+        ]
+    )
 
 
 def context_json(context: Context, checks: list[SelfCheck], exit_code: int) -> str:
@@ -168,7 +170,10 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def _main(
     version: bool = typer.Option(
-        False, "--version", callback=_version_callback, is_eager=True,
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
         help="Show the RepoMan version and exit.",
     ),
 ) -> None:

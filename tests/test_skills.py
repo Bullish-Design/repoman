@@ -14,10 +14,10 @@ def test_change_step_always_present():
 
 def test_render_only_names_enabled_managers():
     out = render_entrypoint([REGISTRY["copy"], REGISTRY["test"]], ".claude/skills")
-    assert "copy test" in out               # managers line
+    assert "copy test" in out  # managers line
     assert "copyroom" in out and "testee" in out
-    assert "gitman" not in out              # not enabled → not routed
-    assert "{{" not in out                  # StrictUndefined: nothing left unrendered
+    assert "gitman" not in out  # not enabled → not routed
+    assert "{{" not in out  # StrictUndefined: nothing left unrendered
     assert ".claude/skills" in out
 
 

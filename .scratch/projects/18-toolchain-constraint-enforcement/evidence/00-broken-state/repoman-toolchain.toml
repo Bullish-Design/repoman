@@ -1,14 +1,10 @@
+# synced from /home/andrew/Documents/Projects/repoman/repoman.lock
 # repoman.lock — the MACHINE toolchain manifest (project 12).
 #
 # Pins the pure-CLI managers that live in the single system-wide toolchain venv
 # ($REPOMAN_TOOLCHAIN_VENV, default ~/.local/share/repoman/venv). `repoman-sync --machine`
-# reads this file and installs EVERY entry in ONE `uv pip install --upgrade` — the
-# consumer's `repoman.managers` roster gates wiring/skills, not installation.
-#
-# This file is a FLOOR, not the whole truth. Each manager's own metadata carries its real
-# requirements, and the sync resolves the lock and the managers together, so the stricter
-# side always wins. The sync then verifies the result and refuses to record a manifest for
-# a venv whose installed packages do not satisfy every installed manager (project 18).
+# reads this file and installs EVERY entry (add-only `uv pip install`) — the consumer's
+# `repoman.managers` roster gates wiring/skills, not installation.
 #
 # testee is deliberately ABSENT: it runs inside the consumer's code, so it is declared as a
 # per-repo uv dev dependency in each consumer's pyproject.toml. See CONCEPT.md §3.
@@ -36,12 +32,9 @@ package = "gitman"
 source = "path:/home/andrew/Documents/Projects/gitman"
 
 # gitman's native dep — not a manager. Resolved by the "<manager>-*" pseudo-entry rule.
-# The floor tracks what gitman declares; a pseudo-entry that lags behind its manager can
-# no longer leave an unusable version installed, but a lagging floor still misreports the
-# machine in `repoman doctor`'s version: rows.
 [managers.git-pyjutsu]
 package = "pyjutsu"
-source = "wheel:pyjutsu>=0.20.0"
+source = "wheel:pyjutsu>=0.8"
 
 [managers.doc]
 package = "docman"

@@ -1,0 +1,6 @@
+Gitman status — CANONICAL · 0 lanes
+trunk: main @ f1e37d7a9c0011565fce64f58b36bf2c2e50deb0  (in sync with origin)
+note: gitman.toml: [version] is ignored — gitman reads and writes the version through uv (`uv version`). Delete the table; it becomes an error in 0.7.0.
+note: working copy @ has unbookmarked work — `gitman start <name>` to adopt it into a lane.
+No lanes yet — `gitman start <name>` to begin.
+EXIT=0

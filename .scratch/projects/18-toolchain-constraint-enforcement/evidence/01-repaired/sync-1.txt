@@ -1,0 +1,25 @@
+repoman-sync --machine: installing 5 package(s) into /home/andrew/.local/share/repoman/venv:
+  - --editable=/home/andrew/Documents/Projects/repoman
+  - --editable=/home/andrew/Documents/Projects/copyroom
+  - --editable=/home/andrew/Documents/Projects/gitman
+  - pyjutsu>=0.20.0
+  - --editable=/home/andrew/Documents/Projects/docman
+Using Python 3.13.13 environment at: /home/andrew/.local/share/repoman/venv
+Resolved 33 packages in 392ms
+   Building docman @ file:///home/andrew/Documents/Projects/docman
+   Building copyroom @ file:///home/andrew/Documents/Projects/copyroom
+   Building repoman @ file:///home/andrew/Documents/Projects/repoman
+   Building gitman @ file:///home/andrew/Documents/Projects/gitman
+      Built gitman @ file:///home/andrew/Documents/Projects/gitman
+      Built copyroom @ file:///home/andrew/Documents/Projects/copyroom
+      Built docman @ file:///home/andrew/Documents/Projects/docman
+      Built repoman @ file:///home/andrew/Documents/Projects/repoman
+Prepared 4 packages in 915ms
+Uninstalled 4 packages in 4ms
+Installed 4 packages in 4ms
+ ~ copyroom==0.7.4 (from file:///home/andrew/Documents/Projects/copyroom)
+ ~ docman==0.1.0 (from file:///home/andrew/Documents/Projects/docman)
+ ~ gitman==0.6.0 (from file:///home/andrew/Documents/Projects/gitman)
+ ~ repoman==0.7.1 (from file:///home/andrew/Documents/Projects/repoman)
+repoman-sync --machine: done → /home/andrew/.local/share/repoman/venv/bin
+EXIT=0

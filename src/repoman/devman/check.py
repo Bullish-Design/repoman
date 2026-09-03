@@ -67,11 +67,7 @@ def skill_ownership_checks(repo_root: str, skills_dir: str) -> list[SelfCheck]:
         return out
 
     try:
-        present = {
-            p.name
-            for p in skills_root.iterdir()
-            if p.is_dir() and (p / "SKILL.md").is_file()
-        }
+        present = {p.name for p in skills_root.iterdir() if p.is_dir() and (p / "SKILL.md").is_file()}
     except OSError as exc:
         # The lint is a diagnostic; an unreadable skills dir is a finding, not a crash.
         return [SelfCheck("skill:tool-shipped", "warn", f"{skills_dir} unreadable: {exc.strerror or exc}")]

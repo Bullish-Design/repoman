@@ -1,0 +1,38 @@
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/andrew/Documents/Projects/gitman/src/gitman/cli.py:136 in doctor       │
+│                                                                              │
+│   133 │   from gitman.doctor import run_doctor                               │
+│   134 │   from gitman.render import render_doctor                            │
+│   135 │                                                                      │
+│ ❱ 136 │   report = run_doctor(_repo_root())                                  │
+│   137 │   payload = {                                                        │
+│   138 │   │   "intent": "doctor",                                            │
+│   139 │   │   "exit_code": report.exit_code,                                 │
+│                                                                              │
+│ /home/andrew/Documents/Projects/gitman/src/gitman/doctor.py:102 in           │
+│ run_doctor                                                                   │
+│                                                                              │
+│    99 │   except Exception:  # noqa: BLE001 — not a loadable workspace;      │
+│       downstream checks degrade to warn                                      │
+│   100 │   │   ws = None                                                      │
+│   101 │                                                                      │
+│ ❱ 102 │   if ws is not None and has_remote(ws):                              │
+│   103 │   │   checks.append(Check(OK, "remote", "git remote configured"))    │
+│   104 │   else:                                                              │
+│   105 │   │   checks.append(Check(WARN, "remote", "no git remote             │
+│       (publish/release will be unavailable)"))                               │
+│                                                                              │
+│ /home/andrew/Documents/Projects/gitman/src/gitman/core.py:239 in has_remote  │
+│                                                                              │
+│    236 │                                                                     │
+│    237 │   The one adapter point for the remote gate. Eleven call sites ask  │
+│        this same question, so the                                            │
+│    238 │   next pyjutsu rename of the git namespace touches one line here,   │
+│        not eleven."""                                                        │
+│ ❱  239 │   return bool(ws.git.remotes())                                     │
+│    240                                                                       │
+│    241                                                                       │
+│    242 def _retire_git_ref(session: Session, lane: str) -> list[str]:        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+AttributeError: 'Workspace' object has no attribute 'git'
+EXIT=1

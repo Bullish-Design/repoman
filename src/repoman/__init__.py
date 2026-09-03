@@ -7,4 +7,4 @@ __all__ = ["__version__"]
 
 # Kept in lockstep with pyproject.toml's `project.version`; test_version_is_in_lockstep
 # fails the build if the two drift.
-__version__ = "0.7.0"
+__version__ = "0.7.1"

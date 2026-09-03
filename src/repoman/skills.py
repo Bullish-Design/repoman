@@ -70,10 +70,7 @@ def render_entrypoint(managers: list[Manager], skills_dir: str) -> str:
     return template.render(
         managers=" ".join(m.key for m in ordered),
         spine=build_spine({m.key for m in ordered}),
-        rows=[
-            {"key": m.key, "command": m.command, "skill": m.skill, "when": m.route_when}
-            for m in ordered
-        ],
+        rows=[{"key": m.key, "command": m.command, "skill": m.skill, "when": m.route_when} for m in ordered],
         skills_dir=skills_dir,
     )
 

@@ -45,7 +45,7 @@ _DEFAULT_TOOLCHAIN = "repoman/venv"
 @dataclass
 class SelfCheck:
     name: str
-    level: str   # "ok" | "warn" | "fail"
+    level: str  # "ok" | "warn" | "fail"
     detail: str = ""
 
 
@@ -174,7 +174,8 @@ def _load_toolchain_manifest(venv: Path) -> tuple[dict | None, SelfCheck]:
     path = venv / "repoman-toolchain.toml"
     if not path.exists():
         return None, SelfCheck(
-            "toolchain:lock", "warn",
+            "toolchain:lock",
+            "warn",
             f"no manifest at {path} — re-run `repoman-sync --machine` to record one",
         )
     data, error = _read_toml(path)
@@ -239,19 +240,19 @@ def _site_packages(venv: Path) -> Path | None:
     return None
 
 
-def installed_versions(venv: Path) -> dict[str, str] | None:
-    """Distribution name → version for the packages inside ``venv``.
+def installed_distributions(venv: Path) -> dict[str, tuple[str, list[str]]] | None:
+    """Distribution name → ``(version, Requires-Dist)`` for the packages inside ``venv``.
 
     Reads the venv's own ``site-packages`` rather than this interpreter's, so the
     answer is right regardless of which python is running ``repoman``. ``None``
-    means "couldn't inspect" — the caller then emits no version rows at all,
-    because a false staleness alarm is worse than a missing check.
+    means "couldn't inspect" — the caller then emits no rows at all, because a
+    false staleness alarm is worse than a missing check.
     """
 
     site = _site_packages(venv)
     if site is None:
         return None
-    found: dict[str, str] = {}
+    found: dict[str, tuple[str, list[str]]] = {}
     try:
         dists = list(Distribution.discover(context=DistributionFinder.Context(path=[str(site)])))
     except OSError:
@@ -260,24 +261,50 @@ def installed_versions(venv: Path) -> dict[str, str] | None:
         try:
             name = dist.metadata["Name"]
             version = dist.version
+            requires = dist.metadata.get_all("Requires-Dist") or []
         except (OSError, KeyError, ValueError):
             continue
         if name and version:
-            found[_normalize(name)] = version
+            found[_normalize(name)] = (version, [str(r) for r in requires])
     return found
+
+
+def installed_versions(venv: Path) -> dict[str, str] | None:
+    """Distribution name → version for the packages inside ``venv``."""
+
+    dists = installed_distributions(venv)
+    if dists is None:
+        return None
+    return {name: version for name, (version, _requires) in dists.items()}
+
+
+def declared_version(source: str) -> str | None:
+    """The ``[project].version`` a ``path:`` lock source's checkout declares.
+
+    ``None`` means "no answer" — not a ``path:`` source, an unreadable checkout, or
+    a project that computes its version dynamically. The caller then makes no claim.
+    """
+
+    if not source.startswith("path:"):
+        return None
+    data, error = _read_toml(Path(source[len("path:") :]) / "pyproject.toml")
+    if error is not None or data is None:
+        return None
+    version = (data.get("project") or {}).get("version")
+    return version if isinstance(version, str) else None
 
 
 def _constraints(source: str) -> list[tuple[str, str]]:
     """The version pins a lock ``source`` implies, as ``(operator, version)`` pairs.
 
-    ``path:`` sources are editable checkouts — always current by construction, so
-    they pin nothing. A ``git+…@vX.Y.Z`` ref is an exact pin.
+    A ``path:`` source pins no *range* — its checkout is the pin, and
+    :func:`declared_version` reads it. A ``git+…@vX.Y.Z`` ref is an exact pin.
     """
 
     if source.startswith("path:"):
         return []
     if source.startswith("wheel:"):
-        source = source[len("wheel:"):]
+        source = source[len("wheel:") :]
     if source.startswith("git+"):
         ref = _GIT_REF.search(source)
         return [("==", ref.group(1))] if ref else []
@@ -324,8 +351,8 @@ def version_checks(venv: Path, manifest: dict, managers: list[Manager]) -> list[
     """Compare what's installed in the toolchain venv against what the lock pins.
 
     This is the check that catches a *stale* toolchain: `lock:<key>` only proves a
-    key is present in the recorded manifest, and `uv pip install` is add-only, so
-    without this a machine that never re-synced reports entirely green.
+    key is present in the recorded manifest, so without this a machine that never
+    re-synced reports entirely green.
     """
 
     versions = installed_versions(venv)
@@ -356,25 +383,91 @@ def version_checks(venv: Path, manifest: dict, managers: list[Manager]) -> list[
             continue
         installed = versions.get(_normalize(package))
         if installed is None:
-            out.append(SelfCheck(
-                f"version:{key}", "fail",
-                f"{package} is pinned in the machine lock but is not installed in {venv}"
-                " — run `repoman-sync --machine`",
-            ))
+            out.append(
+                SelfCheck(
+                    f"version:{key}",
+                    "fail",
+                    f"{package} is pinned in the machine lock but is not installed in {venv}"
+                    " — run `repoman-sync --machine`",
+                )
+            )
             continue
-        violated = [
-            f"{op}{want}" for op, want in _constraints(source)
-            if _satisfies(installed, op, want) is False
-        ]
+        violated = [f"{op}{want}" for op, want in _constraints(source) if _satisfies(installed, op, want) is False]
         if violated:
-            out.append(SelfCheck(
-                f"version:{key}", "fail",
-                f"{package} {installed} installed but the machine lock pins "
-                f"{','.join(violated)} — re-run `repoman-sync --machine`",
-            ))
-        else:
-            out.append(SelfCheck(f"version:{key}", "ok", f"{package} {installed}"))
+            out.append(
+                SelfCheck(
+                    f"version:{key}",
+                    "fail",
+                    f"{package} {installed} installed but the machine lock pins "
+                    f"{','.join(violated)} — re-run `repoman-sync --machine`",
+                )
+            )
+            continue
+        # A `path:` manager is installed --editable: its CODE follows the checkout,
+        # its METADATA is a snapshot of the last sync. When the two disagree the venv
+        # runs new code against the OLD dependency requirements — the failure that
+        # made this row lie ("OK gitman 0.4.2") while the checkout ran 0.6.0.
+        declared = declared_version(source)
+        if declared is not None and _release(declared) != _release(installed) and declared != installed:
+            out.append(
+                SelfCheck(
+                    f"version:{key}",
+                    "fail",
+                    f"{package} {installed} installed but the checkout at "
+                    f"{source[len('path:') :]} declares {declared} — the recorded metadata is "
+                    "stale; re-run `repoman-sync --machine`",
+                )
+            )
+            continue
+        out.append(SelfCheck(f"version:{key}", "ok", f"{package} {installed}"))
     return out
+
+
+def _requirement_specifiers(requirement: str) -> list[tuple[str, str]]:
+    """The ``(operator, version)`` pairs in one PEP 508 requirement string."""
+
+    return _SPECIFIER.findall(requirement)
+
+
+def dependency_checks(venv: Path) -> list[SelfCheck]:
+    """Verify every installed distribution's own requirements hold inside ``venv``.
+
+    ``version:<entry>`` compares the venv against the LOCK. This compares the venv
+    against the MANAGERS: a loose pseudo-entry (``wheel:pyjutsu>=0.8``) can satisfy
+    the lock while leaving a version no manager supports, and only the managers'
+    own ``Requires-Dist`` metadata says so.
+
+    Requirements carrying an environment marker or an extra are not evaluated —
+    this module has no PEP 508 marker parser, and a wrong answer from the doctor is
+    worse than no answer.
+    """
+
+    dists = installed_distributions(venv)
+    if dists is None:
+        return []  # can't inspect the venv — stay silent rather than cry wolf
+
+    findings: list[str] = []
+    for name, (version, requires) in sorted(dists.items()):
+        for raw in requires:
+            if ";" in raw:
+                continue
+            head = _requirement_name(raw)
+            if not head:
+                continue
+            found = dists.get(head)
+            if found is None:
+                findings.append(f"{name} {version} requires {raw.strip()}, but {head} is not installed")
+                continue
+            violated = [
+                f"{op}{want}" for op, want in _requirement_specifiers(raw) if _satisfies(found[0], op, want) is False
+            ]
+            if violated:
+                findings.append(
+                    f"{name} {version} requires {head}{','.join(violated)}, but {head} {found[0]} is installed"
+                )
+    if not findings:
+        return [SelfCheck("deps:toolchain", "ok", f"{len(dists)} package(s) mutually compatible")]
+    return [SelfCheck("deps:toolchain", "fail", f) for f in findings]
 
 
 # ------------------------------------------------------------------ self-check
@@ -396,7 +489,8 @@ def _installed_check(manager: Manager) -> SelfCheck:
         # No absolute path is derivable (uv manager outside a devenv shell) — PATH is
         # the best available signal.
         return SelfCheck(
-            f"installed:{manager.key}", "ok" if on_path else "fail",
+            f"installed:{manager.key}",
+            "ok" if on_path else "fail",
             on_path or f"{manager.command} not on PATH — {heal}",
         )
 
@@ -413,7 +507,8 @@ def _installed_check(manager: Manager) -> SelfCheck:
             shadowed = False
         if shadowed:
             return SelfCheck(
-                f"installed:{manager.key}", "warn",
+                f"installed:{manager.key}",
+                "warn",
                 f"{expected} is what the tasks run, but PATH resolves {manager.command}"
                 f" to {on_path} — the two can disagree",
             )
@@ -441,7 +536,7 @@ def _is_machine_lock(repo_root: str, manifest: dict | None) -> bool:
     if not isinstance(source, str) or not source.startswith("path:"):
         return False
     try:
-        return Path(source[len("path:"):]).resolve() == Path(repo_root).resolve()
+        return Path(source[len("path:") :]).resolve() == Path(repo_root).resolve()
     except OSError:
         return False
 
@@ -464,11 +559,15 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     # --- toolchain: the system-wide shared venv (project 12) -------------------
     venv = toolchain_venv()
     have_venv = (venv / "bin" / "repoman").exists()
-    out.append(SelfCheck(
-        "toolchain:venv", "ok" if have_venv else "fail",
-        str(venv) if have_venv
-        else f"missing or incomplete: {venv} — run `repoman-sync --machine` from the repoman checkout",
-    ))
+    out.append(
+        SelfCheck(
+            "toolchain:venv",
+            "ok" if have_venv else "fail",
+            str(venv)
+            if have_venv
+            else f"missing or incomplete: {venv} — run `repoman-sync --machine` from the repoman checkout",
+        )
+    )
 
     data = None
     if have_venv:
@@ -485,12 +584,16 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     for m in managers:
         if m.install == "uv":
             where = uv_declared_in(pyproject, m.package) if pyproject else None
-            out.append(SelfCheck(
-                f"uv:{m.key}", "ok" if where else "fail",
-                f"uv-declared — {where}" if where
-                else f"{m.package} not declared in pyproject.toml — add it to "
-                     f'[dependency-groups] dev (+ [tool.uv.sources]) and run `uv sync`',
-            ))
+            out.append(
+                SelfCheck(
+                    f"uv:{m.key}",
+                    "ok" if where else "fail",
+                    f"uv-declared — {where}"
+                    if where
+                    else f"{m.package} not declared in pyproject.toml — add it to "
+                    f"[dependency-groups] dev (+ [tool.uv.sources]) and run `uv sync`",
+                )
+            )
             continue
         if data is None:
             continue  # no manifest to check against; toolchain:venv/lock already reported
@@ -499,25 +602,38 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
         # Never read as "a per-repo repoman.lock file is missing": modern consumers
         # have none (project 12). Name the recorded toolchain manifest this row
         # actually checks — the venv's repoman-toolchain.toml.
-        out.append(SelfCheck(
-            f"lock:{m.key}", "ok" if has else "fail",
-            "" if has else (
-                "selected but absent from the recorded toolchain manifest "
-                f"({venv / 'repoman-toolchain.toml'}) — re-run `repoman-sync --machine`"
-            ),
-        ))
+        out.append(
+            SelfCheck(
+                f"lock:{m.key}",
+                "ok" if has else "fail",
+                ""
+                if has
+                else (
+                    "selected but absent from the recorded toolchain manifest "
+                    f"({venv / 'repoman-toolchain.toml'}) — re-run `repoman-sync --machine`"
+                ),
+            )
+        )
 
     # Currency: the lock says what SHOULD be installed; check what IS. Without this,
-    # an add-only sync that never upgraded anything still reports fully green.
+    # a machine that never re-synced still reports fully green.
     if data is not None:
         out.extend(version_checks(venv, data, managers))
 
+    # Coherence: the lock can be fully satisfied and the venv still unusable, because a
+    # pseudo-entry's floor is not the manager's requirement. Ask the managers themselves.
+    if have_venv:
+        out.extend(dependency_checks(venv))
+
     repo_lock = Path(repo_root) / "repoman.lock"
     if repo_lock.exists() and not _is_machine_lock(repo_root, data):
-        out.append(SelfCheck(
-            "lock:orphan", "warn",
-            "per-repo repoman.lock is obsolete — the toolchain is machine-level; delete this file",
-        ))
+        out.append(
+            SelfCheck(
+                "lock:orphan",
+                "warn",
+                "per-repo repoman.lock is obsolete — the toolchain is machine-level; delete this file",
+            )
+        )
 
     # --- installed:<key> (the exact binary the tasks exec) ----------------------
     for m in managers:
@@ -536,18 +652,24 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
         if not m.nix_input:
             continue
         signalled = os.environ.get(f"REPOMAN_PROVISIONED_{m.key.upper()}") == "1"
-        out.append(SelfCheck(
-            f"provisioned:{m.key}",
-            "ok" if signalled else "warn",
-            "" if signalled
-            else f"{m.key} selected but its nix module isn't imported — add the "
-                 f"'{m.nix_input}' input to devenv.yaml, then `devenv update` + repoman-sync",
-        ))
+        out.append(
+            SelfCheck(
+                f"provisioned:{m.key}",
+                "ok" if signalled else "warn",
+                ""
+                if signalled
+                else f"{m.key} selected but its nix module isn't imported — add the "
+                f"'{m.nix_input}' input to devenv.yaml, then `devenv update` + repoman-sync",
+            )
+        )
 
     skill = Path(repo_root) / skills_dir / "repoman" / "SKILL.md"
     out.append(
-        SelfCheck("skill:entrypoint", "ok" if skill.exists() else "warn",
-                  str(skill) if skill.exists() else "missing — run `repoman install-skills`")
+        SelfCheck(
+            "skill:entrypoint",
+            "ok" if skill.exists() else "warn",
+            str(skill) if skill.exists() else "missing — run `repoman install-skills`",
+        )
     )
 
     # Sub-skill discipline: a manager's own skill (if installed here) should defer
@@ -562,8 +684,11 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
             out.append(SelfCheck(f"skill:{m.key}:defers", "warn", f"unreadable: {sub}"))
         else:
             out.append(
-                SelfCheck(f"skill:{m.key}:defers", "ok" if defers else "warn",
-                          "" if defers else "missing deferral to the repoman entrypoint")
+                SelfCheck(
+                    f"skill:{m.key}:defers",
+                    "ok" if defers else "warn",
+                    "" if defers else "missing deferral to the repoman entrypoint",
+                )
             )
 
     return out
@@ -577,7 +702,4 @@ def self_check_exit(checks: list[SelfCheck]) -> int:
 
 def format_self_check(checks: list[SelfCheck]) -> str:
     mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
-    return "\n".join(
-        f"{mark.get(c.level, '?')} {c.name}" + (f" — {c.detail}" if c.detail else "")
-        for c in checks
-    )
+    return "\n".join(f"{mark.get(c.level, '?')} {c.name}" + (f" — {c.detail}" if c.detail else "") for c in checks)

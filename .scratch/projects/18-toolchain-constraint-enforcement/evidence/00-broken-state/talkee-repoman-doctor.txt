@@ -1,0 +1,74 @@
+=== repoman (self-check) ===
+OK   toolchain:venv — /home/andrew/.local/share/repoman/venv
+OK   toolchain:lock — /home/andrew/.local/share/repoman/venv/repoman-toolchain.toml
+OK   lock:copy
+OK   lock:git
+OK   uv:test — uv-declared — [dependency-groups] dev
+OK   version:managers.copy — copyroom 0.6.1
+OK   version:managers.git — gitman 0.4.2
+OK   version:managers.git-pyjutsu — pyjutsu 0.15.0
+OK   version:repoman — repoman 0.6.0
+OK   installed:copy — /home/andrew/.local/share/repoman/venv/bin/copyroom
+OK   installed:git — /home/andrew/.local/share/repoman/venv/bin/gitman
+OK   installed:test — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/testee
+OK   skill:entrypoint — /home/andrew/Documents/Projects/talkee/.agents/skills/repoman/SKILL.md
+OK   skill:copy:defers
+OK   skill:git:defers
+OK   skill:tool-shipped — canonical copyroom skills present
+OK   skill:genome-overlay — genome or overlay: devenv-authoring, devenv-inputs, devenv-lock, devenv-module-edits, devenv-processes, devenv-python-venv, devenv-run-commands, devenv-troubleshoot, gitman, my-ai
+
+=== copy (copyroom) ===
+OK  copier — 9.17.1
+OK  git — git version 2.55.0
+OK  cache — /home/andrew/.cache/copyroom/templates
+OK  agent-files — conformant
+OK  template-source — 2 layer(s) resolve
+
+=== git (gitman) ===
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/andrew/Documents/Projects/gitman/src/gitman/cli.py:136 in doctor       │
+│                                                                              │
+│   133 │   from gitman.doctor import run_doctor                               │
+│   134 │   from gitman.render import render_doctor                            │
+│   135 │                                                                      │
+│ ❱ 136 │   report = run_doctor(_repo_root())                                  │
+│   137 │   payload = {                                                        │
+│   138 │   │   "intent": "doctor",                                            │
+│   139 │   │   "exit_code": report.exit_code,                                 │
+│                                                                              │
+│ /home/andrew/Documents/Projects/gitman/src/gitman/doctor.py:102 in           │
+│ run_doctor                                                                   │
+│                                                                              │
+│    99 │   except Exception:  # noqa: BLE001 — not a loadable workspace;      │
+│       downstream checks degrade to warn                                      │
+│   100 │   │   ws = None                                                      │
+│   101 │                                                                      │
+│ ❱ 102 │   if ws is not None and has_remote(ws):                              │
+│   103 │   │   checks.append(Check(OK, "remote", "git remote configured"))    │
+│   104 │   else:                                                              │
+│   105 │   │   checks.append(Check(WARN, "remote", "no git remote             │
+│       (publish/release will be unavailable)"))                               │
+│                                                                              │
+│ /home/andrew/Documents/Projects/gitman/src/gitman/core.py:239 in has_remote  │
+│                                                                              │
+│    236 │                                                                     │
+│    237 │   The one adapter point for the remote gate. Eleven call sites ask  │
+│        this same question, so the                                            │
+│    238 │   next pyjutsu rename of the git namespace touches one line here,   │
+│        not eleven."""                                                        │
+│ ❱  239 │   return bool(ws.git.remotes())                                     │
+│    240                                                                       │
+│    241                                                                       │
+│    242 def _retire_git_ref(session: Session, lane: str) -> list[str]:        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+AttributeError: 'Workspace' object has no attribute 'git'
+
+=== test (testee) ===
+OK   devenv shell — /home/andrew/Documents/Projects/talkee
+OK   tool: ruff — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/ruff
+OK   tool: ty — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/ty
+OK   tool: pytest — /home/andrew/Documents/Projects/talkee/.devenv/state/venv/bin/pytest
+OK   pytest-json-report — importable
+OK   config — default_mode=quick; quick tools=['ruff', 'ruff-format', 'ty', 'pytest']
+OK   artifact dir writable — /home/andrew/Documents/Projects/talkee/.testee
+EXIT=1

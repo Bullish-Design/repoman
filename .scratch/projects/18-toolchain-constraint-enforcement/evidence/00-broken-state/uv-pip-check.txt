@@ -1,0 +1,4 @@
+Using Python 3.13.13 environment at: /home/andrew/.local/share/repoman/venv
+Checked 33 packages in 0.96ms
+All installed packages are compatible
+EXIT=0

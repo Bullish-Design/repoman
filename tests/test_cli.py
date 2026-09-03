@@ -274,8 +274,7 @@ def test_duplicate_roster_entries_are_collapsed(monkeypatch, tmp_path):
     ran = []
     monkeypatch.setattr(
         "repoman.cli.run_sub",
-        lambda manager, args: (ran.append(manager.key),
-                               SubResult(manager.key, [manager.command, *args], 0, True))[1],
+        lambda manager, args: (ran.append(manager.key), SubResult(manager.key, [manager.command, *args], 0, True))[1],
     )
     result = runner.invoke(app, ["doctor"])
     assert ran == ["git", "test"]
@@ -382,7 +381,10 @@ def test_unavailable_manager_explains_itself(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "repoman.cli.run_sub",
         lambda manager, args: SubResult(
-            manager.key, [manager.command, *args], 127, False,
+            manager.key,
+            [manager.command, *args],
+            127,
+            False,
             reason="gitman is not installed — run `repoman-sync --machine`",
         ),
     )
