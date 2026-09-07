@@ -241,3 +241,5 @@ repoman.local.lock
 # FLEET shape (published tags); this file points the same inputs at THIS machine's
 # working trees. Same rule as repoman.lock / repoman.local.lock.
 devenv.local.yaml
+# `relock` parks the overlay here while it re-locks; a stranded one is recoverable.
+.devenv.local.yaml.relock

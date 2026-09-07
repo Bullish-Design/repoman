@@ -98,6 +98,51 @@
     groups = [ "base" ];
   };
 
+  # Re-lock devenv.lock from the FLEET shape: the published tags in devenv.yaml,
+  # not the machine-local urls in devenv.local.yaml.
+  #
+  # `devenv shell` rewrites devenv.lock in place, so any shell taken with the overlay
+  # active re-locks the overlaid inputs at their local paths. That is fine while you
+  # work and wrong the moment it leaves this machine, so the pre-push hook blocks it
+  # (.pyjutsu-hooks.toml) and this script is the fix it names.
+  #
+  # The overlay is moved aside INSIDE the repo, not to /tmp: an interrupted run then
+  # leaves it next to where it belongs rather than in a directory you would not think
+  # to look. The trap restores it on any exit, including a signal.
+  scripts.relock = {
+    description = "Re-lock devenv.lock from devenv.yaml's published tags.";
+    exec = ''
+      set -euo pipefail
+      cd "''${DEVENV_ROOT:-$PWD}"
+
+      overlay=devenv.local.yaml
+      stash=.devenv.local.yaml.relock
+
+      restore() {
+        if [ -e "$stash" ]; then mv -f "$stash" "$overlay"; fi
+      }
+      trap restore EXIT INT TERM
+
+      if [ -e "$stash" ]; then
+        echo "relock: $stash already exists — a previous run was interrupted." >&2
+        echo "relock:   check it, then move it back to $overlay by hand." >&2
+        exit 2
+      fi
+      if [ -e "$overlay" ]; then
+        mv "$overlay" "$stash"
+      fi
+
+      devenv update "$@"
+
+      restore
+      trap - EXIT INT TERM
+
+      if python3 scripts/check-fleet-lock.py; then
+        echo "relock: devenv.lock is in the fleet shape — commit it."
+      fi
+    '';
+  };
+
   # https://devenv.sh/tasks/
   #
   # The two task names the `base` group calls (groups/base/README.md). devenv

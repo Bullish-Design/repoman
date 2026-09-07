@@ -1,0 +1,13 @@
+# Pyjutsu hooks. Loaded automatically by `Workspace.load(..., hooks_config="auto")`,
+# which is what gitman uses — so these fire on `gitman push`, `gitman publish` and
+# `gitman release`.
+#
+# A git `.git/hooks/pre-push` would NOT do: gitman pushes through pyjutsu, which never
+# invokes git's hooks. `gitman.toml [publish].verify` would not do either — it gates
+# `publish` and `release`, but not `push`, and `push` is how trunk reaches origin.
+
+[hooks.pre-push]
+# Block a push that would ship devenv.lock pinned at this machine's working trees.
+# Run `relock` to fix. pre-push aborts before any network I/O, so a blocked push
+# leaves the remote untouched.
+commands = [{ command = "python3 scripts/check-fleet-lock.py", pass_filenames = false }]
