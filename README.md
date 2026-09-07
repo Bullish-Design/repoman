@@ -21,11 +21,17 @@ code and one agent-facing front door.
 # devenv.yaml
 inputs:
   repoman:
-    url: github:Bullish-Design/repoman?dir=modules   # or path:../repoman/modules
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.7.1"
     flake: false
 imports:
   - repoman
 ```
+
+Pin a published tag, and fetch it with `git+https://` rather than the `github:`
+shorthand: the shorthand uses nix's builtin fetcher, which needs `access-tokens`
+and fails on a private repo, while the git fetcher uses your git credential
+helper. `copyroom new` generates this block for you — see "Where the local paths
+go" below.
 
 ```nix
 # devenv.nix
@@ -36,6 +42,43 @@ imports:
 ```
 
 `devenv shell`, then `repoman-sync`. That's the whole adoption step.
+
+## Where the local paths go
+
+Every committed devenv file is portable: it names published tags, never one
+machine's working trees. That holds for this repo and for every repo `copyroom
+new` generates.
+
+To develop a `*man` tool from a local checkout, write `devenv.local.yaml` next to
+`devenv.yaml`. It is untracked, uses the same schema, and devenv merges it over
+the committed file:
+
+```yaml
+inputs:
+  docman:
+    url: "git+file:///home/you/Projects/docman"
+    flake: false
+```
+
+This is the same split as `repoman.lock` / `repoman.local.lock`: the committed
+file says **what**, the local overlay says **where**.
+
+One sharp edge. devenv rewrites `devenv.lock` in place, so a shell taken with the
+overlay active re-locks those inputs at the local paths. Re-lock without it before
+you commit:
+
+```bash
+mv devenv.local.yaml /tmp/ && devenv update && mv /tmp/devenv.local.yaml .
+```
+
+`tests/test_fleet_shape.py` fails if a local path reaches `devenv.yaml` or the
+inputs this repo declares in `devenv.lock`, so verify catches the leak before a
+land does.
+
+RepoMan's own `repoman` input is `path:./modules`, not a git url. A git input
+copies **tracked** files only, so a brand-new `modules/*.nix` would be invisible
+to nix until `git add` — and it would surface as an eval error, never as "you
+forgot to stage". A path input reads the directory literally.
 
 ## Two install models (project 12)
 

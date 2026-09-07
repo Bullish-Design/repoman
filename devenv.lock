@@ -3,11 +3,11 @@
     "devenv": {
       "locked": {
         "dir": "src/modules",
-        "lastModified": 1786031932,
-        "narHash": "sha256-HRehKpOaX+UfBGHJRmd8RGr0kleqNOviS02dXLv3cwc=",
+        "lastModified": 1788787757,
+        "narHash": "sha256-oC3BeM/aDJEMbBY5Ia1SrkAEp+ZxyGtSTAa5RiX346U=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "a7cb73e2bf9c5f355fa5b97fa44d30b8873e57ff",
+        "rev": "37ecc72f1167655457851514507281310b3b1c3a",
         "type": "github"
       },
       "original": {
@@ -39,13 +39,18 @@
     "docman": {
       "flake": false,
       "locked": {
-        "ref": "refs/heads/main",
+        "lastModified": 1788800621,
+        "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
+        "ref": "refs/tags/v0.2.0",
+        "rev": "be02887bef46136a8d91ab9e95355b39061bf153",
+        "revCount": 19,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/docman"
+        "url": "https://github.com/Bullish-Design/docman"
       },
       "original": {
+        "ref": "refs/tags/v0.2.0",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/docman"
+        "url": "https://github.com/Bullish-Design/docman"
       }
     },
     "flake-compat": {
@@ -84,11 +89,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1775487831,
-        "narHash": "sha256-2lguQpLPQaxpQCJjXhmEEAfabwsAhkP29Z7fgLzHARA=",
+        "lastModified": 1788758950,
+        "narHash": "sha256-b3zONUcYXZHeoeYwDZdSDCzMj0s6ubmD6NT3D7sS+jU=",
         "owner": "nlewo",
         "repo": "nix2container",
-        "rev": "76be9608a7f4d6c985d28b0e7be903ae2547df3e",
+        "rev": "b6ac40ef110c12ab1651fce5ea563f7837236439",
         "type": "github"
       },
       "original": {
@@ -119,11 +124,11 @@
         "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1784686015,
-        "narHash": "sha256-HpbHqOrLbDS+ZTK2u9iojvWfMlWnuPzGb9XGcEipIxE=",
+        "lastModified": 1786471740,
+        "narHash": "sha256-9PEUIbLorWC455Oa/4dxuLh+PFPfENBOgEN52gw+Onk=",
         "owner": "cachix",
         "repo": "nixpkgs-python",
-        "rev": "8d51e95247ca71680b72cdd308fdf1dbeb031313",
+        "rev": "4d2bd16c09baaa04f4045f16f6a5574654aaba16",
         "type": "github"
       },
       "original": {
@@ -135,11 +140,11 @@
     "nixpkgs-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1785715447,
-        "narHash": "sha256-4K0IGmbAOJnd/Hx2+CNEvx3ECrtYnsoaf4grI6gvZ/Q=",
+        "lastModified": 1787394516,
+        "narHash": "sha256-pRGOQSClnXNI2iLUG6DYpsGvYcuw0drOutVZFTJNw90=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "243895692ae2a2fbd08a05141462c0cc0d3ca10f",
+        "rev": "c8f90650c15282fa8656a041bfbbd2403997a9a7",
         "type": "github"
       },
       "original": {
@@ -186,11 +191,11 @@
         "nixpkgs-src": "nixpkgs-src"
       },
       "locked": {
-        "lastModified": 1785855293,
-        "narHash": "sha256-oFTyNNuuFPL6KXd1D0w4K+IHmKIiXtCMdlnoc9vXkTk=",
+        "lastModified": 1787753358,
+        "narHash": "sha256-Tl77VbWyAKrOfRNQhL6JbQtb/MLzbYa/1RG1gWWfICk=",
         "owner": "cachix",
         "repo": "devenv-nixpkgs",
-        "rev": "6d5d03d1dfd5f530a098832d0f5433479b576278",
+        "rev": "256551e45f6303e142ab4a98be1bf243feb77dc0",
         "type": "github"
       },
       "original": {
@@ -202,11 +207,11 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1773964973,
-        "narHash": "sha256-NV/J+tTER0P5iJhUDL/8HO5MDjDceLQPRUYgdmy5wXw=",
+        "lastModified": 1782847189,
+        "narHash": "sha256-twXPFqFsrrY5r28Zh7Homgcp2gUMBgQ6WDS98Q/3xFI=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "812b3986fd1568f7a858f97fcf425ad996ba7d25",
+        "rev": "b6018f87da91d19d0ab4cf979885689b469cdd41",
         "type": "github"
       },
       "original": {
@@ -250,15 +255,14 @@
     "repoman": {
       "flake": false,
       "locked": {
-        "dir": "modules",
-        "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/repoman"
+        "path": "modules",
+        "type": "path"
       },
       "original": {
-        "dir": "modules",
-        "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/repoman"
-      }
+        "path": "modules",
+        "type": "path"
+      },
+      "parent": []
     },
     "root": {
       "inputs": {
@@ -277,12 +281,18 @@
     "shellij": {
       "flake": false,
       "locked": {
+        "lastModified": 1788713516,
+        "narHash": "sha256-S0mudp5L8TGsCZE7+tCZotmAavsPPsm9+bdnBNIM9m4=",
+        "ref": "refs/tags/v0.3.0",
+        "rev": "2b28ce8408190c02380dca30cc67bea38f098a71",
+        "revCount": 43,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/shellij"
+        "url": "https://github.com/Bullish-Design/shellij"
       },
       "original": {
+        "ref": "refs/tags/v0.3.0",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/shellij"
+        "url": "https://github.com/Bullish-Design/shellij"
       }
     },
     "vendomat": {
@@ -291,13 +301,18 @@
         "pyjutsu": "pyjutsu"
       },
       "locked": {
-        "ref": "refs/heads/main",
+        "lastModified": 1788798080,
+        "narHash": "sha256-5nxGQVRZLed5bcexSsBkDW7QDXB94sXLOfU6091u8S0=",
+        "ref": "refs/tags/v0.3.2",
+        "rev": "f67fcfbbffb16f6aa1eb202272c44251f39e1a6e",
+        "revCount": 39,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/vendomat"
+        "url": "https://github.com/Bullish-Design/vendomat"
       },
       "original": {
+        "ref": "refs/tags/v0.3.2",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/vendomat"
+        "url": "https://github.com/Bullish-Design/vendomat"
       }
     }
   },

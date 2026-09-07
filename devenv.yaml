@@ -7,11 +7,18 @@ inputs:
     url: github:nlewo/nix2container
   mk-shell-bin:
     url: github:rrbutani/nix-mk-shell-bin
-  # Machine-bootstrap only: vendomat's module exports UV_FIND_LINKS at the prebuilt pyjutsu
-  # wheelhouse, which `repoman-sync --machine` needs to resolve the wheel: source in the
-  # machine repoman.lock. Consumers no longer declare this input (project 12).
+
+  # EVERY first-party input below is committed in its FLEET shape: a published tag,
+  # reachable from any machine and from CI. To develop against a local checkout,
+  # override the url in `devenv.local.yaml` — untracked, same schema, merged over
+  # this file by devenv. Same rule as repoman.lock + repoman.local.lock: the
+  # committed file says WHAT, the local overlay says WHERE.
+
+  # Machine-bootstrap only: vendomat's module exports UV_FIND_LINKS at the prebuilt
+  # pyjutsu wheelhouse, which `repoman-sync --machine` needs to resolve the wheel:
+  # source in the machine repoman.lock. Consumers no longer declare this input.
   vendomat:
-    url: "git+file:///home/andrew/Documents/Projects/vendomat"        # fleet: github:Bullish-Design/vendomat
+    url: "git+https://github.com/Bullish-Design/vendomat?ref=refs/tags/v0.3.2"
 
   # devman: the automation plane's repo interface (CONCEPT.md §3.2). A devenv
   # import is a PATH inside an input, never a flake output attribute, and the
@@ -19,20 +26,27 @@ inputs:
   devman:
     url: "git+https://github.com/Bullish-Design/devman?ref=refs/tags/v0.4.0"
 
-  # Self-hosting (project 14 seam): repoman's OWN dev shell is a first-class managed repo.
-  # Importing the meta-module from ./modules puts the whole manager suite on PATH inside
-  # `cd repoman && devenv shell` — the canonical host for `copyroom new <target>` bootstraps,
-  # with no dependency on another repo's shell. The `repoman` input name matches what
-  # consumers declare (github:Bullish-Design/repoman?dir=modules).
+  # Self-hosting (project 14 seam): repoman's OWN dev shell is a first-class managed
+  # repo. Importing the meta-module from ./modules puts the whole manager suite on
+  # PATH inside `cd repoman && devenv shell` — the canonical host for
+  # `copyroom new <target>` bootstraps, with no dependency on another repo's shell.
+  # The `repoman` input name matches what consumers declare
+  # (github:Bullish-Design/repoman?dir=modules).
+  #
+  # `path:` and NOT a git url. A git input copies TRACKED files only, so a brand-new
+  # module file would be invisible to nix until `git add` and would fail as an
+  # eval error, never as "you forgot to stage". A path input reads the directory
+  # literally. Nothing is lost: content-hashing an input that points at the very
+  # tree nix is already evaluating buys no reproducibility.
   repoman:
-    url: "git+file:///home/andrew/Documents/Projects/repoman?dir=modules"          # fleet: github:Bullish-Design/repoman?dir=modules
+    url: "path:./modules"
     flake: false
 
   # Approach-B provisioning for the "doc" manager: docman's own nix module (toolchain +
   # enterShell config seeding) is pulled through the presence-gated import in
   # modules/managers/docman.nix — only fire it here by declaring the input.
   docman:
-    url: "git+file:///home/andrew/Documents/Projects/docman"          # fleet: github:Bullish-Design/docman
+    url: "git+https://github.com/Bullish-Design/docman?ref=refs/tags/v0.2.0"
     flake: false
 
   # shellij: durable Zellij workbenches, installed by default (not a roster
@@ -40,7 +54,7 @@ inputs:
   # enough — modules/devenv.nix presence-imports shellij's own devenv module,
   # exactly as it does for a template-py consumer.
   shellij:
-    url: "git+file:///home/andrew/Documents/Projects/shellij"         # fleet: github:Bullish-Design/shellij
+    url: "git+https://github.com/Bullish-Design/shellij?ref=refs/tags/v0.3.0"
     flake: false
 
 imports:
