@@ -46,3 +46,14 @@ source = "wheel:pyjutsu>=0.20.0"
 [managers.doc]
 package = "docman"
 source = "path:/home/andrew/Documents/Projects/docman"
+
+# templateer: typed artifact generation. A CLI on the shared shelf, not a
+# library any repo imports — devman's changelog workflow calls
+# `templateer generate`. Pinned to a tag rather than a path: it is pure Python
+# (hatchling, no native code), so a git tag is a sufficient pin and uv records
+# a hash for it. This replaces the PYTHONPATH + `uv run --project <sibling>`
+# spelling that reached templateer through a sibling checkout (023-toolchain
+# P2/R2).
+[managers.template]
+package = "templateer"
+source = "git+https://github.com/Bullish-Design/templateer_v2@v0.4.0"
