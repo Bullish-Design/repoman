@@ -41,8 +41,12 @@ source = "path:/home/andrew/Documents/Projects/gitman"
 #
 # The published, relocated manylinux asset — the same URL gitman's own
 # [tool.uv.sources] names, and the one `direct_url.json` already records for the
-# installed wheel. NOT vendomat's wheelhouse: that wheel carries the bare
-# linux_x86_64 tag and a RUNPATH into /nix/store (gitman project 35).
+# installed wheel. As of pyjutsu 0.21.1 this URL and vendomat's wheelhouse name
+# the *same bytes*: vendomat performs the single hermetic build, stamps the
+# manylinux tag, strips the store RUNPATH, and uploads that exact store file
+# (devman 023-toolchain). The earlier note here — that the wheelhouse wheel
+# carries a bare linux_x86_64 tag and a /nix/store RUNPATH — described the
+# builder before it was repaired and no longer holds.
 #
 # This was `wheel:pyjutsu>=0.20.0` — a FLOOR resolved with --upgrade, so the next
 # sync took whatever the wheelhouse held, and the wheelhouse exists in exactly one
@@ -51,7 +55,7 @@ source = "path:/home/andrew/Documents/Projects/gitman"
 # P8).
 [managers.git-pyjutsu]
 package = "pyjutsu"
-source = "url:pyjutsu @ https://github.com/Bullish-Design/Pyjutsu/releases/download/v0.20.0/pyjutsu-0.20.0-cp313-abi3-manylinux_2_39_x86_64.whl"
+source = "url:pyjutsu @ https://github.com/Bullish-Design/Pyjutsu/releases/download/v0.21.1/pyjutsu-0.21.1-cp313-abi3-manylinux_2_39_x86_64.whl"
 
 [managers.doc]
 package = "docman"
@@ -67,3 +71,17 @@ source = "path:/home/andrew/Documents/Projects/docman"
 [managers.template]
 package = "templateer"
 source = "git+https://github.com/Bullish-Design/templateer_v2@v0.4.0"
+
+# vendomat is not a manager and has no roster entry. It is here because
+# `gitman push` publishes through a pyjutsu pre-push hook, and a pyjutsu python
+# hook is an IMPORT executed inside gitman's own interpreter — the shared venv.
+# So the shelf must carry vendomat as a library, exactly as it already carries
+# pyjutsu for gitman. Resolved by the "<manager>-*" pseudo-entry rule, routed
+# under "git" because it is the git manager's push path that needs it.
+#
+# This does not weaken the "the shelf is never a source of imports" rule: that
+# rule governs REPOSITORIES importing from the shelf. A shelf resident importing
+# another is the established gitman -> pyjutsu pattern.
+[managers.git-vendomat]
+package = "vendomat"
+source = "path:/home/andrew/Documents/Projects/vendomat"

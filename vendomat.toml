@@ -40,3 +40,19 @@ github = "git+https://github.com/Bullish-Design/gitman@v0.6.0"
 files = ["repoman.lock"]
 local = "path:/home/andrew/Documents/Projects/docman"
 github = "git+https://github.com/Bullish-Design/docman@v0.1.0"
+
+# testee is a dev-group dependency taken from a sibling checkout by RELATIVE
+# path. That breaks publication: vendomat replays commits in a temporary
+# worktree, so `../testee` resolves next to /tmp, not next to this repo, and the
+# `refresh-lock` step of the exec chain fails with "Distribution not found".
+# Materializing the github spelling first is what makes `uv lock` resolvable
+# there. The fleet spelling was already recorded as a comment in pyproject.toml.
+[[replacement]]
+files = ["pyproject.toml"]
+local = 'testee = { path = "../testee" }'
+github = 'testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.3.0" }'
+
+[[replacement]]
+files = ["repoman.lock"]
+local = "path:/home/andrew/Documents/Projects/vendomat"
+github = "git+https://github.com/Bullish-Design/vendomat@v0.3.1"

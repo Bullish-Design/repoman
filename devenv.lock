@@ -238,6 +238,7 @@
     "pyjutsu": {
       "flake": false,
       "locked": {
+        "ref": "refs/heads/main",
         "type": "git",
         "url": "file:///home/andrew/Documents/Projects/pyjutsu"
       },

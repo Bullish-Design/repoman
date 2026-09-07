@@ -1,0 +1,18 @@
+# Publication wiring for `gitman push`.
+#
+# gitman pushes through pyjutsu -> jj-lib, and jj-lib hardcodes `--no-verify`
+# (jj-lib/src/git_subprocess.rs), so .git/hooks/pre-push never runs. pyjutsu
+# fires its OWN hooks inside git_push, which is the only seam a gitman push can
+# reach. Without this file the publisher is inert and origin receives the
+# dev-shape `path:` entries from repoman.lock.
+#
+# A python hook, not a command hook: pyjutsu command hooks discard their
+# arguments, while the python entry point receives (remote, bookmarks) and
+# resolves both commits itself. vendomat is on the shared shelf for this import;
+# see the [managers.git-vendomat] note in repoman.lock.
+#
+# Expect a successful publish to REPORT AS FAILURE. The publisher pushes the
+# rewritten commits itself and then vetoes the outer push, so gitman prints
+# BLOCKED. The "published GitHub-source commit(s)" message is the success signal.
+[hooks.pre-push]
+python = ["vendomat.publish:on_pre_push"]

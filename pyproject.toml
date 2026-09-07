@@ -2,7 +2,7 @@
 name = "repoman"
 # Keep in lockstep with `repoman.__version__` — tests/test_registry.py asserts they
 # match, and flake.nix sources the package version from this field.
-version = "0.7.1"
+version = "0.7.2"
 description = "The agentic repo lifecycle conductor for devenv.sh repos — one import that composes the *man manager family."
 readme = "README.md"
 license = { text = "MIT" }
@@ -38,7 +38,8 @@ dev = [
 dev = ["testee"]
 
 [tool.uv.sources]
-# fleet: testee = { git = "https://github.com/Bullish-Design/testee", ref = "vX.Y.Z" }
+# fleet: testee = { git = "https://github.com/Bullish-Design/testee", tag = "vX.Y.Z" }
+# (uv accepts tag/rev/branch, not `ref`; vendomat.toml materializes this spelling)
 testee = { path = "../testee" }
 
 [project.scripts]

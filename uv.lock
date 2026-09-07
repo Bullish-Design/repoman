@@ -490,7 +490,7 @@ wheels = [
 
 [[package]]
 name = "repoman"
-version = "0.7.0"
+version = "0.7.2"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
@@ -578,7 +578,7 @@ wheels = [
 
 [[package]]
 name = "testee"
-version = "0.2.0"
+version = "0.3.0"
 source = { directory = "../testee" }
 dependencies = [
     { name = "import-linter" },
