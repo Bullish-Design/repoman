@@ -36,6 +36,14 @@ let
   # absolute path. Reading $HOME via the nix builtin would bake one user's path into the
   # eval result and yield "/repoman/venv" wherever HOME is unset (CI, nix-daemon).
   toolchainVenvExpr = "\${REPOMAN_TOOLCHAIN_VENV:-\${XDG_DATA_HOME:-$HOME/.local/share}/repoman/venv}";
+
+  # Face D seam. Under "store" the commands are a Nix closure and Vendomat exports its
+  # bin dir; there is no path to guess, so an unset variable must FAIL the task rather
+  # than expand to "" and exec "/gitman" — a confident wrong answer. `:?` says so at the
+  # point of use, which is the only place that knows which command was wanted.
+  storeBinExpr = "\${REPOMAN_TOOLCHAIN_BIN:?repoman: cliProvider is \"store\" but REPOMAN_TOOLCHAIN_BIN is unset - import vendomat's toolchain module}";
+
+  cliBinExpr = if cfg.cliProvider == "store" then storeBinExpr else "${toolchainVenvExpr}/bin";
 in
 {
   imports = [
@@ -75,6 +83,23 @@ in
       '';
     };
 
+    # CONCEPT 03 4.1: ONE command-resolution contract, so the manager modules never
+    # name a venv directly. "venv" is today's behaviour and stays the default until
+    # every roster command is packaged (CONCEPT 03 6, phase 4). Vendomat's toolchain
+    # module is what sets this to "store"; nothing flips it implicitly.
+    cliProvider = lib.mkOption {
+      type = lib.types.enum [ "venv" "store" ];
+      default = "venv";
+      description = ''
+        How the shared manager commands are materialised.
+
+        "venv"  — the system-wide toolchain venv, filled by `repoman-sync --machine`
+                  from the machine repoman.lock. The default; unchanged behaviour.
+        "store" — a pinned Nix closure built by Vendomat, exported as
+                  $REPOMAN_TOOLCHAIN_BIN. The consumer venv holds no manager at all.
+      '';
+    };
+
     template = lib.mkOption {
       type = lib.types.str;
       default = "gh:Bullish-Design/template-py";
@@ -89,12 +114,16 @@ in
       type = lib.types.str;
       internal = true;
       readOnly = true;
-      default = "${toolchainVenvExpr}/bin";
+      default = cliBinExpr;
       description = ''
-        Shell expression (NOT a nix path) for the system-wide toolchain venv's bin dir.
-        Manager modules interpolate it into task execs: "''${cfg.toolchainBin}"/gitman status.
-        Honours $REPOMAN_TOOLCHAIN_VENV, else $XDG_DATA_HOME/repoman/venv, else
-        ~/.local/share/repoman/venv. Populated by `repoman-sync --machine`.
+        Shell expression (NOT a nix path) for the bin dir holding the shared manager
+        commands. Manager modules interpolate it into task execs:
+        "''${cfg.toolchainBin}"/gitman status.
+
+        Under `cliProvider = "venv"` it honours $REPOMAN_TOOLCHAIN_VENV, else
+        $XDG_DATA_HOME/repoman/venv, else ~/.local/share/repoman/venv — populated by
+        `repoman-sync --machine`. Under `cliProvider = "store"` it is
+        $REPOMAN_TOOLCHAIN_BIN, and an unset value fails the task.
       '';
     };
 
@@ -126,27 +155,49 @@ in
     # (This whole block is inside `config = lib.mkIf cfg.enable`, so no inner
     # enable guard is needed — the optionalString below only pads a constant.)
     enterShell = ''
-      export REPOMAN_TOOLCHAIN_VENV="${toolchainVenvExpr}"
-      # ORDER IS LOAD-BEARING. Both prepends below are needed, and the toolchain must
-      # end up FIRST — the two lines are written in reverse of the PATH order they
-      # produce, because each one prepends.
-      #
-      # 1. Consumer venv bin. devenv's interactive shell prepends this itself, but
-      #    `devenv tasks run` does NOT — its PATH lacks the venv, so a task that shells
-      #    out to a venv console script (e.g. testee's `lint-imports` arch test) fails.
-      #    Tasks DO run this enterShell block (PROGRESS §0.2), so prepending here is a
-      #    no-op for the shell and fixes tasks.
+      # Tell the `repoman` CLI which provider is active, so checks.py resolves commands
+      # the same way the nix tasks do. Disagreement here is the failure mode the
+      # provider seam exists to remove.
+      export REPOMAN_CLI_PROVIDER="${cfg.cliProvider}"
+      # Consumer venv bin. devenv's interactive shell prepends this itself, but
+      # `devenv tasks run` does NOT — its PATH lacks the venv, so a task that shells
+      # out to a venv console script (e.g. testee's `lint-imports` arch test) fails.
+      # Tasks DO run this enterShell block (PROGRESS §0.2), so prepending here is a
+      # no-op for the shell and fixes tasks. Needed under both providers: testee
+      # stays a per-repo uv dependency either way.
       export PATH="${config.devenv.state}/venv/bin:$PATH"
-      # 2. D1: runtime shell expression for the SYSTEM-WIDE toolchain bin. This lands
-      #    ahead of the consumer venv so a stale pre-migration copy of a manager CLI
-      #    left in .devenv/state/venv/bin cannot shadow the shared toolchain. Getting
-      #    this backwards is silent: `repoman doctor` and `devenv tasks run` would
-      #    resolve different binaries (doctor's installed:<key> flags exactly that).
+    ''
+    + lib.optionalString (cfg.cliProvider == "venv") ''
+      export REPOMAN_TOOLCHAIN_VENV="${toolchainVenvExpr}"
+      # ORDER IS LOAD-BEARING. This prepend must land AFTER the consumer venv one
+      # above, because each line prepends and the toolchain must end up FIRST — a
+      # stale pre-migration copy of a manager CLI left in .devenv/state/venv/bin
+      # must not shadow the shared toolchain. Getting this backwards is silent:
+      # `repoman doctor` and `devenv tasks run` would resolve different binaries
+      # (doctor's installed:<key> flags exactly that).
       export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"
       if [ ! -x "$REPOMAN_TOOLCHAIN_VENV/bin/repoman" ]; then
         echo "RepoMan: shared toolchain not bootstrapped ($REPOMAN_TOOLCHAIN_VENV)." >&2
         echo "RepoMan:   cd <repoman checkout> && devenv shell -- repoman-sync --machine" >&2
       fi
+    ''
+    + lib.optionalString (cfg.cliProvider == "store") ''
+      # Face D: Vendomat's toolchain module exports REPOMAN_TOOLCHAIN_BIN. REPORT a
+      # missing or empty closure, never abort — nothing in the closure may sit on the
+      # shell-entry critical path without a degrade (gitman project 32 / G3: a broken
+      # vendor-status took loci-core's devenv shell down entirely). Tasks still fail
+      # actionably at the point of use, via the `:?` in `repoman.toolchainBin`.
+      if [ -n "''${REPOMAN_TOOLCHAIN_BIN:-}" ]; then
+        export PATH="$REPOMAN_TOOLCHAIN_BIN:$PATH"
+        if [ ! -x "$REPOMAN_TOOLCHAIN_BIN/repoman" ]; then
+          echo "RepoMan: shared command closure has no repoman ($REPOMAN_TOOLCHAIN_BIN)." >&2
+        fi
+      else
+        echo "RepoMan: cliProvider is \"store\" but REPOMAN_TOOLCHAIN_BIN is unset." >&2
+        echo "RepoMan:   import vendomat's toolchain module, or set repoman.cliProvider = \"venv\"." >&2
+      fi
+    ''
+    + ''
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " cfg.managers}"
       fi

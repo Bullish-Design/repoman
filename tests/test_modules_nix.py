@@ -102,3 +102,72 @@ def test_repoman_dev_shell_declares_testee_for_the_test_manager():
     assert "git =" in source.group(1), f"committed testee source must be portable, got: {source.group(0)}"
     # testee 0.2.0 requires Python >=3.13 — repoman aligns (family + machine venv are 3.13).
     assert 'requires-python = ">=3.13"' in pyproject
+
+
+# ------------------------------------------------- the cliProvider seam (CONCEPT 03 §4.1)
+
+
+def test_cli_provider_option_exists_and_defaults_to_venv():
+    # Phase 0 of the shared-command-closure migration: the seam ships FIRST, with the
+    # current behaviour as its default. A default of "store" would migrate every
+    # consumer the moment they update the module.
+    text = (MODULES / "devenv.nix").read_text()
+    option = re.search(r"cliProvider = lib\.mkOption \{(.*?)\n    \};", text, re.DOTALL)
+    assert option is not None, "modules/devenv.nix must declare repoman.cliProvider"
+    body = option.group(1)
+    assert 'lib.types.enum [ "venv" "store" ]' in body
+    assert 'default = "venv"' in body
+
+
+def test_toolchain_bin_resolves_through_the_provider():
+    # The three shared managers keep interpolating cfg.toolchainBin; it is the OPTION
+    # that becomes provider-aware, so no manager module learns a second path shape.
+    text = (MODULES / "devenv.nix").read_text()
+    assert 'cliBinExpr = if cfg.cliProvider == "store" then storeBinExpr else "${toolchainVenvExpr}/bin"' in text
+    assert "default = cliBinExpr;" in text
+
+
+def test_store_mode_fails_a_task_rather_than_exec_a_guessed_path():
+    # No silent fallback (acceptance criterion). An unset REPOMAN_TOOLCHAIN_BIN must
+    # abort the task via `:?`, not expand to "" and exec "/gitman".
+    text = (MODULES / "devenv.nix").read_text()
+    assert "REPOMAN_TOOLCHAIN_BIN:?repoman:" in text
+
+
+def test_store_mode_does_not_abort_shell_entry():
+    # gitman project 32 / G3: a broken vendor-status took loci-core's devenv down.
+    # Nothing in the closure may sit on the shell-entry critical path without a
+    # degrade, so enterShell only echoes — it must never use `:?` or `exit`.
+    text = (MODULES / "devenv.nix").read_text()
+    store_block = text.split('lib.optionalString (cfg.cliProvider == "store")')[1].split("+ ''")[0]
+    # Comments may NAME `:?` (they explain where the hard failure does live); only the
+    # executable lines matter here.
+    code = "\n".join(line for line in store_block.splitlines() if not line.lstrip().startswith("#"))
+    assert ":?" not in code
+    assert "exit 1" not in code
+    assert 'echo "RepoMan: cliProvider is' in store_block
+
+
+def test_enter_shell_exports_the_provider_for_the_python_cli():
+    # checks.py reads REPOMAN_CLI_PROVIDER. If the nix layer did not export it, the
+    # doctor and the tasks could resolve commands from different places.
+    text = (MODULES / "devenv.nix").read_text()
+    assert 'export REPOMAN_CLI_PROVIDER="${cfg.cliProvider}"' in text
+
+
+def test_venv_provider_still_exports_the_toolchain_venv():
+    # Regression guard on the unchanged default: the venv branch keeps both the
+    # REPOMAN_TOOLCHAIN_VENV export and its PATH prepend.
+    text = (MODULES / "devenv.nix").read_text()
+    venv_block = text.split('lib.optionalString (cfg.cliProvider == "venv")')[1].split("+ lib.optionalString")[0]
+    assert "export REPOMAN_TOOLCHAIN_VENV=" in venv_block
+    assert 'export PATH="$REPOMAN_TOOLCHAIN_VENV/bin:$PATH"' in venv_block
+    assert "repoman-sync --machine" in venv_block
+
+
+def test_consumer_venv_prepend_is_provider_independent():
+    # testee stays a per-repo uv dependency under both providers, so its bin dir must
+    # be on the task PATH regardless of where the shared managers come from.
+    text = (MODULES / "devenv.nix").read_text()
+    preamble = text.split("enterShell = ''")[1].split("+ lib.optionalString")[0]
+    assert 'export PATH="${config.devenv.state}/venv/bin:$PATH"' in preamble
