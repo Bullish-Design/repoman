@@ -171,8 +171,7 @@ def cli_provider() -> str:
         return _DEFAULT_CLI_PROVIDER
     if value not in CLI_PROVIDERS:
         raise ValueError(
-            f"unknown REPOMAN_CLI_PROVIDER {value!r}; expected one of "
-            + ", ".join(repr(p) for p in CLI_PROVIDERS)
+            f"unknown REPOMAN_CLI_PROVIDER {value!r}; expected one of " + ", ".join(repr(p) for p in CLI_PROVIDERS)
         )
     return value
 

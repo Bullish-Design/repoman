@@ -853,9 +853,7 @@ def test_manager_binary_unchanged_by_the_seam(tmp_path, monkeypatch):
     for manager in REGISTRY.values():
         if manager.install != "toolchain":
             continue
-        assert checks.manager_binary(manager) == (
-            tmp_path / "tc" / "bin" / manager.command
-        )
+        assert checks.manager_binary(manager) == (tmp_path / "tc" / "bin" / manager.command)
 
 
 def test_store_provider_falls_back_to_path_when_unset(monkeypatch):
@@ -888,6 +886,4 @@ def test_uv_managers_ignore_the_provider(tmp_path, monkeypatch):
     for provider in checks.CLI_PROVIDERS:
         monkeypatch.setenv("REPOMAN_CLI_PROVIDER", provider)
         for manager in uv_managers:
-            assert checks.manager_binary(manager) == (
-                tmp_path / "state" / "venv" / "bin" / manager.command
-            )
+            assert checks.manager_binary(manager) == (tmp_path / "state" / "venv" / "bin" / manager.command)

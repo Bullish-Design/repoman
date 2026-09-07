@@ -55,4 +55,4 @@ github = 'testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0
 [[replacement]]
 files = ["repoman.lock"]
 local = "path:/home/andrew/Documents/Projects/vendomat"
-github = "git+https://github.com/Bullish-Design/vendomat@v0.3.1"
+github = "git+https://github.com/Bullish-Design/vendomat@v0.3.2"
