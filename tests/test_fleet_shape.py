@@ -27,24 +27,27 @@ def test_devenv_yaml_is_committed_in_the_fleet_shape():
     assert not bad, "devenv.yaml names a local checkout - move it to devenv.local.yaml:\n" + "\n".join(bad)
 
 
-def test_devenv_lock_pins_our_own_inputs_in_the_fleet_shape():
-    # Scoped to the inputs THIS repo declares. Transitive nodes are exempt: vendomat
-    # v0.3.2 publishes a flake.lock that pins pyjutsu at file:///home/... , so its
-    # leak arrives through the fleet url and repoman cannot fix it from here.
+def test_devenv_lock_is_portable_all_the_way_down():
+    # NO transitive exemption. It was scoped to declared inputs while vendomat v0.3.2
+    # published a flake.lock pinning pyjutsu at file:///home/... — a leak that arrived
+    # through the fleet url and could not be fixed from here. Vendomat v0.3.3 pins every
+    # input to a published tag, so the whole chain is portable and the exemption is gone.
+    #
+    # This matters more than it looks: a consumer inherits every node, not just the ones
+    # this repo names. Re-scoping the check to declared inputs would hide the next leak.
     lock = json.loads((ROOT / "devenv.lock").read_text())
-    # No yaml dependency: input names are the only 2-space keys under `inputs:`.
-    body = (ROOT / "devenv.yaml").read_text().split("inputs:", 1)[1].split("\nimports:", 1)[0]
-    declared = set(re.findall(r"^  ([A-Za-z0-9._-]+):", body, re.M))
     bad = {}
-    for name in sorted(declared & set(lock["nodes"])):
-        locked = lock["nodes"][name].get("locked", {})
+    for name, node in lock["nodes"].items():
+        locked = node.get("locked", {})
         target = str(locked.get("url") or locked.get("path") or "")
         if LOCAL_PATH.search(target):
             bad[name] = target
     assert not bad, (
-        "devenv.lock was re-locked with the local overlay active: "
+        "devenv.lock names local checkouts: "
         f"{bad}\n"
-        "Re-lock without it: mv devenv.local.yaml /tmp/ && devenv update && mv /tmp/devenv.local.yaml ."
+        "If these are inputs this repo declares, it was re-locked with the overlay active — "
+        "re-lock without it: mv devenv.local.yaml /tmp/ && devenv update && mv /tmp/devenv.local.yaml .\n"
+        "If they are transitive, the leak is in that input's own committed lock; fix it there."
     )
 
 

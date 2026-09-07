@@ -56,13 +56,18 @@
     "docman": {
       "flake": false,
       "locked": {
-        "ref": "refs/heads/main",
+        "lastModified": 1788800621,
+        "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
+        "ref": "refs/tags/v0.2.0",
+        "rev": "be02887bef46136a8d91ab9e95355b39061bf153",
+        "revCount": 19,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/docman"
+        "url": "https://github.com/Bullish-Design/docman"
       },
       "original": {
+        "ref": "refs/tags/v0.2.0",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/docman"
+        "url": "https://github.com/Bullish-Design/docman"
       }
     },
     "docman_2": {
@@ -349,12 +354,18 @@
     "shellij": {
       "flake": false,
       "locked": {
+        "lastModified": 1788713516,
+        "narHash": "sha256-S0mudp5L8TGsCZE7+tCZotmAavsPPsm9+bdnBNIM9m4=",
+        "ref": "refs/tags/v0.3.0",
+        "rev": "2b28ce8408190c02380dca30cc67bea38f098a71",
+        "revCount": 43,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/shellij"
+        "url": "https://github.com/Bullish-Design/shellij"
       },
       "original": {
+        "ref": "refs/tags/v0.3.0",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/shellij"
+        "url": "https://github.com/Bullish-Design/shellij"
       }
     },
     "vendomat": {
@@ -367,12 +378,18 @@
         "repoman": "repoman_2"
       },
       "locked": {
+        "lastModified": 1788812560,
+        "narHash": "sha256-IOuuPM2nE6d6n/36g32yIRId2SQ2YdWQ9oEt24AOj8Y=",
+        "ref": "refs/tags/v0.3.3",
+        "rev": "78e4fda44a6892560997382a47e73f1cf885b278",
+        "revCount": 48,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/vendomat"
+        "url": "https://github.com/Bullish-Design/vendomat"
       },
       "original": {
+        "ref": "refs/tags/v0.3.3",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/vendomat"
+        "url": "https://github.com/Bullish-Design/vendomat"
       }
     }
   },
