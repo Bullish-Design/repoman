@@ -74,9 +74,14 @@ def test_install_model_is_validated():
     Manager("x", "xcli", "core", "s", install="uv")
 
 
-def test_version_is_in_lockstep_with_pyproject():
-    # Two hand-maintained copies of the version drift silently; the flake sources the
-    # pyproject one, `repoman --version` the module one.
+def test_version_is_read_from_the_installed_distribution():
+    # There is now ONE version: pyproject's, read back through importlib.metadata.
+    # The old spelling kept a second copy in src/repoman/__init__.py and asserted the
+    # two matched — which they did not, at release time, because nothing ran this test
+    # before the tag. 0.7.4 shipped reporting "repoman 0.7.3".
+    #
+    # This still compares against pyproject, so an installed-but-stale environment is
+    # caught; it just no longer has a hand-written literal to catch.
     import tomllib
     from pathlib import Path
 
@@ -86,3 +91,8 @@ def test_version_is_in_lockstep_with_pyproject():
     with open(pyproject, "rb") as fh:
         declared = tomllib.load(fh)["project"]["version"]
     assert repoman.__version__ == declared
+    # Assert the DERIVATION positively. An earlier spelling asserted the absence of
+    # `__version__ = "`, which the fallback line matches — so the guard failed on
+    # correct code, while a real literal could have sat right beside it.
+    source = (Path(__file__).resolve().parents[1] / "src" / "repoman" / "__init__.py").read_text()
+    assert 'version("repoman")' in source, "the version must be read from the installed distribution"

@@ -1,1 +1,10 @@
 trunk = "main"
+
+# Gate publish and release on the repo's own verification. Without this, nothing ran
+# the suite before a tag: 0.7.4 was released carrying a version literal that said
+# 0.7.3, and the test that would have caught it never executed.
+#
+# `release` inherits this list unless [release].verify overrides it.
+[publish]
+verify = ["devenv", "shell", "testee", "verify", "--mode", "ci"]
+verify_timeout = 1800
