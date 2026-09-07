@@ -33,14 +33,25 @@ dev = [
 # as the README tells consumers. Self-hosting the full roster in repoman's own devenv shell
 # (devenv.nix: repoman.managers = [copy git test doc]) requires it — otherwise `repoman
 # doctor` would flag uv:test and the repoman:test tasks would have no testee console script.
-# testee 0.2.0 needs Python >=3.13, which is why requires-python and the dev venv moved to
+# testee needs Python >=3.13, which is why requires-python and the dev venv moved to
 # 3.13 (matching the rest of the family and the machine toolchain venv).
 dev = ["testee"]
 
 [tool.uv.sources]
-# fleet: testee = { git = "https://github.com/Bullish-Design/testee", tag = "vX.Y.Z" }
-# (uv accepts tag/rev/branch, not `ref`; vendomat.toml materializes this spelling)
-testee = { path = "../testee" }
+# A git tag, not `path = "../testee"`. testee is not on PyPI, so uv needs a source, and a
+# RELATIVE path resolves beside whatever directory the clone happens to sit in — a fresh
+# clone's `uv sync` then fails to find it. This is repoman.lock's rule applied one level
+# down: commit the portable shape.
+#
+# There is no overlay for this line. uv refuses a `sources` table in uv.toml ("`sources` is
+# only applicable in the context of a project"), so unlike the machine lock it cannot be
+# overridden from an untracked file. To verify against a testee you are editing, overlay
+# the run instead — this needs no edit here and leaves the tree clean:
+#
+#     uv run --with-editable ../testee testee verify
+#
+# Bump the tag when testee releases; nothing enforces that yet.
+testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.3.0" }
 
 [project.scripts]
 repoman = "repoman.cli:main"

@@ -526,7 +526,7 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "testee", directory = "../testee" }]
+dev = [{ name = "testee", git = "https://github.com/Bullish-Design/testee?tag=v0.3.0" }]
 
 [[package]]
 name = "rich"
@@ -579,7 +579,7 @@ wheels = [
 [[package]]
 name = "testee"
 version = "0.3.0"
-source = { directory = "../testee" }
+source = { git = "https://github.com/Bullish-Design/testee?tag=v0.3.0#60b70f542d7039688e627dddbb17e9aca1b46476" }
 dependencies = [
     { name = "import-linter" },
     { name = "jinja2" },
@@ -589,29 +589,6 @@ dependencies = [
     { name = "ruff" },
     { name = "ty" },
     { name = "typer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "doit", marker = "extra == 'advanced'", specifier = ">=0.36" },
-    { name = "import-linter", specifier = ">=2.0" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'advanced'", specifier = ">=0.0.14" },
-    { name = "pygithub", marker = "extra == 'advanced'", specifier = ">=2.3" },
-    { name = "pytest", specifier = ">=7.0" },
-    { name = "pytest-json-report", specifier = ">=1.5" },
-    { name = "ruff", specifier = ">=0.5.0" },
-    { name = "ty", specifier = ">=0.0.44" },
-    { name = "typer", specifier = ">=0.12" },
-]
-provides-extras = ["advanced"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "doit", specifier = ">=0.36" },
-    { name = "pydantic-ai-slim", extras = ["anthropic"], specifier = ">=0.0.14" },
-    { name = "pygithub", specifier = ">=2.3" },
 ]
 
 [[package]]

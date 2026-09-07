@@ -2,6 +2,7 @@
 # expression, never a nix-eval path) and the install-model split at the module
 # surface: the three pure-CLI managers resolve through `cfg.toolchainBin`, only
 # testee still touches the consumer venv.
+import re
 from pathlib import Path
 
 MODULES = Path(__file__).resolve().parents[1] / "modules"
@@ -93,6 +94,11 @@ def test_repoman_dev_shell_declares_testee_for_the_test_manager():
     root = Path(__file__).resolve().parents[1]
     pyproject = (root / "pyproject.toml").read_text()
     assert 'dev = ["testee"]' in pyproject
-    assert 'testee = { path = "../testee" }' in pyproject
+    # A [tool.uv.sources] entry, but NOT a particular spelling: testee is not on PyPI, so
+    # uv needs a source — and the committed one must be a git tag, because a relative
+    # `../testee` resolves beside whatever directory the clone happens to sit in.
+    source = re.search(r"^testee = \{(.*)\}$", pyproject, re.MULTILINE)
+    assert source is not None, "testee needs a [tool.uv.sources] entry"
+    assert "git =" in source.group(1), f"committed testee source must be portable, got: {source.group(0)}"
     # testee 0.2.0 requires Python >=3.13 — repoman aligns (family + machine venv are 3.13).
     assert 'requires-python = ">=3.13"' in pyproject

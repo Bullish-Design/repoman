@@ -37,6 +37,13 @@ The lock now commits the FLEET shape, and this machine overrides it locally.
   root. That inference breaks the moment the lock is fleet-shaped — a fleet machine
   would warn "orphan" against its own lock.
 
+- **`pyproject.toml` pins testee by git tag.** The retired `vendomat.toml` also rewrote
+  `testee = { path = "../testee" }` to a git tag on push, so dropping it would have
+  published a `uv sync` that fails on any clone without a testee checkout beside it.
+  The same rule as the lock — commit the portable shape — except there is no overlay:
+  uv refuses a `sources` table in `uv.toml`. Verify against a testee you are editing with
+  `uv run --with-editable ../testee testee verify`.
+
 ### Removed
 
 - **The vendomat publish path for this repo.** `vendomat.toml`, `.pyjutsu-hooks.toml`,
