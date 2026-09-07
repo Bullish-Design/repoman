@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "copyroom": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786504231,
+        "narHash": "sha256-oqVk99ASAkwl3j3peL6MtobL1V4W0jIyx0S32hh8MwA=",
+        "ref": "refs/tags/v0.7.4",
+        "rev": "5d6f807006b7cdc08d469707ffa3f88d3762e457",
+        "revCount": 57,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/copyroom"
+      },
+      "original": {
+        "ref": "refs/tags/v0.7.4",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/copyroom"
+      }
+    },
     "devenv": {
       "locked": {
         "dir": "src/modules",
@@ -39,6 +56,18 @@
     "docman": {
       "flake": false,
       "locked": {
+        "ref": "refs/heads/main",
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/docman"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/docman"
+      }
+    },
+    "docman_2": {
+      "flake": false,
+      "locked": {
         "lastModified": 1788800621,
         "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
         "ref": "refs/tags/v0.2.0",
@@ -67,6 +96,23 @@
         "owner": "edolstra",
         "repo": "flake-compat",
         "type": "github"
+      }
+    },
+    "gitman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788789918,
+        "narHash": "sha256-W/0dAXgmRuQ0eD4O9Gefn0lsQ7Bz43lrniI8jOefmM0=",
+        "ref": "refs/tags/v0.6.1",
+        "rev": "a0df153b91c1ebed9347feda66b49cc1a4a08f68",
+        "revCount": 100,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/gitman"
+      },
+      "original": {
+        "ref": "refs/tags/v0.6.1",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/gitman"
       }
     },
     "mk-shell-bin": {
@@ -243,13 +289,18 @@
     "pyjutsu": {
       "flake": false,
       "locked": {
-        "ref": "refs/heads/main",
+        "lastModified": 1788789606,
+        "narHash": "sha256-6812Epm//3hIahYINRTsMLXTMYd6JrZG9T5Ucz0dxJg=",
+        "ref": "refs/tags/v0.21.1",
+        "rev": "90ba9a5e65e353992369025c1507342cd39f009b",
+        "revCount": 157,
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/pyjutsu"
+        "url": "https://github.com/Bullish-Design/Pyjutsu"
       },
       "original": {
+        "ref": "refs/tags/v0.21.1",
         "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/pyjutsu"
+        "url": "https://github.com/Bullish-Design/Pyjutsu"
       }
     },
     "repoman": {
@@ -263,6 +314,23 @@
         "type": "path"
       },
       "parent": []
+    },
+    "repoman_2": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788811060,
+        "narHash": "sha256-vjpmuSnKEj0eSj7aGHb403COtTYvyrzXVLRSa7PPEBw=",
+        "ref": "refs/tags/v0.7.2",
+        "rev": "0b41671459c0a48a4f84b874380e73020847cafc",
+        "revCount": 143,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/repoman"
+      },
+      "original": {
+        "ref": "refs/tags/v0.7.2",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/repoman"
+      }
     },
     "root": {
       "inputs": {
@@ -281,38 +349,30 @@
     "shellij": {
       "flake": false,
       "locked": {
-        "lastModified": 1788713516,
-        "narHash": "sha256-S0mudp5L8TGsCZE7+tCZotmAavsPPsm9+bdnBNIM9m4=",
-        "ref": "refs/tags/v0.3.0",
-        "rev": "2b28ce8408190c02380dca30cc67bea38f098a71",
-        "revCount": 43,
         "type": "git",
-        "url": "https://github.com/Bullish-Design/shellij"
+        "url": "file:///home/andrew/Documents/Projects/shellij"
       },
       "original": {
-        "ref": "refs/tags/v0.3.0",
         "type": "git",
-        "url": "https://github.com/Bullish-Design/shellij"
+        "url": "file:///home/andrew/Documents/Projects/shellij"
       }
     },
     "vendomat": {
       "inputs": {
+        "copyroom": "copyroom",
+        "docman": "docman_2",
+        "gitman": "gitman",
         "nixpkgs": "nixpkgs_5",
-        "pyjutsu": "pyjutsu"
+        "pyjutsu": "pyjutsu",
+        "repoman": "repoman_2"
       },
       "locked": {
-        "lastModified": 1788798080,
-        "narHash": "sha256-5nxGQVRZLed5bcexSsBkDW7QDXB94sXLOfU6091u8S0=",
-        "ref": "refs/tags/v0.3.2",
-        "rev": "f67fcfbbffb16f6aa1eb202272c44251f39e1a6e",
-        "revCount": 39,
         "type": "git",
-        "url": "https://github.com/Bullish-Design/vendomat"
+        "url": "file:///home/andrew/Documents/Projects/vendomat"
       },
       "original": {
-        "ref": "refs/tags/v0.3.2",
         "type": "git",
-        "url": "https://github.com/Bullish-Design/vendomat"
+        "url": "file:///home/andrew/Documents/Projects/vendomat"
       }
     }
   },

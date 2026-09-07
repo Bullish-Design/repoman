@@ -18,7 +18,7 @@ inputs:
   # pyjutsu wheelhouse, which `repoman-sync --machine` needs to resolve the wheel:
   # source in the machine repoman.lock. Consumers no longer declare this input.
   vendomat:
-    url: "git+https://github.com/Bullish-Design/vendomat?ref=refs/tags/v0.3.2"
+    url: "git+https://github.com/Bullish-Design/vendomat?ref=refs/tags/v0.3.3"
 
   # devman: the automation plane's repo interface (CONCEPT.md §3.2). A devenv
   # import is a PATH inside an input, never a flake output attribute, and the
