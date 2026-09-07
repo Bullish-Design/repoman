@@ -9,6 +9,13 @@
 
 _One paragraph: what it does, who uses it, what it is not._
 
+## Python baseline
+
+**Python baseline: 3.13.** Every first-party CLI, the shared toolchain and every
+devenv target CPython 3.13. `pyjutsu` ships `cp313-abi3`, which loads on 3.13 and
+forward and **cannot** load on 3.12 — measured:
+`ImportError: _pyjutsu.abi3.so: undefined symbol: Py_GetConstantBorrowed`.
+
 ## Working here
 
 ```bash

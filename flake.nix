@@ -18,20 +18,20 @@
           pkgs = import nixpkgs { inherit system; };
         in
         {
-          default = pkgs.python312Packages.buildPythonApplication {
+          default = pkgs.python313Packages.buildPythonApplication {
             pname = "repoman";
             # Source the version from pyproject.toml so the flake package can't
             # drift behind the project (it previously hard-coded 0.1.0).
             version = (builtins.fromTOML (builtins.readFile ./pyproject.toml)).project.version;
             src = self;
             pyproject = true;
-            build-system = with pkgs.python312Packages; [
+            build-system = with pkgs.python313Packages; [
               setuptools
               wheel
             ];
             # Only the real runtime deps from pyproject.toml. pyyaml/tomli/aiofiles
             # were cargo-culted from a template; tomllib is stdlib (python 3.11+).
-            propagatedBuildInputs = with pkgs.python312Packages; [
+            propagatedBuildInputs = with pkgs.python313Packages; [
               pydantic
               typer
               jinja2
@@ -84,7 +84,7 @@
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.python312
+              pkgs.python313
               pkgs.uv
               pkgs.git
             ];
