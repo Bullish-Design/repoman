@@ -17,6 +17,16 @@
   vendor.enable = true;
   vendor.libs = [ "pyjutsu" ];
 
+  # Face D, editable mode. Vendomat now delivers the shared command closure by default
+  # (vendomat v0.3.4), and this repo BUILDS one of the commands in it. Store mode would
+  # put a tagged `repoman` ahead of this checkout on PATH, so every edit here would be
+  # tested against the last release instead of the working tree. Editable mode delivers
+  # nothing and leaves `repoman.cliProvider` alone: the machine venv still resolves the
+  # other managers, and this tree resolves itself.
+  #
+  # Every tool in the roster needs this line in its own repo — copyroom, docman, gitman.
+  vendor.toolchain.mode = "editable";
+
   # Self-hosting (project 14 seam): this shell is a real managed repo with the full roster
   # wired — copy/git/test/doc — so the shared toolchain (copyroom, gitman, docman) is on
   # PATH here and `copyroom new <target> --answers … --trust` can birth new repos from this
