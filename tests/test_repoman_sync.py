@@ -2,6 +2,7 @@
 # locks, with `uv`/`repoman` stubbed on PATH. Covers both modes (project 12): machine mode
 # resolves the WHOLE machine lock into the shared toolchain venv in one `uv pip install`;
 # consumer mode installs nothing and only verifies the shared venv + installs skills.
+import json
 import os
 import shutil
 import subprocess
@@ -572,3 +573,133 @@ def test_manifest_is_written_atomically(tmp_path):
     venv = tmp_path / "toolchain-venv"
     assert (venv / "repoman-toolchain.toml").exists()
     assert not (venv / "repoman-toolchain.toml.tmp").exists()
+
+
+# ------------------------------------------------- consumer mode, store provider (Face D)
+#
+# CONCEPT 03 §4.2: under the store provider repoman-sync installs nothing at all. It
+# verifies the pinned Nix closure, reports its provenance, and installs skills. Vendomat's
+# flake.lock is authoritative for the toolchain revision (§8.2), so a surviving
+# repoman.lock is a hard error rather than a second, silently-losing declaration.
+
+
+def _fake_closure(tmp_path, *, repoman_log, manifest=True):
+    """A stand-in for `packages.repoman-toolchain-<roster>`: bin/repoman + provenance."""
+    closure = tmp_path / "closure"
+    (closure / "bin").mkdir(parents=True)
+    repoman = closure / "bin" / "repoman"
+    repoman.write_text(f'#!/usr/bin/env bash\necho "$@" >> {repoman_log}\nexit 0\n')
+    repoman.chmod(0o755)
+    if manifest:
+        share = closure / "share" / "vendomat"
+        share.mkdir(parents=True)
+        (share / "toolchain.json").write_text(
+            json.dumps(
+                {
+                    "roster": "core",
+                    "python": "3.13",
+                    "tools": {
+                        "repoman": {
+                            "version": "0.7.2",
+                            "store": "/nix/store/aaa-repoman-0.7.2",
+                            "commands": ["repoman"],
+                        },
+                        "copyroom": {
+                            "version": "0.7.4",
+                            "store": "/nix/store/bbb-copyroom-0.7.4",
+                            "commands": ["copyroom"],
+                        },
+                    },
+                }
+            )
+        )
+    return closure
+
+
+def _run_store(tmp_path, *, closure_bin=None, lock_body=None, manifest=True):
+    repoman_log = tmp_path / "repoman.log"
+    closure = _fake_closure(tmp_path, repoman_log=repoman_log, manifest=manifest)
+    if lock_body is not None:
+        (tmp_path / "repoman.lock").write_text(lock_body)
+
+    # A DIFFERENT repoman on PATH, so a test can prove the script runs the one it verified.
+    _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", repoman_log=tmp_path / "path-repoman.log")
+
+    env = dict(os.environ)
+    env["PATH"] = f"{tmp_path / 'bin'}{os.pathsep}{env['PATH']}"
+    env["DEVENV_ROOT"] = str(tmp_path)
+    env["REPOMAN_CLI_PROVIDER"] = "store"
+    env.pop("REPOMAN_TOOLCHAIN_BIN", None)
+    if closure_bin != "":
+        env["REPOMAN_TOOLCHAIN_BIN"] = closure_bin or str(closure / "bin")
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    return result, repoman_log
+
+
+def test_store_provider_installs_nothing(tmp_path):
+    # The whole point: the consumer venv holds no manager, so nothing is installed.
+    result, _ = _run_store(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert _uv_log(tmp_path) == []
+
+
+def test_store_provider_installs_skills_from_the_closure_it_verified(tmp_path):
+    # Not whatever `repoman` PATH resolves: a stale pre-migration copy in the consumer
+    # venv would otherwise shadow it, and we would check one copy while running another.
+    result, repoman_log = _run_store(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert repoman_log.read_text().split() == ["install-skills"]
+    assert not (tmp_path / "path-repoman.log").exists()
+
+
+def test_store_provider_reports_provenance(tmp_path):
+    result, _ = _run_store(tmp_path)
+    assert "roster core, python 3.13" in result.stdout
+    assert "/nix/store/bbb-copyroom-0.7.4" in result.stdout
+
+
+def test_store_provider_without_a_bin_dir_fails_actionably(tmp_path):
+    # No silent fallback to the venv provider (acceptance criterion).
+    result, _ = _run_store(tmp_path, closure_bin="")
+    assert result.returncode == 2
+    assert "REPOMAN_TOOLCHAIN_BIN is unset" in result.stderr
+    assert 'repoman.cliProvider = "venv"' in result.stderr
+
+
+def test_store_provider_with_an_empty_closure_fails_actionably(tmp_path):
+    result, _ = _run_store(tmp_path, closure_bin=str(tmp_path / "nowhere"))
+    assert result.returncode == 2
+    assert "has no repoman" in result.stderr
+
+
+def test_store_provider_refuses_a_surviving_repoman_lock(tmp_path):
+    # §8.2, decided: vendomat's flake.lock alone is authoritative in store mode. Two locks
+    # naming the toolchain must not disagree quietly — this is an error, not the warning
+    # the venv provider emits for an orphan.
+    result, _ = _run_store(tmp_path, lock_body=REPO_SELF + GIT_MANAGER)
+    assert result.returncode == 2
+    assert "authoritative in store mode" in result.stderr
+
+
+def test_store_provider_survives_a_missing_manifest(tmp_path):
+    # Provenance is a report, not a gate: an older closure without a manifest still syncs.
+    result, repoman_log = _run_store(tmp_path, manifest=False)
+    assert result.returncode == 0, result.stderr
+    assert "no provenance manifest" in result.stderr
+    assert repoman_log.read_text().split() == ["install-skills"]
+
+
+def test_unknown_provider_is_a_hard_error(tmp_path):
+    env = dict(os.environ)
+    env["DEVENV_ROOT"] = str(tmp_path)
+    env["REPOMAN_CLI_PROVIDER"] = "vevn"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    assert result.returncode == 2
+    assert "unknown REPOMAN_CLI_PROVIDER" in result.stderr
+
+
+def test_empty_provider_is_the_venv_default(tmp_path):
+    # An exported-but-empty variable must not switch modes. Mirrors checks.cli_provider().
+    result = _run(tmp_path, None, mode="consumer")
+    # The venv provider runs: it looks for the shared toolchain venv, which is absent here.
+    assert "shared toolchain venv missing" in result.stderr

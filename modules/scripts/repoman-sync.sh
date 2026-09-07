@@ -15,6 +15,14 @@
 #   repoman-sync              Consumer mode. Installs NO packages: the consumer venv belongs to
 #                             `uv sync` alone. Verifies the shared toolchain is present, warns
 #                             about orphan per-repo locks, then installs agent skills + devman docs.
+#
+# Consumer mode has two providers, chosen by REPOMAN_CLI_PROVIDER (repoman.cliProvider):
+#
+#   venv      the shared toolchain venv this script's --machine mode builds. The default.
+#   store     a pinned Nix closure built by Vendomat, at REPOMAN_TOOLCHAIN_BIN. Nothing is
+#             installed; the closure is verified and its provenance reported. Vendomat's
+#             flake.lock is authoritative for the toolchain revision, so a repoman.lock that
+#             still names a manager is a hard error, not a warning (CONCEPT 03 §8.2).
 set -euo pipefail
 
 mode=consumer
@@ -49,7 +57,68 @@ bootstrap_hint() {
   echo "    cd <your repoman checkout> && devenv shell -- repoman-sync --machine" >&2
 }
 
-# ---------------------------------------------------------------- consumer mode
+# Which provider materialises the shared commands. Mirrors checks.cli_provider(): an unset
+# or empty value is the default, so an exported-but-empty variable cannot switch modes, and
+# an unknown value is a hard error rather than a silent fallback to the wrong place.
+provider="${REPOMAN_CLI_PROVIDER:-}"
+[ -n "$provider" ] || provider=venv
+case "$provider" in
+  venv|store) ;;
+  *) echo "repoman-sync: unknown REPOMAN_CLI_PROVIDER: $provider (expected venv or store)" >&2; exit 2 ;;
+esac
+
+# ---------------------------------------------------------- consumer mode, store provider
+if [ "$mode" = consumer ] && [ "$provider" = store ]; then
+  root="${DEVENV_ROOT:-$PWD}"
+  toolchain_bin="${REPOMAN_TOOLCHAIN_BIN:-}"
+
+  if [ -z "$toolchain_bin" ]; then
+    echo "repoman-sync: cliProvider is \"store\" but REPOMAN_TOOLCHAIN_BIN is unset." >&2
+    echo "repoman-sync:   import vendomat's module and set vendor.toolchain.enable = true," >&2
+    echo "repoman-sync:   or set repoman.cliProvider = \"venv\"." >&2
+    exit 2
+  fi
+  if [ ! -x "$toolchain_bin/repoman" ]; then
+    echo "repoman-sync: shared command closure has no repoman: $toolchain_bin" >&2
+    echo "repoman-sync:   rebuild it: nix build <vendomat>#repoman-toolchain-<roster>" >&2
+    exit 2
+  fi
+
+  # In store mode vendomat's flake.lock alone pins the toolchain (CONCEPT 03 §8.2). A
+  # repoman.lock naming a manager is a SECOND, silently-losing declaration of the same
+  # thing — refuse rather than let two locks disagree about what is installed.
+  if [ -f "$root/repoman.lock" ]; then
+    echo "repoman-sync: $root/repoman.lock exists, but the toolchain comes from the Nix store." >&2
+    echo "repoman-sync:   vendomat's flake.lock is authoritative in store mode. Delete the lock;" >&2
+    echo "repoman-sync:   declare testee in pyproject.toml under [dependency-groups] dev instead." >&2
+    exit 2
+  fi
+
+  # Provenance, so "where did this command come from?" needs no guess.
+  manifest="${REPOMAN_TOOLCHAIN_MANIFEST:-$toolchain_bin/../share/vendomat/toolchain.json}"
+  echo "repoman-sync: shared command closure -> $toolchain_bin"
+  if [ -r "$manifest" ]; then
+    python3 - "$manifest" <<'MANIFEST' || true
+import json, sys
+
+with open(sys.argv[1]) as fh:
+    data = json.load(fh)
+print(f"repoman-sync:   roster {data['roster']}, python {data['python']}")
+for name, tool in sorted(data["tools"].items()):
+    print(f"repoman-sync:   {name} {tool['version']} -> {tool['store']}")
+MANIFEST
+  else
+    echo "repoman-sync: warning: no provenance manifest at $manifest" >&2
+  fi
+
+  # Run the binary just verified, not whatever `repoman` PATH resolves: a consumer venv
+  # holding a stale pre-migration repoman would otherwise shadow it.
+  "$toolchain_bin/repoman" install-skills
+  echo "repoman-sync: done (skills + docs; toolchain is a pinned Nix closure)."
+  exit 0
+fi
+
+# ----------------------------------------------------------- consumer mode, venv provider
 if [ "$mode" = consumer ]; then
   root="${DEVENV_ROOT:-$PWD}"
 
