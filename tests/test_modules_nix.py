@@ -61,7 +61,9 @@ def test_repoman_dev_shell_self_imports_the_meta_module():
     # with no dependency on another repo's shell.
     root = Path(__file__).resolve().parents[1]
     yaml = (root / "devenv.yaml").read_text()
-    assert "repoman:" in yaml and "url: path:./modules" in yaml
+    # The input is taken by `git+file:` rather than `path:` (commit d84b74f), so
+    # match the `?dir=modules` selector, not the old `path:./modules` spelling.
+    assert "repoman:" in yaml and "?dir=modules" in yaml
     assert "docman:" in yaml
     assert "imports:" in yaml and "- repoman" in yaml
 

@@ -1,0 +1,42 @@
+# vendomat.toml — the FLEET shape of repoman.lock, applied on push.
+#
+# repoman.lock is committed in its DEV shape: four managers as `path:` entries
+# pointing at working trees under ~/Documents/Projects. That shape is right for
+# this machine and useless anywhere else — it makes the machine toolchain
+# rebuildable from exactly one directory on exactly one box (023-toolchain P8).
+#
+# Vendomat's publish hook rewrites each outgoing commit to the `github` spelling
+# below, pushes those rewritten commits, and leaves this working tree in its
+# local `path:` form. The lock a fleet machine fetches therefore names four
+# pinned releases, while development here keeps editable installs.
+#
+# NOTE ON SHAPE: the runbook for this step said to put a vendomat.toml in each of
+# gitman, repoman, copyroom and docman, each replacing `repoman.lock`. That is
+# not possible — repoman.lock exists only in this repository. One file with four
+# replacements is the same intent, correctly located.
+#
+# Each `local` string must match repoman.lock byte for byte; the replacement is
+# exact text, not a parse. Bump the tag here whenever a manager is released, or
+# the fleet shape silently pins an old version.
+#
+# Preview before pushing:  devenv shell -- vendomat publish --dry-run
+
+[[replacement]]
+files = ["repoman.lock"]
+local = "path:/home/andrew/Documents/Projects/repoman"
+github = "git+https://github.com/Bullish-Design/repoman@v0.7.1"
+
+[[replacement]]
+files = ["repoman.lock"]
+local = "path:/home/andrew/Documents/Projects/copyroom"
+github = "git+https://github.com/Bullish-Design/copyroom@v0.7.4"
+
+[[replacement]]
+files = ["repoman.lock"]
+local = "path:/home/andrew/Documents/Projects/gitman"
+github = "git+https://github.com/Bullish-Design/gitman@v0.6.0"
+
+[[replacement]]
+files = ["repoman.lock"]
+local = "path:/home/andrew/Documents/Projects/docman"
+github = "git+https://github.com/Bullish-Design/docman@v0.1.0"

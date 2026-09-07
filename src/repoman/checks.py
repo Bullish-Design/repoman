@@ -143,6 +143,58 @@ def consumer_venv_bin() -> Path | None:
     return None
 
 
+#: How the shared toolchain's console scripts are materialised. This is
+#: orthogonal to ``Manager.install``, which says WHICH venv owns a manager;
+#: the provider says HOW that owner's commands come to exist.
+#:
+#: ``"venv"``  — today: one uv-built venv, ``repoman-sync --machine`` fills it
+#:               from ``repoman.lock``. The default, and unchanged behaviour.
+#: ``"store"`` — Vendomat Face D: the commands are a Nix closure and the venv
+#:               holds no manager at all. Not implemented yet; declared here so
+#:               call sites route through one seam instead of growing a second
+#:               one later.
+CLI_PROVIDERS = ("venv", "store")
+_DEFAULT_CLI_PROVIDER = "venv"
+
+
+def cli_provider() -> str:
+    """Which provider materialises the shared toolchain's commands.
+
+    ``REPOMAN_CLI_PROVIDER`` overrides. An unset or empty value is the default,
+    so an exported-but-empty variable cannot silently switch modes. An unknown
+    value is a hard error rather than a silent fallback: a typo here would
+    otherwise resolve commands from the wrong place and report success.
+    """
+
+    value = (os.environ.get("REPOMAN_CLI_PROVIDER") or "").strip()
+    if not value:
+        return _DEFAULT_CLI_PROVIDER
+    if value not in CLI_PROVIDERS:
+        raise ValueError(
+            f"unknown REPOMAN_CLI_PROVIDER {value!r}; expected one of "
+            + ", ".join(repr(p) for p in CLI_PROVIDERS)
+        )
+    return value
+
+
+def toolchain_bin() -> Path | None:
+    """The bin dir holding the shared toolchain's console scripts.
+
+    ``None`` means "not derivable here" — the caller falls back to a ``PATH``
+    lookup, which is what every call site already does for a missing path.
+    """
+
+    provider = cli_provider()
+    if provider == "venv":
+        return toolchain_venv() / "bin"
+    # "store": Vendomat exports the closure's bin dir. Until Face D ships there
+    # is nothing to point at, so resolve by PATH rather than inventing a path
+    # that does not exist — a wrong absolute path reports a confident failure,
+    # while None degrades to the lookup that already works.
+    env = os.environ.get("REPOMAN_TOOLCHAIN_BIN")
+    return Path(env) if env else None
+
+
 def manager_binary(manager: Manager) -> Path | None:
     """The absolute path the nix tasks actually exec for ``manager``, if knowable.
 
@@ -151,7 +203,8 @@ def manager_binary(manager: Manager) -> Path | None:
     """
 
     if manager.install == "toolchain":
-        return toolchain_venv() / "bin" / manager.command
+        bin_dir = toolchain_bin()
+        return bin_dir / manager.command if bin_dir else None
     bin_dir = consumer_venv_bin()
     return bin_dir / manager.command if bin_dir else None
 

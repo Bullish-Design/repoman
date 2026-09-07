@@ -119,6 +119,12 @@ except OSError as exc:
 SOURCE_HANDLERS = {
     "path:": lambda rest: f"--editable={rest}",
     "wheel:": lambda rest: rest,
+    # "url:" is a PEP 508 direct reference passed to uv verbatim
+    # ("url:pyjutsu @ https://.../x-cp313-abi3-manylinux_2_39_x86_64.whl").
+    # It names ONE artifact, so unlike "wheel:" it needs no wheelhouse and no
+    # UV_FIND_LINKS, and --upgrade cannot drift it. That is what makes the
+    # machine toolchain rebuildable somewhere other than this box.
+    "url:": lambda rest: rest,
 }
 
 

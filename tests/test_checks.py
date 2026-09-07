@@ -808,3 +808,86 @@ def test_unreadable_sub_skill_warns_instead_of_raising(toolchain, tmp_path):
         sub.chmod(0o644)
     row = _names(result)["skill:git:defers"]
     assert row.level == "warn" and "unreadable" in row.detail
+
+
+# --- CLI provider seam (Vendomat Face D, phase 0) --------------------------
+#
+# These pin CURRENT behaviour. Face D changes how the shared toolchain's
+# commands are materialised, and the whole point of the seam is that the
+# default path through it must not move while that work happens.
+
+
+def test_cli_provider_defaults_to_venv(monkeypatch):
+    monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
+    assert checks.cli_provider() == "venv"
+
+
+def test_cli_provider_empty_is_the_default(monkeypatch):
+    """An exported-but-empty variable must not silently switch modes."""
+
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "")
+    assert checks.cli_provider() == "venv"
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "   ")
+    assert checks.cli_provider() == "venv"
+
+
+def test_cli_provider_unknown_value_raises(monkeypatch):
+    """A typo must fail loudly, not resolve commands from the wrong place."""
+
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "vevn")
+    with pytest.raises(ValueError, match="unknown REPOMAN_CLI_PROVIDER"):
+        checks.cli_provider()
+
+
+def test_toolchain_bin_under_venv_provider(tmp_path, monkeypatch):
+    monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "tc"))
+    assert checks.toolchain_bin() == tmp_path / "tc" / "bin"
+
+
+def test_manager_binary_unchanged_by_the_seam(tmp_path, monkeypatch):
+    """The default provider resolves exactly where it did before the seam."""
+
+    monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "tc"))
+    for manager in REGISTRY.values():
+        if manager.install != "toolchain":
+            continue
+        assert checks.manager_binary(manager) == (
+            tmp_path / "tc" / "bin" / manager.command
+        )
+
+
+def test_store_provider_falls_back_to_path_when_unset(monkeypatch):
+    """Face D is not wired yet: resolve by PATH rather than invent a path.
+
+    A wrong absolute path would report a confident failure; None degrades to
+    the PATH lookup every call site already performs.
+    """
+
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "store")
+    monkeypatch.delenv("REPOMAN_TOOLCHAIN_BIN", raising=False)
+    assert checks.toolchain_bin() is None
+    toolchain = [m for m in REGISTRY.values() if m.install == "toolchain"]
+    assert toolchain, "registry has no toolchain manager to check"
+    assert checks.manager_binary(toolchain[0]) is None
+
+
+def test_store_provider_uses_declared_bin(tmp_path, monkeypatch):
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "store")
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(tmp_path / "store-bin"))
+    assert checks.toolchain_bin() == tmp_path / "store-bin"
+
+
+def test_uv_managers_ignore_the_provider(tmp_path, monkeypatch):
+    """`install = "uv"` resolves in the consumer venv under either provider."""
+
+    monkeypatch.setenv("DEVENV_STATE", str(tmp_path / "state"))
+    uv_managers = [m for m in REGISTRY.values() if m.install == "uv"]
+    assert uv_managers, "registry has no uv-installed manager to check"
+    for provider in checks.CLI_PROVIDERS:
+        monkeypatch.setenv("REPOMAN_CLI_PROVIDER", provider)
+        for manager in uv_managers:
+            assert checks.manager_binary(manager) == (
+                tmp_path / "state" / "venv" / "bin" / manager.command
+            )

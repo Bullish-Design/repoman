@@ -17,6 +17,8 @@
 #   path:/abs/path                      local checkout (dev; installed --editable)
 #   git+https://host/org/repo@vX.Y.Z    pinned git ref (fleet)
 #   wheel:<requirement>                 prebuilt wheel from vendomat's wheelhouse (UV_FIND_LINKS)
+#   url:<name> @ <https url>            one published artifact, by PEP 508 direct
+#                                       reference — no wheelhouse, no UV_FIND_LINKS
 #
 # The committed file is the DEV shape for this machine. The FLEET shape swaps each
 # path: for git+https://github.com/Bullish-Design/<repo>@vX.Y.Z; a CI runner can
@@ -36,12 +38,20 @@ package = "gitman"
 source = "path:/home/andrew/Documents/Projects/gitman"
 
 # gitman's native dep — not a manager. Resolved by the "<manager>-*" pseudo-entry rule.
-# The floor tracks what gitman declares; a pseudo-entry that lags behind its manager can
-# no longer leave an unusable version installed, but a lagging floor still misreports the
-# machine in `repoman doctor`'s version: rows.
+#
+# The published, relocated manylinux asset — the same URL gitman's own
+# [tool.uv.sources] names, and the one `direct_url.json` already records for the
+# installed wheel. NOT vendomat's wheelhouse: that wheel carries the bare
+# linux_x86_64 tag and a RUNPATH into /nix/store (gitman project 35).
+#
+# This was `wheel:pyjutsu>=0.20.0` — a FLOOR resolved with --upgrade, so the next
+# sync took whatever the wheelhouse held, and the wheelhouse exists in exactly one
+# directory on one machine. A url: source names one artifact instead, which is what
+# removes the UV_FIND_LINKS precondition from the machine bootstrap (023-toolchain
+# P8).
 [managers.git-pyjutsu]
 package = "pyjutsu"
-source = "wheel:pyjutsu>=0.20.0"
+source = "url:pyjutsu @ https://github.com/Bullish-Design/Pyjutsu/releases/download/v0.20.0/pyjutsu-0.20.0-cp313-abi3-manylinux_2_39_x86_64.whl"
 
 [managers.doc]
 package = "docman"
