@@ -61,6 +61,8 @@ def _run(
     lock_dir=None,
     root_env=None,
     lock_env=None,
+    overlay_body=None,
+    overlay_env=None,
 ):
     """Run the script against ``lock_body``; returns the CompletedProcess.
 
@@ -73,6 +75,8 @@ def _run(
     lock_path = Path(lock_dir) if lock_dir else tmp_path
     if lock_body is not None:
         (lock_path / "repoman.lock").write_text(lock_body)
+    if overlay_body is not None:
+        Path(overlay_env or (lock_path / "repoman.local.lock")).write_text(overlay_body)
 
     uv_log = tmp_path / "uv.log"
     repoman_log = tmp_path / "repoman.log"
@@ -90,6 +94,8 @@ def _run(
         env["REPOMAN_ROOT"] = root_env
     if lock_env is not None:
         env["REPOMAN_LOCK"] = lock_env
+    if overlay_env is not None:
+        env["REPOMAN_LOCAL_LOCK"] = overlay_env
 
     cmd = ["bash", str(SCRIPT)] + (argv or (["--machine"] if mode == "machine" else []))
     return subprocess.run(cmd, env=env, capture_output=True, text=True)
@@ -210,12 +216,139 @@ def test_machine_records_toolchain_manifest(tmp_path):
     assert r.returncode == 0, r.stderr
     manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
     assert manifest.exists()
-    text = manifest.read_text()
-    assert text.startswith("# synced from " + str(tmp_path / "repoman.lock"))
-    # the recorded manifest is the verbatim machine lock, round-trippable
-    data = tomllib.loads(text.split("\n", 1)[1])
+    data = tomllib.loads(manifest.read_text())
+    assert data["toolchain"]["synced_from"] == str(tmp_path / "repoman.lock")
+    # the recorded manifest carries the whole lock, round-trippable
     assert data["managers"]["git"]["package"] == "gitman"
+    assert data["managers"]["git"]["source"] == "path:/repo/gitman"
     assert "test" not in data.get("managers", {})
+
+
+# ---------------------------------------------------------------- the local overlay
+#
+# 023-toolchain OVERLAY.md: repoman.lock is committed in its portable FLEET shape, and
+# an untracked repoman.local.lock names where THIS machine fetches the same packages
+# from. The overlay replaces a `source`; it never adds an entry.
+
+FLEET_SELF = '[repoman]\npackage = "repoman"\nsource = "git+https://github.com/Bullish-Design/repoman@v0.7.1"\n'
+FLEET_GIT = '[managers.git]\npackage = "gitman"\nsource = "git+https://github.com/Bullish-Design/gitman@v0.6.0"\n'
+
+
+def test_overlay_replaces_a_source(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.git]\nsource = "path:/repo/gitman"\n',
+    )
+    assert r.returncode == 0, r.stderr
+    install = [ln for ln in _uv_log(tmp_path) if ln.startswith("pip install")][0]
+    assert "--editable=/repo/gitman" in install
+    assert "github.com/Bullish-Design/gitman@v0.6.0" not in install
+    # untouched entries keep the fleet shape
+    assert "git+https://github.com/Bullish-Design/repoman@v0.7.1" in install
+    # an editable entry is rebuilt; the fleet one is not
+    assert "--reinstall-package=gitman" in install
+    assert "--reinstall-package=repoman" not in install
+
+
+def test_absent_overlay_installs_the_fleet_shape(tmp_path):
+    # The point of the whole design: a clone with no working trees beside it syncs.
+    r = _run(tmp_path, FLEET_SELF + FLEET_GIT)
+    assert r.returncode == 0, r.stderr
+    install = [ln for ln in _uv_log(tmp_path) if ln.startswith("pip install")][0]
+    assert "git+https://github.com/Bullish-Design/gitman@v0.6.0" in install
+    assert "--editable" not in install
+
+
+def test_no_local_ignores_a_present_overlay(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.git]\nsource = "path:/repo/gitman"\n',
+        argv=["--machine", "--no-local"],
+    )
+    assert r.returncode == 0, r.stderr
+    install = [ln for ln in _uv_log(tmp_path) if ln.startswith("pip install")][0]
+    assert "git+https://github.com/Bullish-Design/gitman@v0.6.0" in install
+    assert "--editable" not in install
+
+
+def test_overlay_key_absent_from_the_lock_exits_2_and_names_the_key(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.typo]\nsource = "path:/repo/typo"\n',
+    )
+    assert r.returncode == 2
+    assert "managers.typo" in r.stderr
+    assert "cannot add an entry" in r.stderr
+
+
+def test_overlay_top_level_key_absent_from_the_lock_exits_2(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_GIT,  # no [repoman] self entry in the lock
+        overlay_body='[repoman]\nsource = "path:/repo/repoman"\n',
+    )
+    assert r.returncode == 2
+    assert "[repoman]" in r.stderr
+
+
+def test_overlay_entry_without_source_exits_2(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.git]\npackage = "gitman"\n',
+    )
+    assert r.returncode == 2
+    assert "managers.git" in r.stderr and "source" in r.stderr
+
+
+def test_repoman_local_lock_env_overrides_the_overlay_path(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.git]\nsource = "path:/repo/gitman"\n',
+        overlay_env=str(tmp_path / "elsewhere.local.lock"),
+    )
+    assert r.returncode == 0, r.stderr
+    assert "--editable=/repo/gitman" in [ln for ln in _uv_log(tmp_path) if ln.startswith("pip install")][0]
+
+
+def test_recorded_manifest_holds_the_merged_shape(tmp_path):
+    # checks.py reconciles installed packages against this file. Recording the committed
+    # lock would compare an editable install against a git pin — a false conflict.
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.git]\nsource = "path:/repo/gitman"\n',
+    )
+    assert r.returncode == 0, r.stderr
+    data = tomllib.loads((tmp_path / "toolchain-venv" / "repoman-toolchain.toml").read_text())
+    assert data["toolchain"]["synced_from"] == str(tmp_path / "repoman.lock")
+    assert data["managers"]["git"]["source"] == "path:/repo/gitman"
+    # `package` comes from the lock; the overlay never supplies it
+    assert data["managers"]["git"]["package"] == "gitman"
+    assert data["repoman"]["source"] == "git+https://github.com/Bullish-Design/repoman@v0.7.1"
+
+
+def test_no_local_records_the_unmerged_fleet_shape(tmp_path):
+    r = _run(
+        tmp_path,
+        FLEET_SELF + FLEET_GIT,
+        overlay_body='[managers.git]\nsource = "path:/repo/gitman"\n',
+        argv=["--machine", "--no-local"],
+    )
+    assert r.returncode == 0, r.stderr
+    data = tomllib.loads((tmp_path / "toolchain-venv" / "repoman-toolchain.toml").read_text())
+    assert data["managers"]["git"]["source"] == "git+https://github.com/Bullish-Design/gitman@v0.6.0"
+
+
+def test_invalid_toml_overlay_fails_cleanly(tmp_path):
+    r = _run(tmp_path, FLEET_SELF + FLEET_GIT, overlay_body="[managers.git\n")
+    assert r.returncode == 2
+    assert "not valid TOML" in r.stderr
+    assert "repoman.local.lock" in r.stderr
 
 
 def test_machine_wheel_guard_still_aborts(tmp_path):
@@ -247,7 +380,7 @@ def test_machine_respects_repoman_root_env(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
-    assert manifest.read_text().startswith("# synced from " + str(lock_dir / "repoman.lock"))
+    assert tomllib.loads(manifest.read_text())["toolchain"]["synced_from"] == str(lock_dir / "repoman.lock")
 
 
 def test_machine_respects_repoman_lock_env(tmp_path):
@@ -258,7 +391,7 @@ def test_machine_respects_repoman_lock_env(tmp_path):
     r = _run(tmp_path, None, lock_env=str(fleet_lock))
     assert r.returncode == 0, r.stderr
     manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
-    assert manifest.read_text().startswith("# synced from " + str(fleet_lock))
+    assert tomllib.loads(manifest.read_text())["toolchain"]["synced_from"] == str(fleet_lock)
 
 
 def test_machine_repoman_lock_env_wins_over_default(tmp_path):
@@ -270,7 +403,7 @@ def test_machine_repoman_lock_env_wins_over_default(tmp_path):
     r = _run(tmp_path, None, lock_env=str(fleet_lock))
     assert r.returncode == 0, r.stderr
     manifest = tmp_path / "toolchain-venv" / "repoman-toolchain.toml"
-    assert manifest.read_text().startswith("# synced from " + str(fleet_lock))
+    assert tomllib.loads(manifest.read_text())["toolchain"]["synced_from"] == str(fleet_lock)
 
 
 # ---------------------------------------------------------------- consumer mode
@@ -330,14 +463,14 @@ def test_consumer_warns_on_orphan_lock(tmp_path):
 def test_consumer_does_not_warn_on_the_machine_lock_itself(tmp_path):
     # Self-hosting (project 14 seam): the repoman checkout keeps its machine manifest
     # at the repo root — consumer mode must not tell it to delete that file. The venv
-    # manifest records its origin on the first line (`# synced from <lock>`); same
-    # fingerprint as checks.py's lock:orphan exemption.
+    # manifest records its origin as DATA, in [toolchain].synced_from; same fingerprint
+    # as checks.py's lock:orphan exemption.
     toolchain_venv = str(tmp_path / "toolchain-venv")
     _stub_bin(tmp_path, uv_log=tmp_path / "uv.log", toolchain_venv=toolchain_venv)
     _toolchain_repoman(toolchain_venv, tmp_path / "repoman.log")
     manifest = Path(toolchain_venv) / "repoman-toolchain.toml"
     manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(f"# synced from {tmp_path}/repoman.lock\n{REPO_SELF}{GIT_MANAGER}\n")
+    manifest.write_text(f'[toolchain]\nsynced_from = "{tmp_path}/repoman.lock"\n\n{REPO_SELF}{GIT_MANAGER}')
     r = _run(tmp_path, REPO_SELF + GIT_MANAGER, mode="consumer", toolchain_venv=toolchain_venv)
     assert r.returncode == 0, r.stderr
     assert "ORPHAN" not in r.stderr

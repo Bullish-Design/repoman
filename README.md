@@ -64,15 +64,34 @@ devenv shell -- repoman-sync --machine
 ```
 
 This creates the shared venv, installs every entry in `repoman.lock` (with
-`--upgrade`, so a bump actually takes effect), and records the lock it synced from
-inside the venv as `repoman-toolchain.toml`. `repoman doctor` reads that manifest to
-tell you whether this repo's roster is satisfied — and whether what's installed still
-matches what the lock pins.
+`--upgrade`, so a bump actually takes effect), and records the EFFECTIVE manifest
+inside the venv as `repoman-toolchain.toml`. That manifest names the lock it came from
+in `[toolchain].synced_from`. `repoman doctor` reads it to tell you whether this repo's
+roster is satisfied — and whether what's installed still matches what the lock pins.
 
-A CI runner can point at a differently-shaped lock without editing the checkout:
+### The lock and its overlay
+
+`repoman.lock` is committed in its **fleet** shape: every entry names a release, so the
+command above works on a fresh clone with no working trees beside it.
+
+To develop a manager from a local checkout, write `repoman.local.lock` next to the lock.
+It is untracked, uses the same schema, and needs only `source`:
+
+```toml
+[managers.git]
+source = "path:/home/you/Projects/gitman"
+```
+
+The sync layers the overlay over the lock. An overlay key the lock does not declare is
+an error: the overlay says *where* a package comes from, never *what* the toolchain
+contains.
+
+Two escapes:
 
 ```bash
-REPOMAN_LOCK=/path/to/fleet-repoman.lock repoman-sync --machine
+repoman-sync --machine --no-local          # ignore the overlay; pure fleet shape (CI)
+REPOMAN_LOCK=/path/to/other.lock repoman-sync --machine     # a different lock entirely
+REPOMAN_LOCAL_LOCK=/path/to/other.local.lock repoman-sync --machine   # a different overlay
 ```
 
 ## Commands

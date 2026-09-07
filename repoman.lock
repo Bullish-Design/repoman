@@ -20,22 +20,35 @@
 #   url:<name> @ <https url>            one published artifact, by PEP 508 direct
 #                                       reference — no wheelhouse, no UV_FIND_LINKS
 #
-# The committed file is the DEV shape for this machine. The FLEET shape swaps each
-# path: for git+https://github.com/Bullish-Design/<repo>@vX.Y.Z; a CI runner can
-# point repoman-sync --machine at a fleet-shaped lock via REPOMAN_LOCK without
-# editing this checkout (WS-3, project-12 follow-up).
+# The committed file is the FLEET shape: every entry names a release, so it is correct
+# on any machine, including a fresh clone with no working trees beside it. A developer
+# who wants editable installs writes `repoman.local.lock` next to this file — an
+# untracked OVERLAY with the same schema, in which only `source` is required. The sync
+# layers the overlay over this lock, and `--no-local` skips the overlay so a CI runner
+# gets the pure fleet shape. REPOMAN_LOCK and REPOMAN_LOCAL_LOCK override either path.
+#
+# An overlay key that this lock does not declare is a hard error. The overlay REPLACES a
+# source; it never adds an entry.
+#
+# This inverts the earlier design, which committed the DEV shape and synthesized the
+# fleet shape at push time through vendomat. That rewrite could not express a pin bump
+# and cost a permanently divergent origin (devman 023-toolchain OVERLAY.md).
 
 [repoman]
 package = "repoman"
-source = "path:/home/andrew/Documents/Projects/repoman"
+source = "git+https://github.com/Bullish-Design/repoman@v0.7.1"
 
 [managers.copy]
 package = "copyroom"
-source = "path:/home/andrew/Documents/Projects/copyroom"
+source = "git+https://github.com/Bullish-Design/copyroom@v0.7.4"
 
+# v0.6.1, not the v0.6.0 the retired vendomat.toml named. gitman v0.6.0's
+# [tool.uv.sources] pins pyjutsu by URL at v0.20.0, which conflicts with the v0.21.1 URL
+# [managers.git-pyjutsu] names below — uv rejects two direct URLs for one package. Any
+# bump to the pyjutsu entry must move this pin to a gitman release built against it.
 [managers.git]
 package = "gitman"
-source = "path:/home/andrew/Documents/Projects/gitman"
+source = "git+https://github.com/Bullish-Design/gitman@v0.6.1"
 
 # gitman's native dep — not a manager. Resolved by the "<manager>-*" pseudo-entry rule.
 #
@@ -57,9 +70,11 @@ source = "path:/home/andrew/Documents/Projects/gitman"
 package = "pyjutsu"
 source = "url:pyjutsu @ https://github.com/Bullish-Design/Pyjutsu/releases/download/v0.21.1/pyjutsu-0.21.1-cp313-abi3-manylinux_2_39_x86_64.whl"
 
+# v0.2.0, not the v0.1.0 the retired vendomat.toml named. The v0.1.0 tag predates
+# docman becoming a Python package and carries no pyproject.toml, so uv refuses it.
 [managers.doc]
 package = "docman"
-source = "path:/home/andrew/Documents/Projects/docman"
+source = "git+https://github.com/Bullish-Design/docman@v0.2.0"
 
 # templateer: typed artifact generation. A CLI on the shared shelf, not a
 # library any repo imports — devman's changelog workflow calls
@@ -72,16 +87,14 @@ source = "path:/home/andrew/Documents/Projects/docman"
 package = "templateer"
 source = "git+https://github.com/Bullish-Design/templateer_v2@v0.4.0"
 
-# vendomat is not a manager and has no roster entry. It is here because
-# `gitman push` publishes through a pyjutsu pre-push hook, and a pyjutsu python
-# hook is an IMPORT executed inside gitman's own interpreter — the shared venv.
-# So the shelf must carry vendomat as a library, exactly as it already carries
-# pyjutsu for gitman. Resolved by the "<manager>-*" pseudo-entry rule, routed
-# under "git" because it is the git manager's push path that needs it.
+# vendomat is not a manager and has no roster entry. It is on the shelf as a CLI:
+# it performs the hermetic native wheel build, stamps the manylinux tag, strips the
+# store RUNPATH and uploads the release asset — the artifact [managers.git-pyjutsu]
+# names by url:. Resolved by the "<manager>-*" pseudo-entry rule, routed under "git".
 #
-# This does not weaken the "the shelf is never a source of imports" rule: that
-# rule governs REPOSITORIES importing from the shelf. A shelf resident importing
-# another is the established gitman -> pyjutsu pattern.
+# It is NO LONGER here for a pre-push publish hook. This repo retired that path when
+# it adopted the lock overlay (devman 023-toolchain OVERLAY.md); vendomat.toml and
+# .pyjutsu-hooks.toml are gone.
 [managers.git-vendomat]
 package = "vendomat"
-source = "path:/home/andrew/Documents/Projects/vendomat"
+source = "git+https://github.com/Bullish-Design/vendomat@v0.3.2"

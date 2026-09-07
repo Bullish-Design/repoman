@@ -8,18 +8,29 @@
 #                             the lock it synced from inside the venv. Run once per machine,
 #                             and again on every toolchain bump.
 #
+#   repoman-sync --machine --no-local
+#                             The same, but ignore repoman.local.lock. Installs the pure
+#                             fleet shape the committed lock names. Use this on CI.
+#
 #   repoman-sync              Consumer mode. Installs NO packages: the consumer venv belongs to
 #                             `uv sync` alone. Verifies the shared toolchain is present, warns
 #                             about orphan per-repo locks, then installs agent skills + devman docs.
 set -euo pipefail
 
 mode=consumer
+use_local=1
 case "${1:-}" in
   --machine)  mode=machine; shift ;;
-  -h|--help)  sed -n '2,13p' "$0"; exit 0 ;;
+  -h|--help)  sed -n '2,17p' "$0"; exit 0 ;;
   "")         ;;
   *)          echo "repoman-sync: unknown argument: $1" >&2; exit 2 ;;
 esac
+
+# --no-local skips the machine overlay, so a CI runner installs the pure fleet shape
+# the lock commits. Machine mode only: consumer mode reads no lock.
+if [ "$mode" = machine ] && [ "${1:-}" = --no-local ]; then
+  use_local=0; shift
+fi
 
 # Never ignore trailing arguments: `repoman-sync --machine --dry-run` silently doing a
 # real sync is exactly the surprise this guard exists to prevent.
@@ -52,10 +63,27 @@ if [ "$mode" = consumer ]; then
 
   # Migration aid (CONCEPT §9.7): per-repo locks are orphans now — UNLESS this IS the
   # machine lock the toolchain was synced from (the repoman checkout keeps its own
-  # machine manifest at the repo root). The venv manifest records its origin on the
-  # first line (`# synced from <lock>`); same fingerprint as checks.py's lock:orphan.
+  # machine manifest at the repo root). The venv manifest records its origin as DATA,
+  # in [toolchain].synced_from; same fingerprint as checks.py's lock:orphan. Reading
+  # the field rather than inferring from [repoman].source is what lets a fleet-shaped
+  # lock still be recognised as this machine's own (023-toolchain OVERLAY.md).
+  synced_from() {
+    python3 - "$toolchain_manifest" <<'PY' 2>/dev/null
+import sys, tomllib
+try:
+    with open(sys.argv[1], "rb") as fh:
+        data = tomllib.load(fh)
+except (OSError, tomllib.TOMLDecodeError):
+    raise SystemExit(1)
+value = (data.get("toolchain") or {}).get("synced_from")
+if not isinstance(value, str):
+    raise SystemExit(1)
+print(value)
+PY
+  }
+
   if [ -f "$root/repoman.lock" ] \
-     && ! grep -qF "# synced from $root/repoman.lock" "$toolchain_manifest" 2>/dev/null; then
+     && [ "$(synced_from || true)" != "$root/repoman.lock" ]; then
     echo "repoman-sync: warning: $root/repoman.lock is an ORPHAN manifest — the toolchain is" >&2
     echo "  machine-level now (see repoman CONCEPT.md §6). Delete it; declare testee in" >&2
     echo "  pyproject.toml under [dependency-groups] dev instead." >&2
@@ -76,6 +104,12 @@ root="${REPOMAN_ROOT:-${DEVENV_ROOT:-$PWD}}"
 # the checkout. Pure env-var override; unset = current behaviour (the machine lock
 # at the repoman checkout root).
 lock="${REPOMAN_LOCK:-$root/repoman.lock}"
+# The machine OVERLAY. Untracked, same schema as the lock, only `source` required —
+# it replaces where THIS machine fetches a package from, never what the toolchain
+# contains. Absent is normal and silent. REPOMAN_LOCAL_LOCK overrides the path,
+# mirroring REPOMAN_LOCK; --no-local skips it (023-toolchain OVERLAY.md).
+local_lock="${REPOMAN_LOCAL_LOCK:-${lock%.lock}.local.lock}"
+[ "$use_local" = 1 ] || local_lock=
 
 if [ ! -f "$lock" ]; then
   echo "repoman-sync --machine: no machine repoman.lock at $lock" >&2
@@ -95,24 +129,68 @@ fi
 resolved_file="$(mktemp)"
 trap 'rm -f "$resolved_file"' EXIT
 
-REPOMAN_LOCK="$lock" python3 - > "$resolved_file" <<'PY' || exit $?
+merged_file="$(mktemp)"
+trap 'rm -f "$resolved_file" "$merged_file"' EXIT
+
+REPOMAN_LOCK="$lock" REPOMAN_LOCAL_LOCK="${local_lock:-}" REPOMAN_MERGED_OUT="$merged_file" \
+  python3 - > "$resolved_file" <<'PY' || exit $?
 import os, sys, tomllib
 
 path = os.environ["REPOMAN_LOCK"]
+overlay_path = os.environ.get("REPOMAN_LOCAL_LOCK") or None
+merged_out = os.environ["REPOMAN_MERGED_OUT"]
 
 
-def die(message: str) -> None:
-    sys.stderr.write(f"repoman-sync --machine: {path}: {message}\n")
+def die(message: str, *, where: str | None = None) -> None:
+    sys.stderr.write(f"repoman-sync --machine: {where or path}: {message}\n")
     raise SystemExit(2)
 
 
-try:
-    with open(path, "rb") as fh:
-        data = tomllib.load(fh)
-except tomllib.TOMLDecodeError as exc:
-    die(f"is not valid TOML — {exc}")
-except OSError as exc:
-    die(f"cannot be read — {exc.strerror or exc}")
+def load(target: str, *, where: str | None = None) -> dict:
+    try:
+        with open(target, "rb") as fh:
+            return tomllib.load(fh)
+    except tomllib.TOMLDecodeError as exc:
+        die(f"is not valid TOML — {exc}", where=where)
+    except OSError as exc:
+        die(f"cannot be read — {exc.strerror or exc}", where=where)
+
+
+data = load(path)
+
+# --- overlay ---------------------------------------------------------------------
+# A missing overlay file is normal and silent. A key the LOCK never declared is a hard
+# error: the overlay replaces a source, it never adds an entry, so an unknown key is a
+# typo, not an install instruction.
+if overlay_path and os.path.exists(overlay_path):
+    overlay = load(overlay_path, where=overlay_path)
+
+    def apply(label: str, container: dict, key: str, entry: object) -> None:
+        """Replace container[key]'s `source` with the overlay's, keeping the lock's rest."""
+        if not isinstance(entry, dict):
+            die(f"[{label}] must be a table (got {type(entry).__name__})", where=overlay_path)
+        source = entry.get("source")
+        if not isinstance(source, str) or not source.strip():
+            die(f'[{label}] needs a non-empty `source` string, e.g. source = "path:/abs/path"',
+                where=overlay_path)
+        # `package` stays the lock's — the overlay says WHERE, never WHAT.
+        container[key] = {**container[key], "source": source}
+
+    for key, entry in overlay.items():
+        if key == "managers":
+            if not isinstance(entry, dict):
+                die("[managers] must be a table of tables", where=overlay_path)
+            lock_managers = data.get("managers")
+            for sub, sub_entry in entry.items():
+                if not isinstance(lock_managers, dict) or sub not in lock_managers:
+                    die(f"[managers.{sub}] is not declared in {path} — the overlay replaces a "
+                        "source, it cannot add an entry", where=overlay_path)
+                apply(f"managers.{sub}", lock_managers, sub, sub_entry)
+            continue
+        if key not in data or not isinstance(data.get(key), dict):
+            die(f"[{key}] is not declared in {path} — the overlay replaces a source, it "
+                "cannot add an entry", where=overlay_path)
+        apply(key, data, key, entry)
 
 # Open source-kind vocabulary (DESIGN §4.1): prefix -> handler. A new kind ("bin:",
 # "closure:") is one more entry here, not a new branch — vendomat's `wheel:` is the first.
@@ -207,6 +285,52 @@ for label, source, _package in entries:
         die(f"[{label}] `source` contains an embedded newline or NUL — refusing to build an "
             "install command from it")
     sys.stdout.write("T" + resolved + "\0")
+
+# --- the effective manifest -------------------------------------------------------
+# What gets recorded inside the venv is the MERGED shape, not the committed lock.
+# checks.py reconciles installed packages against this file: it must see `path:`
+# wherever an editable install happened, or it compares an editable install against a
+# git pin and reports a false version conflict (023-toolchain OVERLAY.md).
+#
+# [toolchain].synced_from is the machine-readable identity of the lock this venv came
+# from. It replaces two inferences: the `# synced from` comment consumer mode grepped,
+# and checks.py's `_is_machine_lock` test that [repoman].source is a path: resolving to
+# the repo root — which holds only while an overlay is active.
+
+
+def toml_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    text = str(value)
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def toml_table(header: str, table: dict) -> str:
+    out = f"[{header}]\n"
+    for key, value in table.items():
+        if isinstance(value, dict):
+            continue  # nested tables are emitted separately, by TOML path
+        out += f"{key} = {toml_value(value)}\n"
+    return out + "\n"
+
+
+tables = [toml_table("toolchain", {"synced_from": os.path.abspath(path)})]
+for key, value in data.items():
+    if key != "managers" and isinstance(value, dict):
+        tables.append(toml_table(key, value))
+for key, value in (data.get("managers") or {}).items():
+    if isinstance(value, dict):
+        tables.append(toml_table(f"managers.{key}", value))
+
+with open(merged_out, "w", encoding="utf-8") as fh:
+    fh.write(
+        "# The EFFECTIVE toolchain manifest — the committed lock with this machine's\n"
+        "# repoman.local.lock overlay applied. Generated by `repoman-sync --machine`;\n"
+        "# do not edit. [toolchain].synced_from names the lock it came from.\n\n"
+    )
+    fh.write("".join(tables))
 PY
 
 # The resolver tags each NUL-separated record: `T` = install target (listed in the
@@ -411,7 +535,11 @@ fi
 # D7: record what this venv was synced from, so a consumer's `repoman doctor` can validate
 # the toolchain without knowing where the repoman checkout lives. Written atomically —
 # a half-written manifest reads as "unparseable" forever otherwise.
-{ printf '# synced from %s\n' "$lock"; cat "$lock"; } > "$toolchain_manifest.tmp"
+#
+# The resolver already built this file: the EFFECTIVE (lock + overlay) shape, carrying
+# [toolchain].synced_from. Recording the raw lock instead would make checks.py compare
+# an editable install against a git pin and report a false conflict.
+cp -f "$merged_file" "$toolchain_manifest.tmp"
 mv -f "$toolchain_manifest.tmp" "$toolchain_manifest"
 
 echo "repoman-sync --machine: done → $toolchain_venv/bin"

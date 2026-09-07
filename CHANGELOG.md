@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased — the lock overlay (023-toolchain)
+
+`repoman.lock` committed the DEV shape — five managers as `path:` entries under one
+user's home — and synthesized the portable shape at push time, through a vendomat hook
+that replayed every outgoing commit with the sources rewritten. That inverted the normal
+relation: it version-controlled the machine-specific fact and derived the portable one.
+It also could not express a pin bump (the substitution matches literal text, and the
+parent commit already consumed the match), and it cost a permanently divergent origin.
+
+The lock now commits the FLEET shape, and this machine overrides it locally.
+
+### Changed
+
+- **`repoman.lock` names a release for every entry.** repoman, copyroom, gitman, docman
+  and vendomat move from `path:` to `git+https://…@vX.Y.Z`. `repoman-sync --machine`
+  now works on a clone with no working trees beside it — verified on a fresh clone with
+  `--no-local` and `UV_FIND_LINKS` unset.
+- **Two pins the retired `vendomat.toml` carried were unusable.** Nothing ever installed
+  them, because the publish path was inert. gitman moves to `v0.6.1`: `v0.6.0` pins
+  pyjutsu by URL at v0.20.0, and uv rejects two direct URLs for one package. docman moves
+  to `v0.2.0` (tagged for this): `v0.1.0` predates docman becoming a Python package and
+  carries no `pyproject.toml`.
+- **`repoman.local.lock` is the machine overlay.** Untracked, gitignored, same schema as
+  the lock, only `source` required. It replaces where a package is fetched from, never
+  what the toolchain contains — an overlay key the lock does not declare is a hard error
+  naming the key. A missing overlay is normal and silent. `REPOMAN_LOCAL_LOCK` overrides
+  the path, mirroring `REPOMAN_LOCK`; `--no-local` skips the overlay entirely.
+- **The recorded manifest holds the MERGED shape.** `<venv>/repoman-toolchain.toml` was
+  a verbatim copy of the lock. `checks.py` reconciles installed packages against it, so
+  recording the committed lock would compare an editable install against a git pin and
+  report a false version conflict.
+- **The manifest records its origin as data.** A new `[toolchain].synced_from` field
+  replaces two inferences: the `# synced from` comment consumer mode grepped, and
+  `_is_machine_lock`'s test that `[repoman].source` is a `path:` resolving to the repo
+  root. That inference breaks the moment the lock is fleet-shaped — a fleet machine
+  would warn "orphan" against its own lock.
+
+### Removed
+
+- **The vendomat publish path for this repo.** `vendomat.toml`, `.pyjutsu-hooks.toml`,
+  the installed `.git/hooks/pre-push` and `refs/vendomat/published/origin/main` are
+  gone. Vendomat's hermetic native wheel build and release upload are untouched —
+  `[managers.git-vendomat]` stays on the shelf for that.
+
 ## Unreleased — coherent machine toolchain (project 18)
 
 `repoman-sync --machine` could report success against a shared venv that no

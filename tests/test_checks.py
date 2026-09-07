@@ -18,6 +18,13 @@ _GOOD_LOCK = (
     '[managers.doc]\npackage = "docman"\nsource = "path:/x"\n'
 )
 
+
+def _synced_from(lock) -> str:
+    """The `[toolchain]` identity table `repoman-sync --machine` records in the manifest."""
+
+    return f'[toolchain]\nsynced_from = "{lock}"\n\n'
+
+
 # The consumer pyproject that declares testee the uv-native way (D4).
 _PYPROJECT_TESTEE = (
     '[project]\nname = "x"\nversion = "0.0.0"\nrequires-python = ">=3.13"\n'
@@ -626,24 +633,44 @@ def test_orphan_repo_lock_warns(toolchain, consumer_venv, tmp_path):
 def test_machine_lock_at_the_repoman_checkout_does_not_warn(toolchain, tmp_path):
     # Self-hosting (project 14 seam): the repoman checkout's own repo-root repoman.lock
     # IS the machine manifest the venv was synced from — not an obsolete consumer lock.
-    # The recorded [repoman] source (path:<repo_root>) is the fingerprint. Deleting this
-    # file would break `repoman-sync --machine`, so the doctor must not demand it.
+    # The recorded [toolchain].synced_from is the fingerprint. Deleting this file would
+    # break `repoman-sync --machine`, so the doctor must not demand it.
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    machine = _GOOD_LOCK.replace('source = "path:/x"\n[managers.copy]', f'source = "path:{tmp_path}"\n[managers.copy]')
-    (tmp_path / "repoman.lock").write_text(machine)
-    toolchain.write(machine)
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
+    toolchain.write(_synced_from(tmp_path / "repoman.lock") + _GOOD_LOCK)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert "lock:orphan" not in _names(result)
 
 
-def test_machine_lock_with_a_fleet_git_source_still_warns_orphan(toolchain, tmp_path):
-    # A fleet-shaped machine manifest records [repoman].source as a git ref, not a
-    # path — no repo-root lock can be fingerprinted as THE machine lock then, so a
-    # stray repoman.lock still warns as an orphan.
+def test_fleet_shaped_machine_lock_does_not_warn_orphan(toolchain, tmp_path):
+    # 023-toolchain OVERLAY.md: repoman.lock is committed in its FLEET shape, so the
+    # recorded [repoman].source is a git ref on a machine with no overlay. The identity
+    # test must be the recorded synced_from path, not that inference — otherwise a fleet
+    # machine warns "orphan" against its own lock.
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
+    fleet = _GOOD_LOCK.replace('source = "path:/x"', 'source = "git+https://github.com/Bullish-Design/repoman@v0.7.1"')
+    (tmp_path / "repoman.lock").write_text(fleet)
+    toolchain.write(_synced_from(tmp_path / "repoman.lock") + fleet)
+    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
+    assert "lock:orphan" not in _names(result)
+
+
+def test_manifest_synced_from_another_lock_still_warns_orphan(toolchain, tmp_path):
+    # The venv was synced from somewhere else, so this repo-root repoman.lock really is
+    # an orphan — the presence of a synced_from field is not by itself an exemption.
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
     (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
-    fleet = _GOOD_LOCK.replace('source = "path:/x"', 'source = "git+https://github.com/Bullish-Design/repoman@v0.5.0"')
-    toolchain.write(fleet)
+    toolchain.write(_synced_from(tmp_path / "elsewhere.lock") + _GOOD_LOCK)
+    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
+    assert _names(result)["lock:orphan"].level == "warn"
+
+
+def test_manifest_without_synced_from_warns_orphan(toolchain, tmp_path):
+    # A pre-overlay manifest carries no [toolchain] table. Nothing records the identity,
+    # so the doctor cannot claim the repo-root lock is the machine lock.
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
+    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
+    toolchain.write(_GOOD_LOCK)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["lock:orphan"].level == "warn"
 

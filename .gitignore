@@ -232,3 +232,7 @@ __marimo__/
 !AGENTS.md
 !CLAUDE.md
 .testee
+
+# The machine lock overlay (023-toolchain OVERLAY.md). repoman.lock is committed in its
+# portable FLEET shape; this file names THIS machine's working trees and stays local.
+repoman.local.lock

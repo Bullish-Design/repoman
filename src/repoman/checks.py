@@ -572,23 +572,25 @@ def _is_machine_lock(repo_root: str, manifest: dict | None) -> bool:
 
     The repoman checkout itself keeps its machine manifest (the file `repoman-sync
     --machine` syncs from) at the repo root under the same filename a pre-project-12
-    consumer lock would use. The recorded toolchain manifest (inside the venv) pins
-    where it was synced from via its `[repoman]` source: a ``path:`` entry pointing at
-    this repo root means the file IS the machine lock. Anything else — no recorded
-    manifest, no `[repoman]` self entry, a fleet ``git+`` source, a different checkout —
-    still warns as an orphan.
+    consumer lock would use. The recorded toolchain manifest (inside the venv) names the
+    lock it was synced from as DATA, in ``[toolchain].synced_from``. That path pointing
+    at this repo root means the file IS the machine lock. Anything else — no recorded
+    manifest, no field, a different checkout — still warns as an orphan.
+
+    This reads a recorded fact instead of inferring one. The earlier test asked whether
+    ``[repoman].source`` was a ``path:`` resolving to the repo root; since repoman.lock
+    is committed in its fleet shape, that inference makes a fleet machine warn "orphan"
+    against its own lock (023-toolchain OVERLAY.md).
     """
 
     if manifest is None:
         return False
-    entry = manifest.get("repoman")
-    if not isinstance(entry, dict):
-        return False
-    source = entry.get("source")
-    if not isinstance(source, str) or not source.startswith("path:"):
+    toolchain = manifest.get("toolchain")
+    synced_from = toolchain.get("synced_from") if isinstance(toolchain, dict) else None
+    if not isinstance(synced_from, str) or not synced_from.strip():
         return False
     try:
-        return Path(source[len("path:") :]).resolve() == Path(repo_root).resolve()
+        return Path(synced_from).resolve() == (Path(repo_root) / "repoman.lock").resolve()
     except OSError:
         return False
 
