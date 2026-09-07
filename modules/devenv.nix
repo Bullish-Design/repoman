@@ -41,7 +41,12 @@ let
   # bin dir; there is no path to guess, so an unset variable must FAIL the task rather
   # than expand to "" and exec "/gitman" — a confident wrong answer. `:?` says so at the
   # point of use, which is the only place that knows which command was wanted.
-  storeBinExpr = "\${REPOMAN_TOOLCHAIN_BIN:?repoman: cliProvider is \"store\" but REPOMAN_TOOLCHAIN_BIN is unset - import vendomat's toolchain module}";
+  # The message is deliberately free of quotes and apostrophes. It is interpolated into a
+  # task exec INSIDE double quotes ("''${cfg.toolchainBin}"/copyroom status), so a `"` ends
+  # that string early and a `'` opens an unterminated one — the generated script then dies
+  # with `unexpected EOF while looking for matching`, naming neither the task nor the cause.
+  # An end-to-end fixture caught this; no grep-level test could.
+  storeBinExpr = "\${REPOMAN_TOOLCHAIN_BIN:?repoman: cliProvider is store but REPOMAN_TOOLCHAIN_BIN is unset - import the vendomat toolchain module}";
 
   cliBinExpr = if cfg.cliProvider == "store" then storeBinExpr else "${toolchainVenvExpr}/bin";
 in

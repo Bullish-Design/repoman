@@ -171,3 +171,23 @@ def test_consumer_venv_prepend_is_provider_independent():
     text = (MODULES / "devenv.nix").read_text()
     preamble = text.split("enterShell = ''")[1].split("+ lib.optionalString")[0]
     assert 'export PATH="${config.devenv.state}/venv/bin:$PATH"' in preamble
+
+
+def test_the_store_bin_expression_is_shell_safe():
+    # It is interpolated INSIDE double quotes in every manager task exec:
+    #     cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/copyroom status
+    # so a `"` in the `:?` message closes that string early and a `'` opens an
+    # unterminated one. The generated script then fails with `unexpected EOF while
+    # looking for matching` — naming neither the task nor the real cause.
+    #
+    # This shipped once. Only an end-to-end fixture caught it, because the expression
+    # is correct Nix and correct-looking text; it is only wrong once bash parses it.
+    text = (MODULES / "devenv.nix").read_text()
+    expr = re.search(r"storeBinExpr = \"(.*)\";", text)
+    assert expr is not None, "modules/devenv.nix must define storeBinExpr"
+    # UNESCAPE first. In a Nix "..." string, `\"` IS a double quote in the value — the
+    # buggy version spelled it exactly that way, so a check that skipped escaped quotes
+    # would have passed on the very bug it exists to catch.
+    message = expr.group(1).replace('\\"', '"')
+    assert '"' not in message, f"storeBinExpr contains a double quote: {message}"
+    assert "'" not in message, f"storeBinExpr contains an apostrophe: {message}"
