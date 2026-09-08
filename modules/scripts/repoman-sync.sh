@@ -60,8 +60,12 @@ bootstrap_hint() {
 # Which provider materialises the shared commands. Mirrors checks.cli_provider(): an unset
 # or empty value is the default, so an exported-but-empty variable cannot switch modes, and
 # an unknown value is a hard error rather than a silent fallback to the wrong place.
+#
+# THREE layers carry this default — modules/devenv.nix, checks.py and this script — and all
+# three must name the same one. It moved from venv to store in phase 4 of the
+# shared-command-closure migration (devman 023-toolchain), once the roster was complete.
 provider="${REPOMAN_CLI_PROVIDER:-}"
-[ -n "$provider" ] || provider=venv
+[ -n "$provider" ] || provider=store
 case "$provider" in
   venv|store) ;;
   *) echo "repoman-sync: unknown REPOMAN_CLI_PROVIDER: $provider (expected venv or store)" >&2; exit 2 ;;

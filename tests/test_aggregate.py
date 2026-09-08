@@ -43,6 +43,9 @@ def test_run_sub_prefers_the_binary_the_tasks_exec(tmp_path, monkeypatch):
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "bin" / "gitman").write_text("")
+    # A venv toolchain, so name the provider that reads one — the default is
+    # "store" since phase 4 (devman 023-toolchain).
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
     monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(toolchain))
     monkeypatch.setattr(agg.shutil, "which", lambda _c: "/somewhere/else/gitman")
     assert agg.resolve(REGISTRY["git"]) == str(toolchain / "bin" / "gitman")

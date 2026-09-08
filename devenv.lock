@@ -3,16 +3,16 @@
     "copyroom": {
       "flake": false,
       "locked": {
-        "lastModified": 1786504231,
-        "narHash": "sha256-oqVk99ASAkwl3j3peL6MtobL1V4W0jIyx0S32hh8MwA=",
-        "ref": "refs/tags/v0.7.4",
-        "rev": "5d6f807006b7cdc08d469707ffa3f88d3762e457",
-        "revCount": 57,
+        "lastModified": 1788890371,
+        "narHash": "sha256-29Cpq/w74XYgVoPIX1otM4rJgKTMokRftqkJ5TWWNJg=",
+        "ref": "refs/tags/v0.7.7",
+        "rev": "eeba42561724c1319f48c354751933b2893488e1",
+        "revCount": 73,
         "type": "git",
         "url": "https://github.com/Bullish-Design/copyroom"
       },
       "original": {
-        "ref": "refs/tags/v0.7.4",
+        "ref": "refs/tags/v0.7.7",
         "type": "git",
         "url": "https://github.com/Bullish-Design/copyroom"
       }
@@ -20,11 +20,11 @@
     "devenv": {
       "locked": {
         "dir": "src/modules",
-        "lastModified": 1788787757,
-        "narHash": "sha256-oC3BeM/aDJEMbBY5Ia1SrkAEp+ZxyGtSTAa5RiX346U=",
+        "lastModified": 1788819331,
+        "narHash": "sha256-PXClmncMTmWutJvFGrA6rKyvxWtUwaMUT615XrDHdB8=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "37ecc72f1167655457851514507281310b3b1c3a",
+        "rev": "190959a9a4bb52d4802f076a90c3c4e3aa2e6fa2",
         "type": "github"
       },
       "original": {
@@ -73,16 +73,16 @@
     "docman_2": {
       "flake": false,
       "locked": {
-        "lastModified": 1788800621,
-        "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
-        "ref": "refs/tags/v0.2.0",
-        "rev": "be02887bef46136a8d91ab9e95355b39061bf153",
-        "revCount": 19,
+        "lastModified": 1788890093,
+        "narHash": "sha256-35iLQo6w3kuap4hEXWbdRjjYxU75tK1UF1fj4ckJ8Sg=",
+        "ref": "refs/tags/v0.2.1",
+        "rev": "0bf9116ae2a000f81f537df8e2ded0a2f1033964",
+        "revCount": 21,
         "type": "git",
         "url": "https://github.com/Bullish-Design/docman"
       },
       "original": {
-        "ref": "refs/tags/v0.2.0",
+        "ref": "refs/tags/v0.2.1",
         "type": "git",
         "url": "https://github.com/Bullish-Design/docman"
       }
@@ -106,16 +106,16 @@
     "gitman": {
       "flake": false,
       "locked": {
-        "lastModified": 1788789918,
-        "narHash": "sha256-W/0dAXgmRuQ0eD4O9Gefn0lsQ7Bz43lrniI8jOefmM0=",
-        "ref": "refs/tags/v0.6.1",
-        "rev": "a0df153b91c1ebed9347feda66b49cc1a4a08f68",
-        "revCount": 100,
+        "lastModified": 1788890211,
+        "narHash": "sha256-WFqLJbDGv3jGkjonXSQQkjuL4XYZd5vqNhD0tFSCh2s=",
+        "ref": "refs/tags/v0.6.2",
+        "rev": "9babc9a202547a0cfd6957e47b22205b85e0895f",
+        "revCount": 106,
         "type": "git",
         "url": "https://github.com/Bullish-Design/gitman"
       },
       "original": {
-        "ref": "refs/tags/v0.6.1",
+        "ref": "refs/tags/v0.6.2",
         "type": "git",
         "url": "https://github.com/Bullish-Design/gitman"
       }
@@ -308,6 +308,53 @@
         "url": "https://github.com/Bullish-Design/Pyjutsu"
       }
     },
+    "pyproject-build-systems": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "nixpkgs"
+        ],
+        "pyproject-nix": [
+          "vendomat",
+          "pyproject-nix"
+        ],
+        "uv2nix": "uv2nix"
+      },
+      "locked": {
+        "lastModified": 1788149501,
+        "narHash": "sha256-XKJP4KvhawV3pyVfraX3sflz05Rp7KP74gRt6QqKjNE=",
+        "owner": "pyproject-nix",
+        "repo": "build-system-pkgs",
+        "rev": "150839ac67b5a34db56a55e8f6b7099a4e7878ab",
+        "type": "github"
+      },
+      "original": {
+        "owner": "pyproject-nix",
+        "repo": "build-system-pkgs",
+        "type": "github"
+      }
+    },
+    "pyproject-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788394333,
+        "narHash": "sha256-xYOP0Xym1eVGUaHFx+eJEaycFGoiCbst3fZf0xFHP78=",
+        "owner": "nix-community",
+        "repo": "pyproject.nix",
+        "rev": "6a8a7881d75b6f98967e7b8069f4ead331384301",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "pyproject.nix",
+        "type": "github"
+      }
+    },
     "repoman": {
       "flake": false,
       "locked": {
@@ -323,16 +370,16 @@
     "repoman_2": {
       "flake": false,
       "locked": {
-        "lastModified": 1788812838,
-        "narHash": "sha256-vczEDIJJohm5N1mzuFiq2HBq0ObKHGWXNdwFq2ya/TY=",
-        "ref": "refs/tags/v0.7.3",
-        "rev": "d9542d8d8bfee6b5e6f3af5ab4b70bacded9a8c1",
-        "revCount": 145,
+        "lastModified": 1788823452,
+        "narHash": "sha256-G9ke+XOt5uK6gweQca1ARnF+8WCfpiwHA9Zaal3DGYg=",
+        "ref": "refs/tags/v0.7.5",
+        "rev": "cd34bfd4845d6dde310d3a263816c86cad977a9f",
+        "revCount": 154,
         "type": "git",
         "url": "https://github.com/Bullish-Design/repoman"
       },
       "original": {
-        "ref": "refs/tags/v0.7.3",
+        "ref": "refs/tags/v0.7.5",
         "type": "git",
         "url": "https://github.com/Bullish-Design/repoman"
       }
@@ -368,6 +415,75 @@
         "url": "https://github.com/Bullish-Design/shellij"
       }
     },
+    "templateer": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788888086,
+        "narHash": "sha256-lL+/QOmIJI5PXb3Pn6JTuerFregmsORMXy8OhBFC8Fc=",
+        "ref": "refs/tags/v0.4.1",
+        "rev": "73afed43ecdee99027cc687e1599861322dab6a9",
+        "revCount": 46,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/templateer_v2"
+      },
+      "original": {
+        "ref": "refs/tags/v0.4.1",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/templateer_v2"
+      }
+    },
+    "uv2nix": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "pyproject-build-systems",
+          "nixpkgs"
+        ],
+        "pyproject-nix": [
+          "vendomat",
+          "pyproject-build-systems",
+          "pyproject-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788001239,
+        "narHash": "sha256-AELmsXPI546MhbC/ZXC7WRUkCz7d4rqKTHUmliIgPpI=",
+        "owner": "pyproject-nix",
+        "repo": "uv2nix",
+        "rev": "7f9c6b613d2e749e54854b1d60ab6a2192db889e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "pyproject-nix",
+        "repo": "uv2nix",
+        "type": "github"
+      }
+    },
+    "uv2nix_2": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "nixpkgs"
+        ],
+        "pyproject-nix": [
+          "vendomat",
+          "pyproject-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788001239,
+        "narHash": "sha256-AELmsXPI546MhbC/ZXC7WRUkCz7d4rqKTHUmliIgPpI=",
+        "owner": "adisbladis",
+        "repo": "uv2nix",
+        "rev": "7f9c6b613d2e749e54854b1d60ab6a2192db889e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "adisbladis",
+        "repo": "uv2nix",
+        "type": "github"
+      }
+    },
     "vendomat": {
       "inputs": {
         "copyroom": "copyroom",
@@ -375,21 +491,19 @@
         "gitman": "gitman",
         "nixpkgs": "nixpkgs_5",
         "pyjutsu": "pyjutsu",
-        "repoman": "repoman_2"
+        "pyproject-build-systems": "pyproject-build-systems",
+        "pyproject-nix": "pyproject-nix",
+        "repoman": "repoman_2",
+        "templateer": "templateer",
+        "uv2nix": "uv2nix_2"
       },
       "locked": {
-        "lastModified": 1788813579,
-        "narHash": "sha256-mHFQ806wXNYlH6PjdJbIlyj8vYiBmehugjgSdSNqdTc=",
-        "ref": "refs/tags/v0.3.4",
-        "rev": "11319d3f21a7f187271d429791d91792ce36a383",
-        "revCount": 53,
         "type": "git",
-        "url": "https://github.com/Bullish-Design/vendomat"
+        "url": "file:///home/andrew/Documents/Projects/vendomat"
       },
       "original": {
-        "ref": "refs/tags/v0.3.4",
         "type": "git",
-        "url": "https://github.com/Bullish-Design/vendomat"
+        "url": "file:///home/andrew/Documents/Projects/vendomat"
       }
     }
   },

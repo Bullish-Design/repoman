@@ -89,19 +89,33 @@ in
     };
 
     # CONCEPT 03 4.1: ONE command-resolution contract, so the manager modules never
-    # name a venv directly. "venv" is today's behaviour and stays the default until
-    # every roster command is packaged (CONCEPT 03 6, phase 4). Vendomat's toolchain
-    # module is what sets this to "store"; nothing flips it implicitly.
+    # name a venv directly.
+    #
+    # The default was "venv" until phase 4 of the shared-command-closure migration
+    # (devman 023-toolchain), because a default of "store" would have migrated every
+    # consumer before the roster was complete. The roster is now complete: repoman,
+    # copyroom, docman, gitman and templateer all build as Nix applications at 3.13
+    # and compose into repoman-toolchain-core.
+    #
+    # It is "store" now because a default of "venv" left templateer with TWO owners
+    # — the shelf venv inside a devenv, the store closure outside it — and PATH order
+    # decided which one a command got. That ambiguity is the defect 023-toolchain
+    # exists to remove, so the seam must default to the single owner.
+    #
+    # "venv" stays first-class, and remains the answer for a consumer that has not
+    # imported vendomat's toolchain module: the store branch of `enterShell` below
+    # names it in the message it prints when REPOMAN_TOOLCHAIN_BIN is unset.
     cliProvider = lib.mkOption {
       type = lib.types.enum [ "venv" "store" ];
-      default = "venv";
+      default = "store";
       description = ''
         How the shared manager commands are materialised.
 
-        "venv"  — the system-wide toolchain venv, filled by `repoman-sync --machine`
-                  from the machine repoman.lock. The default; unchanged behaviour.
         "store" — a pinned Nix closure built by Vendomat, exported as
                   $REPOMAN_TOOLCHAIN_BIN. The consumer venv holds no manager at all.
+                  The default. Requires vendomat's toolchain module.
+        "venv"  — the system-wide toolchain venv, filled by `repoman-sync --machine`
+                  from the machine repoman.lock. The pre-phase-4 behaviour.
       '';
     };
 
