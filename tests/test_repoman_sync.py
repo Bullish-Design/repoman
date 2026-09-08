@@ -64,6 +64,7 @@ def _run(
     lock_env=None,
     overlay_body=None,
     overlay_env=None,
+    provider="venv",
 ):
     """Run the script against ``lock_body``; returns the CompletedProcess.
 
@@ -87,6 +88,12 @@ def _run(
     env["PATH"] = f"{tmp_path / 'bin'}{os.pathsep}{env['PATH']}"
     env["DEVENV_ROOT"] = str(tmp_path)
     env["REPOMAN_MANAGERS"] = managers
+    # This helper wires a VENV toolchain, so it names the provider that reads one.
+    # The script's default is "store" since phase 4 (devman 023-toolchain); pass
+    # provider=None to exercise the unset case.
+    env.pop("REPOMAN_CLI_PROVIDER", None)
+    if provider is not None:
+        env["REPOMAN_CLI_PROVIDER"] = provider
     env["REPOMAN_TOOLCHAIN_VENV"] = toolchain_venv
     env.pop("UV_FIND_LINKS", None)
     if find_links is not None:
@@ -698,8 +705,15 @@ def test_unknown_provider_is_a_hard_error(tmp_path):
     assert "unknown REPOMAN_CLI_PROVIDER" in result.stderr
 
 
-def test_empty_provider_is_the_venv_default(tmp_path):
-    # An exported-but-empty variable must not switch modes. Mirrors checks.cli_provider().
-    result = _run(tmp_path, None, mode="consumer")
-    # The venv provider runs: it looks for the shared toolchain venv, which is absent here.
-    assert "shared toolchain venv missing" in result.stderr
+def test_unset_provider_is_the_store_default(tmp_path):
+    # An unset variable takes the default, which is "store" since phase 4
+    # (devman 023-toolchain). Mirrors checks.cli_provider() and modules/devenv.nix.
+    result = _run(tmp_path, None, mode="consumer", provider=None)
+    # The store provider runs: it needs REPOMAN_TOOLCHAIN_BIN, which is absent here.
+    assert "REPOMAN_TOOLCHAIN_BIN is unset" in result.stderr
+
+
+def test_empty_provider_is_the_same_default(tmp_path):
+    # An exported-but-EMPTY variable must not switch modes; it takes the default too.
+    result = _run(tmp_path, None, mode="consumer", provider="")
+    assert "REPOMAN_TOOLCHAIN_BIN is unset" in result.stderr

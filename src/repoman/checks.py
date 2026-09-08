@@ -147,14 +147,18 @@ def consumer_venv_bin() -> Path | None:
 #: orthogonal to ``Manager.install``, which says WHICH venv owns a manager;
 #: the provider says HOW that owner's commands come to exist.
 #:
-#: ``"venv"``  — today: one uv-built venv, ``repoman-sync --machine`` fills it
-#:               from ``repoman.lock``. The default, and unchanged behaviour.
 #: ``"store"`` — Vendomat Face D: the commands are a Nix closure and the venv
-#:               holds no manager at all. Not implemented yet; declared here so
-#:               call sites route through one seam instead of growing a second
-#:               one later.
+#:               holds no manager at all. The default since phase 4 of the
+#:               shared-command-closure migration (devman 023-toolchain).
+#: ``"venv"``  — one uv-built venv, ``repoman-sync --machine`` fills it from
+#:               ``repoman.lock``. The pre-phase-4 behaviour, still first-class.
+#:
+#: This default MUST equal ``modules/devenv.nix``'s ``repoman.cliProvider``
+#: default. Inside a devenv the nix layer exports ``REPOMAN_CLI_PROVIDER`` and
+#: this value never applies; outside one it decides alone, and a doctor that
+#: resolved a different binary from the tasks is the failure the seam removes.
 CLI_PROVIDERS = ("venv", "store")
-_DEFAULT_CLI_PROVIDER = "venv"
+_DEFAULT_CLI_PROVIDER = "store"
 
 
 def cli_provider() -> str:

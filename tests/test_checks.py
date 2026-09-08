@@ -54,6 +54,9 @@ def toolchain(tmp_path, monkeypatch):
     bin_dir.mkdir(parents=True)
     for command in _TOOLCHAIN_COMMANDS:
         (bin_dir / command).write_text("")
+    # This fixture materialises a VENV toolchain, so it names the provider that
+    # reads one. The default is "store" since phase 4 (devman 023-toolchain).
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
     monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
     monkeypatch.delenv("DEVENV_STATE", raising=False)
     monkeypatch.delenv("DEVENV_ROOT", raising=False)
@@ -837,25 +840,32 @@ def test_unreadable_sub_skill_warns_instead_of_raising(toolchain, tmp_path):
     assert row.level == "warn" and "unreadable" in row.detail
 
 
-# --- CLI provider seam (Vendomat Face D, phase 0) --------------------------
+# --- CLI provider seam (Vendomat Face D, phase 4) --------------------------
 #
-# These pin CURRENT behaviour. Face D changes how the shared toolchain's
-# commands are materialised, and the whole point of the seam is that the
-# default path through it must not move while that work happens.
+# These pin CURRENT behaviour. The seam shipped in phase 0 with "venv" as its
+# default, so no consumer moved while the roster was being packaged. The roster
+# is complete now, so the default is "store" (devman 023-toolchain phase 5).
+#
+# A test that means VENV BEHAVIOUR now says so with the environment variable.
+# Only the two tests below still read the default, and reading it is their job.
 
 
-def test_cli_provider_defaults_to_venv(monkeypatch):
+def test_cli_provider_defaults_to_store(monkeypatch):
+    # Must equal `repoman.cliProvider`'s default in modules/devenv.nix. Inside a
+    # devenv the nix layer exports the variable and this never applies; outside
+    # one it decides alone, and the two layers disagreeing is the failure mode
+    # the seam exists to remove.
     monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
-    assert checks.cli_provider() == "venv"
+    assert checks.cli_provider() == "store"
 
 
 def test_cli_provider_empty_is_the_default(monkeypatch):
     """An exported-but-empty variable must not silently switch modes."""
 
     monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "")
-    assert checks.cli_provider() == "venv"
+    assert checks.cli_provider() == "store"
     monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "   ")
-    assert checks.cli_provider() == "venv"
+    assert checks.cli_provider() == "store"
 
 
 def test_cli_provider_unknown_value_raises(monkeypatch):
@@ -867,15 +877,15 @@ def test_cli_provider_unknown_value_raises(monkeypatch):
 
 
 def test_toolchain_bin_under_venv_provider(tmp_path, monkeypatch):
-    monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
     monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "tc"))
     assert checks.toolchain_bin() == tmp_path / "tc" / "bin"
 
 
 def test_manager_binary_unchanged_by_the_seam(tmp_path, monkeypatch):
-    """The default provider resolves exactly where it did before the seam."""
+    """The venv provider resolves exactly where it did before the seam."""
 
-    monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
+    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
     monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "tc"))
     for manager in REGISTRY.values():
         if manager.install != "toolchain":

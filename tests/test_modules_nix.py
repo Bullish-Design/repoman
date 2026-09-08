@@ -107,16 +107,21 @@ def test_repoman_dev_shell_declares_testee_for_the_test_manager():
 # ------------------------------------------------- the cliProvider seam (CONCEPT 03 §4.1)
 
 
-def test_cli_provider_option_exists_and_defaults_to_venv():
-    # Phase 0 of the shared-command-closure migration: the seam ships FIRST, with the
-    # current behaviour as its default. A default of "store" would migrate every
-    # consumer the moment they update the module.
+def test_cli_provider_option_exists_and_defaults_to_store():
+    # Phase 4 of the shared-command-closure migration (devman 023-toolchain). The seam
+    # shipped in phase 0 with "venv" as its default, so no consumer moved before the
+    # roster was complete. The roster is complete now — repoman, copyroom, docman,
+    # gitman and templateer all build — so the default names the single owner.
+    #
+    # A default of "venv" is what gave templateer two owners: the shelf venv inside a
+    # devenv, the store closure outside it, with PATH order deciding. Both values stay
+    # in the enum; only the default moves.
     text = (MODULES / "devenv.nix").read_text()
     option = re.search(r"cliProvider = lib\.mkOption \{(.*?)\n    \};", text, re.DOTALL)
     assert option is not None, "modules/devenv.nix must declare repoman.cliProvider"
     body = option.group(1)
     assert 'lib.types.enum [ "venv" "store" ]' in body
-    assert 'default = "venv"' in body
+    assert 'default = "store"' in body
 
 
 def test_toolchain_bin_resolves_through_the_provider():
