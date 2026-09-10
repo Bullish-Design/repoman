@@ -56,18 +56,12 @@
     "docman": {
       "flake": false,
       "locked": {
-        "lastModified": 1788800621,
-        "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
-        "ref": "refs/tags/v0.2.0",
-        "rev": "be02887bef46136a8d91ab9e95355b39061bf153",
-        "revCount": 19,
         "type": "git",
-        "url": "https://github.com/Bullish-Design/docman"
+        "url": "file:///home/andrew/Documents/Projects/docman"
       },
       "original": {
-        "ref": "refs/tags/v0.2.0",
         "type": "git",
-        "url": "https://github.com/Bullish-Design/docman"
+        "url": "file:///home/andrew/Documents/Projects/docman"
       }
     },
     "docman_2": {
@@ -401,18 +395,12 @@
     "shellij": {
       "flake": false,
       "locked": {
-        "lastModified": 1788713516,
-        "narHash": "sha256-S0mudp5L8TGsCZE7+tCZotmAavsPPsm9+bdnBNIM9m4=",
-        "ref": "refs/tags/v0.3.0",
-        "rev": "2b28ce8408190c02380dca30cc67bea38f098a71",
-        "revCount": 43,
         "type": "git",
-        "url": "https://github.com/Bullish-Design/shellij"
+        "url": "file:///home/andrew/Documents/Projects/shellij"
       },
       "original": {
-        "ref": "refs/tags/v0.3.0",
         "type": "git",
-        "url": "https://github.com/Bullish-Design/shellij"
+        "url": "file:///home/andrew/Documents/Projects/shellij"
       }
     },
     "templateer": {
@@ -498,6 +486,7 @@
         "uv2nix": "uv2nix_2"
       },
       "locked": {
+        "ref": "refs/heads/main",
         "type": "git",
         "url": "file:///home/andrew/Documents/Projects/vendomat"
       },

@@ -7,7 +7,12 @@
 
 ## What this project is
 
-_One paragraph: what it does, who uses it, what it is not._
+RepoMan is the devenv meta-module and router generator for repositories that use
+the *man family. It wires the four lifecycle phases — `copy`, `git`, `test`, and
+`doc` — and gives agents one generated front door. The roster stays four: devman,
+vendomat, and shellij belong to the plane, Nix layer, and terminal, not to the
+lifecycle roster. RepoMan writes exactly one file, the router; copyroom ships or
+the genome converges every other skill.
 
 ## Python baseline
 

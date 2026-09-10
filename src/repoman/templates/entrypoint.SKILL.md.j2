@@ -25,7 +25,9 @@ Never invoke pytest / ruff / git / copier directly — go through the manager (o
 {% for r in rows -%}
 | {{ r.when }} | {{ r.key }} | `{{ r.skill }}` | `{{ r.command }}` |
 {% endfor %}
+{% if rows %}
 For domain detail, open that manager's own skill under `{{ skills_dir }}/`.
+{% endif %}
 
 ## Laws
 

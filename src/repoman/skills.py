@@ -2,9 +2,9 @@
 
 Pass-through means each manager keeps its own skill. RepoMan adds ONE generated
 entrypoint skill above them — the single "start here" that owns the lifecycle order
-and routes to each manager's own skill. It is rendered from the enabled roster, so
-it only ever names installed managers (no dangling routes). Single source of truth:
-the same manager list the nix module and CLI read.
+and routes to each manager's own skill. The header reflects the enabled roster; the
+routing table names only manager skills that are present on disk. Single source of
+truth: the same manager list the nix module and CLI read.
 """
 
 from __future__ import annotations
@@ -61,16 +61,24 @@ def _ordered(managers: list[Manager]) -> list[Manager]:
     )
 
 
-def render_entrypoint(managers: list[Manager], skills_dir: str) -> str:
+def render_entrypoint(
+    managers: list[Manager],
+    skills_dir: str,
+    repo_root: str,
+    *,
+    skills_root: Path | None = None,
+) -> str:
     """Render the entrypoint skill markdown for the enabled managers."""
 
     ordered = _ordered(managers)
+    skills_root = skills_root or resolve_skills_dir(skills_dir, repo_root)
+    present = [m for m in ordered if (skills_root / m.skill / "SKILL.md").is_file()]
     env = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
     template = env.from_string(_TEMPLATE.read_text(encoding="utf-8"))
     return template.render(
         managers=" ".join(m.key for m in ordered),
         spine=build_spine({m.key for m in ordered}),
-        rows=[{"key": m.key, "command": m.command, "skill": m.skill, "when": m.route_when} for m in ordered],
+        rows=[{"key": m.key, "command": m.command, "skill": m.skill, "when": m.route_when} for m in present],
         skills_dir=skills_dir,
     )
 
@@ -84,7 +92,7 @@ def install_entrypoint(managers: list[Manager], skills_dir: str, repo_root: str)
 
     dest = resolve_skills_dir(skills_dir, repo_root) / "repoman" / "SKILL.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    content = render_entrypoint(managers, skills_dir)
+    content = render_entrypoint(managers, skills_dir, repo_root, skills_root=dest.parent.parent)
     tmp = dest.with_name(dest.name + ".tmp")
     try:
         tmp.write_text(content, encoding="utf-8")

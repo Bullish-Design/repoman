@@ -35,7 +35,8 @@ They share a contract:
 - **A `0/1/2/3` exit-code contract**: ok / domain-decision-needed / infra-config / invalid-usage.
 - **Distributed as a devenv module**, imported via `devenv.yaml`.
 
-The gap: eight instances of one pattern, **no conductor**. RepoMan is the conductor.
+The four lifecycle managers share the family pattern; shellij is a family member
+outside the roster. RepoMan is the conductor.
 
 ---
 

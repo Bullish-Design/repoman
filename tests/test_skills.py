@@ -12,8 +12,12 @@ def test_change_step_always_present():
     assert "change" in build_spine(set())
 
 
-def test_render_only_names_enabled_managers():
-    out = render_entrypoint([REGISTRY["copy"], REGISTRY["test"]], ".claude/skills")
+def test_render_only_names_enabled_managers(tmp_path):
+    for key in ("copy", "test"):
+        skill = tmp_path / ".claude/skills" / REGISTRY[key].skill / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_text(f"---\nname: {key}\n---\n")
+    out = render_entrypoint([REGISTRY["copy"], REGISTRY["test"]], ".claude/skills", str(tmp_path))
     assert "copy test" in out  # managers line
     assert "copyroom" in out and "testee" in out
     assert "gitman" not in out  # not enabled → not routed
@@ -27,11 +31,15 @@ def test_install_writes_to_skills_dir(tmp_path):
     assert dest.read_text().startswith("---\nname: repoman")
 
 
-def test_routing_table_follows_the_lifecycle_spine_not_the_env_order():
+def test_routing_table_follows_the_lifecycle_spine_not_the_env_order(tmp_path):
     # The spine above the table is canonical; the table under it must not reorder
     # itself just because REPOMAN_MANAGERS was written in a different order.
     roster = [REGISTRY["git"], REGISTRY["copy"], REGISTRY["test"]]
-    out = render_entrypoint(roster, ".agents/skills")
+    for key in ("copy", "git", "test"):
+        skill = tmp_path / ".agents/skills" / REGISTRY[key].skill / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_text(f"---\nname: {key}\n---\n")
+    out = render_entrypoint(roster, ".agents/skills", str(tmp_path))
     rows = [line for line in out.splitlines() if line.startswith("| ") and "`" in line]
     assert [r.split("|")[2].strip() for r in rows] == ["copy", "test", "git"]
     assert "scaffold → change → verify → save" in out
@@ -45,11 +53,32 @@ def test_install_is_atomic_and_leaves_no_temp_file(tmp_path):
 
 
 def test_install_overwrites_cleanly_on_reinstall(tmp_path):
+    skill = tmp_path / ".agents/skills/testee/SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: testee\n---\n")
     install_entrypoint([REGISTRY["copy"], REGISTRY["test"]], ".agents/skills", str(tmp_path))
     dest = install_entrypoint([REGISTRY["test"]], ".agents/skills", str(tmp_path))
     text = dest.read_text()
     assert "copyroom" not in text  # no leftovers from the wider roster
     assert "testee" in text
+
+
+def test_render_filters_routes_to_skills_present_on_disk(tmp_path):
+    skill = tmp_path / ".agents/skills/testee/SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: testee\n---\n")
+    out = render_entrypoint([REGISTRY["copy"], REGISTRY["test"]], ".agents/skills", str(tmp_path))
+    assert "**copy test**" in out
+    assert "| test |" in out
+    assert "| copy |" not in out
+    assert "For domain detail" in out
+
+
+def test_render_omits_footer_when_no_manager_skill_is_present(tmp_path):
+    out = render_entrypoint([REGISTRY["copy"]], ".agents/skills", str(tmp_path))
+    assert "**copy**" in out
+    assert "| copy |" not in out
+    assert "For domain detail" not in out
 
 
 def test_resolve_skills_dir_rejects_escapes(tmp_path):
