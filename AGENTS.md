@@ -26,15 +26,18 @@ forward and **cannot** load on 3.12 — measured:
 ```bash
 devenv shell                     # enter the pinned environment
 repoman-sync                     # verify toolchain + install agent skills
+devenv tasks run -v base:check   # repoman:lint — must be green before a PR
+devenv tasks run -v base:test    # repoman:test
 ```
-
-_Add the build / test / lint commands, and the gate that must be green before a
-PR._
 
 ## Where things live
 
-_The two or three directories a newcomer actually needs. Deeper detail belongs in
-`docs/`, not here._
+- `src/` — the RepoMan Python package: the router generator and the four
+  lifecycle phases.
+- `modules/` — the devenv meta-module repositories link in.
+- `tests/` — the test suite `base:test` runs.
+
+Deeper detail belongs in `docs/`, not here.
 
 ## The standing configuration
 
