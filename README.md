@@ -146,8 +146,18 @@ repoman doctor --self-only   # just RepoMan's own wiring
 repoman doctor --json   # context verdict + self-check rows as JSON (exit repeats the exit code)
 repoman status          # each manager's status side by side
 repoman install-skills  # regenerate the entrypoint (router) skill
+repoman devman status   # inspect the repository's Devman manifest migration
+repoman devman migrate  # propose a reviewable manifest migration
+repoman devman migrate --apply  # write only .devman/project.toml
 repoman --version
 ```
+
+`repoman devman migrate` belongs to RepoMan because it changes one repository.
+It derives `project` and ordered `groups` from that repository's tracked
+`devenv.nix`. The default is a proposal. `--apply` writes only the new
+`.devman/project.toml`; it never updates the machine plane, edits `devenv.nix`,
+or commits the result. Review and commit the file through the repository's
+normal GitMan lane.
 
 Exit codes follow the family contract: `0` ok · `1` a domain decision is needed ·
 `2` infra/config · `3` invalid usage. `repoman doctor` returns the worst of its own

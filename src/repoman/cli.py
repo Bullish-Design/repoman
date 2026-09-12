@@ -25,6 +25,7 @@ from .checks import (
     self_check_exit,
 )
 from .devman.check import skill_ownership_checks
+from .devman.migrate import MigrationError, apply_migration, inspect_migration
 from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
 from .skills import SkillsDirError, install_entrypoint
 
@@ -32,6 +33,11 @@ app = typer.Typer(
     help="RepoMan - the single agentic front door to a devenv.sh repo's lifecycle.",
     no_args_is_help=True,
 )
+devman_app = typer.Typer(
+    help="Migrate one repository into the machine Devman contract.",
+    no_args_is_help=True,
+)
+app.add_typer(devman_app, name="devman")
 
 #: Exit code for "the conductor itself is broken" under the shared 0/1/2/3 contract.
 #: Notably NOT 1 — that means "a domain decision is needed", which is what a caller
@@ -280,6 +286,50 @@ def install_skills() -> None:
         typer.echo(f"repoman: {exc}", err=True)
         raise typer.Exit(code=3) from exc  # 3 = invalid usage
     typer.echo(f"repoman: wrote entrypoint skill → {dest}")
+
+
+@devman_app.command("status")
+def devman_status(
+    repo_root: str | None = typer.Option(None, "--repo-root", help="repository to inspect")
+) -> None:
+    """Report whether this repository has the stable Devman manifest."""
+
+    try:
+        result = inspect_migration(Path(repo_root or _repo_root()))
+    except MigrationError as exc:
+        typer.echo(f"repoman devman status: {exc}", err=True)
+        raise typer.Exit(code=_INFRA) from exc
+    typer.echo(f"repoman devman: {result.state} — {result.path}")
+    typer.echo(result.content, nl=False)
+    if result.state == "needed":
+        raise typer.Exit(code=1)
+
+
+@devman_app.command("migrate")
+def devman_migrate(
+    repo_root: str | None = typer.Option(None, "--repo-root", help="repository to migrate"),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Write the manifest; the caller reviews and commits it separately.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Replace a different existing manifest after reviewing the proposal.",
+    ),
+) -> None:
+    """Propose or apply a reviewable manifest migration for this repository."""
+
+    try:
+        root = Path(repo_root or _repo_root())
+        result = apply_migration(root, force=force) if apply else inspect_migration(root)
+    except MigrationError as exc:
+        typer.echo(f"repoman devman migrate: {exc}", err=True)
+        raise typer.Exit(code=_INFRA) from exc
+    action = result.state if apply else f"proposal ({result.state})"
+    typer.echo(f"repoman devman migrate: {action} — {result.path}")
+    typer.echo(result.content, nl=False)
 
 
 def main() -> None:
