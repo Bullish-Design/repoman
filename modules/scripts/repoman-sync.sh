@@ -14,7 +14,7 @@
 #
 #   repoman-sync              Consumer mode. Installs NO packages: the consumer venv belongs to
 #                             `uv sync` alone. Verifies the shared toolchain is present, warns
-#                             about orphan per-repo locks, then installs agent skills + devman docs.
+#                             about orphan per-repo locks, then generates the lifecycle router skill.
 #
 # Consumer mode has two providers, chosen by REPOMAN_CLI_PROVIDER (repoman.cliProvider):
 #
@@ -118,7 +118,7 @@ MANIFEST
   # Run the binary just verified, not whatever `repoman` PATH resolves: a consumer venv
   # holding a stale pre-migration repoman would otherwise shadow it.
   "$toolchain_bin/repoman" install-skills
-  echo "repoman-sync: done (skills + docs; toolchain is a pinned Nix closure)."
+  echo "repoman-sync: done (router skill; toolchain is a pinned Nix closure)."
   exit 0
 fi
 
@@ -166,7 +166,7 @@ PY
   # a consumer venv holding a stale pre-migration repoman would otherwise shadow it,
   # and we'd have checked one copy while running another.
   "$toolchain_venv/bin/repoman" install-skills
-  echo "repoman-sync: done (skills + docs; toolchain is machine-level)."
+  echo "repoman-sync: done (router skill; toolchain is machine-level)."
   exit 0
 fi
 

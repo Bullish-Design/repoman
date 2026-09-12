@@ -165,9 +165,9 @@ in
     env.REPOMAN_MANAGERS = lib.concatStringsSep " " cfg.managers;
     env.REPOMAN_SKILLS_DIR = cfg.skillsDir;
 
-    # Verify the shared toolchain venv, then install this repo's agent skills + devman docs.
+    # Verify the shared toolchain, then generate this repo's lifecycle router skill.
     scripts.repoman-sync = {
-      description = "Verify the shared toolchain venv, then install this repo's agent skills + devman docs.";
+      description = "Verify the shared toolchain, then generate this repo's lifecycle router skill.";
       exec = ''exec ${pkgs.bash}/bin/bash ${./scripts/repoman-sync.sh} "$@"'';
     };
 

@@ -108,8 +108,8 @@ convention (see the decision doc `docs/AGENT-FILES.md`): skills live under
 
 `repoman doctor` lints *ownership*, not static copies: it classifies every skill
 under `.agents/skills/` as tool-shipped / genome-or-overlay and warns when a
-canonical copyroom skill is missing (`skill:tool-shipped`). The old
-`.devman-source` manifest is retired.
+canonical copyroom skill is missing (`skill:tool-shipped`). No static-copy
+manifest is generated.
 
 ## Open questions
 

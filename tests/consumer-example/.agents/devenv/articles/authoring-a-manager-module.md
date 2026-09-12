@@ -50,7 +50,8 @@ Surface the manager's actions as `scripts` (plain) or `tasks` (ordered) — see
 RepoMan discovers managers via `env.REPOMAN_MANAGERS` and installs skills under
 `env.REPOMAN_SKILLS_DIR`. A new manager exports its own env/wiring the same way, and ships a
 `SKILL.md` that **defers cross-phase ordering to the `repoman` skill** (the `docs/SKILLS.md`
-contract). devman's own assets follow this exact discipline.
+contract). Shared devenv-literacy content follows the same domain boundary and is converged
+from the genome; it is not a RepoMan manager.
 
 ## 5. Pin it
 

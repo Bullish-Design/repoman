@@ -9,10 +9,11 @@
 
 RepoMan is the devenv meta-module and router generator for repositories that use
 the *man family. It wires the four lifecycle phases — `copy`, `git`, `test`, and
-`doc` — and gives agents one generated front door. The roster stays four: devman,
-vendomat, and shellij belong to the plane, Nix layer, and terminal, not to the
-lifecycle roster. RepoMan writes exactly one file, the router; copyroom ships or
-the genome converges every other skill.
+`doc` — and gives agents one generated front door. The lifecycle roster stays
+four: `copy`, `git`, `test`, and `doc`. Devman, vendomat, and shellij belong to
+the automation plane, Nix layer, and terminal respectively; they are not
+lifecycle managers. RepoMan writes exactly one file, the router; copyroom ships
+or the genome converges every other skill.
 
 ## Python baseline
 
@@ -25,7 +26,7 @@ forward and **cannot** load on 3.12 — measured:
 
 ```bash
 devenv shell                     # enter the pinned environment
-repoman-sync                     # verify toolchain + install agent skills
+repoman-sync                     # verify toolchain + generate the router skill
 devenv tasks run -v base:check   # repoman:lint — must be green before a PR
 devenv tasks run -v base:test    # repoman:test
 ```

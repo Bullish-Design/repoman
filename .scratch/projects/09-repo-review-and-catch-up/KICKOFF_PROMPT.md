@@ -2,6 +2,11 @@ You are picking up **repoman** — the per-repo agentic lifecycle conductor for 
 `*man` family — in a fresh session. You are working from the repo root:
 `/home/andrew/Documents/Projects/repoman`.
 
+> **Historical prompt.** The state snapshot below predates the 2026-08
+> agent-files migration. In particular, the old static devman subsystem was
+> superseded; use `docs/AGENT-FILES.md` and `src/repoman/devman/check.py` for
+> the current ownership boundary.
+
 WHAT REPOMAN IS
 repoman is one devenv import that turns a repo into a fully-managed agentic repo:
 a **nix meta-module** (`modules/devenv.nix` + `modules/managers/*.nix`) that wires
@@ -16,8 +21,8 @@ CURRENT STATE (verified, v0.3.0, 66 tests passing)
   `modules/devenv.nix`, each with a `modules/managers/*.nix` module.
 - **nix-provisioning bridge: LANDED** (all 6 phases; native toolchains + approach-B
   `provisioned:<key>` warnings via `REPOMAN_PROVISIONED_*` in `src/repoman/checks.py`).
-- **devman subsystem: BUILT** (`src/repoman/devman/*`, wired into `cli.py`) — though
-  its packet `.scratch/projects/02-devman-module/` still says "brainstorm".
+- **devman boundary: settled** — the old static asset installer was removed;
+  shared literacy is genome-owned and the automation plane is a separate input/module.
 - **Entrypoint router skill: BUILT** (`src/repoman/skills.py`, `docs/SKILLS.md`).
 - **OUTSTANDING:** `foreman` (project 08) — a locked-but-uncoded 8th manager;
   lifecycle pass-throughs (`verify`/`save`/`release`) — described, not built.

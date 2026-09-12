@@ -1,8 +1,9 @@
-"""Tests for repoman's skill-ownership lint (devman/check.py).
+"""Tests for RepoMan's agent-surface ownership lint.
 
-devman's static assets moved into the genome (template-py); RepoMan's only
-remaining devman role is classifying what's under `.agents/skills/` by
-ownership: tool-shipped (copyroom canonical set) vs genome-or-overlay.
+The sibling devman automation plane and the genome's shared devenv-literacy
+content are managed outside RepoMan. This namespace only classifies what is
+under `.agents/skills/` by ownership: tool-shipped (copyroom canonical set) vs
+genome-or-overlay.
 """
 
 from __future__ import annotations

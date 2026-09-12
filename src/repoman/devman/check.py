@@ -1,9 +1,9 @@
 """Skill-ownership lint for `repoman doctor` — tool-shipped / genome / overlay.
 
-devman's static assets (the devenv-literacy skills, docs export, articles)
-moved into the **genome** (template-py): they ship with the template and are
-converged by ``copyroom update``, so RepoMan no longer installs static copies
-and the ``.devman-source`` manifest is retired.
+The sibling ``devman`` automation plane is configured separately through its
+devenv module. Shared devenv-literacy content belongs to the **genome**
+(template-py): it ships with the template and is converged by
+``copyroom update``. RepoMan does not install static devman copies.
 
 ``repoman doctor`` now lints what is actually present under ``<skills_dir>/``
 and classifies each skill by **ownership**:

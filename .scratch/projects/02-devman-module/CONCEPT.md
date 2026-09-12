@@ -1,4 +1,11 @@
-# devman — Concept (brainstorm)
+# devman — Superseded concept (brainstorm)
+
+> **SUPERSEDED (2026-08-03).** This concept describes the former static
+> devenv-literacy asset integration inside RepoMan. That implementation was
+> removed in `59d4b11`: the shared literacy content belongs to the `template-py`
+> genome, while the actual devman automation plane is a separate input/module.
+> Keep this file for design history; do not use its install paths or wiring as
+> current guidance.
 
 ## One-line
 

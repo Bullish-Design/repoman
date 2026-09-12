@@ -1,5 +1,11 @@
 # IMPLEMENTATION — 12-toolchain-single-instance
 
+> **Historical note (2026-08-03).** References below to RepoMan installing
+> `devman` literacy assets describe the pre-agent-files implementation. That
+> integration was superseded by `59d4b11`: the genome owns shared literacy
+> content, RepoMan generates only its router, and the devman automation plane
+> is configured separately.
+
 **Reads:** `CONCEPT.md` (this dir) — the blueprint · `../11-uv-sync-prunes-toolchain/FINDINGS.md` §6–§7 — the analysis
 **Produces:** a system-wide shared toolchain venv for the pure-CLI managers + testee as a per-repo uv dev dep.
 **Status of this file:** implementation guide. Every step below is written to be executed in order; each

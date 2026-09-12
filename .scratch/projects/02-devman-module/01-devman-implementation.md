@@ -1,4 +1,9 @@
-# Guide — Implement devman as a repoman subsystem
+# Guide — [superseded] implement devman as a RepoMan subsystem
+
+> **SUPERSEDED (2026-08-03).** This guide is an archival record of the former
+> static asset installer. It is not a current implementation plan: the literacy
+> content is genome-owned, and the actual devman automation plane is configured
+> separately from RepoMan.
 
 **Goal:** ship the devenv-literacy layer (skills + docs export + articles) from inside the
 repoman repo, installed by `repoman-sync` and lint-checked by `repoman doctor` — no separate

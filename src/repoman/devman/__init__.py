@@ -1,13 +1,12 @@
-"""devman — the devenv-literacy layer.
+"""Agent-surface ownership checks retained under RepoMan's ``devman`` namespace.
 
-devman is a knowledge product, not a doer: agent **skills**, a distilled **docs
-export**, and **articles/recipes** whose single job is to make agents operate
-``devenv.sh``-managed repos correctly. It has no CLI of its own.
+The actual ``devman`` automation plane is a separate input and devenv module.
+RepoMan does not ship its CLI or install its static assets. Shared devenv
+literacy content lives in the **genome** (template-py, under
+``template/.agents/``) and is converged by ``copyroom update``.
 
-The assets themselves now live in the **genome** (template-py, under
-``template/.agents/``): they ship with the template and are converged by
-``copyroom update``. RepoMan's only remaining devman role is linting skill
-*ownership* — see :func:`repoman.devman.check.skill_ownership_checks`.
+This namespace contains only RepoMan's ownership lint for the shared agent
+surface — see :func:`repoman.devman.check.skill_ownership_checks`.
 """
 
 from __future__ import annotations

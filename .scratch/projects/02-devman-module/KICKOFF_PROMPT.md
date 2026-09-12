@@ -1,4 +1,8 @@
-# Kickoff prompt — implement the devman subsystem
+# Kickoff prompt — [superseded] implement the devman subsystem
+
+> **SUPERSEDED (2026-08-03).** Do not run this prompt. It targets the former
+> static asset integration that RepoMan no longer owns. The current boundary is
+> documented in `docs/AGENT-FILES.md` and `src/repoman/devman/check.py`.
 
 Paste the block below into a fresh session in the `repoman` repo to begin.
 

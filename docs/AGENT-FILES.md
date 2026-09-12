@@ -30,7 +30,7 @@ copyroom's `agent.skills_dir`; each manager's own self-adoption).
   canonical set (`copyroom`, `copyroom-adopt`, `copyroom-template-edit`) lives in
   copyroom's package assets and is materialized by `copyroom agent-files export`
   (one source of truth; copyroom's `doctor` checks currency). Tool skills are
-  installed by the tool's own sync (repoman-sync today).
+  materialized by their owning tool's export or sync command.
 - **Genome / fleet** — skills and docs that belong to the family rather than one
   tool (the devenv-literacy layer: `devenv-*` skills, the `.agents/devenv/` docs
   export) live in the **genome** (template-py, under `template/.agents/`) and are

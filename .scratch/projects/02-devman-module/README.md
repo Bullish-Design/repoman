@@ -1,15 +1,14 @@
-# 02 — devman module (devenv-literacy layer)
+# 02 — devman module (superseded devenv-literacy integration)
 
-> **STATUS: SHIPPED (2026-06-20).** The brainstorm below is now real code in this
-> repo: `src/repoman/devman/` (`assets.py`, `check.py`, `install.py`) + package-data
-> under `devman/assets/{skills,docs,articles}/`, wired into the conductor at
-> `src/repoman/cli.py` (`devman_checks` in `doctor`, `install_devman` in
-> `install-skills`) and covered by `tests/test_devman.py`. The docs export lands in
-> `REPOMAN_DOCS_DIR` (`modules/devenv.nix`). Open questions from the brainstorm
-> were settled: name kept as **`devman`**; self-check strictness is **warn**
-> (non-fatal, `checks.py`); the richer hook surface was deferred as YAGNI.
+> **STATUS: SUPERSEDED (2026-08-03).** The static asset integration described below
+> shipped in `8f95b90`, then was intentionally removed by `59d4b11` when the family
+> adopted the agent-files ownership convention. Shared devenv literacy now lives in
+> the `template-py` genome and is converged by `copyroom update`; RepoMan generates
+> only its lifecycle router and performs ownership linting. The actual devman
+> automation plane remains a separate devenv input/module.
 >
-> This section below is kept as the historical record of the concept.
+> The material below is retained as a historical record. Its paths, commands, and
+> conclusions describe the former implementation and are not an execution plan.
 
 Brainstorm + plan for **devman**: a subsystem **inside the repoman repo** (not a separate
 repo) that ships the devenv-literacy assets — agent **skills**, a distilled **documentation

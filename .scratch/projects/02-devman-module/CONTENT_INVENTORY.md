@@ -1,4 +1,9 @@
-# devman — Content inventory (brainstorm)
+# devman — Superseded content inventory (brainstorm)
+
+> **SUPERSEDED (2026-08-03).** This inventory describes assets that were once
+> bundled by RepoMan. The shared devenv-literacy content now belongs to the
+> `template-py` genome and is converged by `copyroom update`; RepoMan does not
+> install this asset tree. Keep the inventory as historical context only.
 
 The concrete first set of assets devman would ship (as a repoman subsystem), across its three
 layers. Each is grounded in a real, observed agent failure mode in devenv-managed repos. A
