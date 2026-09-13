@@ -32,6 +32,39 @@ let
 
   allManagers = [ "copy" "git" "test" "doc" ];
 
+  # Project 039: the roster moves from a devenv.nix option to a tracked repo
+  # manifest, `.repoman/project.toml`, modelled on
+  # `devman/src/devman_contract/manifest.py`'s discipline — fixed field set,
+  # unknown fields rejected outright, values checked against the same grammar
+  # the option already enforces. Absent file means the default roster, so 15 of
+  # 23 known consumers need no file at all.
+  manifestPath = "${config.devenv.root}/.repoman/project.toml";
+  manifestKnownFields = [ "schema" "managers" ];
+  rawManifest =
+    if builtins.pathExists manifestPath then
+      builtins.fromTOML (builtins.readFile manifestPath)
+    else
+      { };
+  manifestUnknownFields =
+    builtins.filter (name: !(builtins.elem name manifestKnownFields))
+      (builtins.attrNames rawManifest);
+  manifest =
+    if rawManifest == { } then
+      { }
+    else if manifestUnknownFields != [ ] then
+      throw ("repoman: " + manifestPath + " has unknown field(s): "
+        + lib.concatStringsSep ", " manifestUnknownFields)
+    else if !(rawManifest ? schema) then
+      throw ("repoman: " + manifestPath + " is missing the required field 'schema'")
+    else if rawManifest.schema != 1 then
+      throw ("repoman: " + manifestPath + " field 'schema' has unsupported value "
+        + toString rawManifest.schema + "; supported schema is 1")
+    else if rawManifest ? managers && !(builtins.all (m: builtins.elem m allManagers) rawManifest.managers) then
+      throw ("repoman: " + manifestPath + " field 'managers' names an unknown manager;"
+        + " valid values are " + lib.concatStringsSep ", " allManagers)
+    else
+      rawManifest;
+
   # D1: a SHELL expression, expanded by bash at task/shell time — never a nix-eval-time
   # absolute path. Reading $HOME via the nix builtin would bake one user's path into the
   # eval result and yield "/repoman/venv" wherever HOME is unset (CI, nix-daemon).
@@ -80,11 +113,23 @@ in
 
     managers = lib.mkOption {
       type = lib.types.listOf (lib.types.enum allManagers);
-      default = [ "copy" "git" "test" ];
+      # Project 039: the default resolves from `.repoman/project.toml` when that
+      # file is present, else the pre-039 default roster. An explicit
+      # `repoman.managers = [...]` in a consumer's devenv.nix still wins over
+      # both — the option is kept as a compatibility fallback for one release,
+      # exactly as `devman/modules/link.nix` keeps `config.devman.project` as a
+      # fallback ahead of its own manifest. Do not remove this fallback because
+      # one canary repository migrates cleanly.
+      default =
+        if manifest ? managers then manifest.managers else [ "copy" "git" "test" ];
       description = ''
         Which managers' tasks/skills are WIRED into this repo. Does NOT gate
         toolchain installation (project 12): the shared toolchain venv holds every
         pure-CLI manager regardless; testee is a per-repo uv dev dependency.
+
+        Resolved from `.repoman/project.toml` (`managers = [...]`) when that file
+        exists; this option is the pre-039 compatibility fallback, consulted only
+        when the manifest is absent or when a consumer sets this explicitly.
       '';
     };
 
@@ -119,12 +164,6 @@ in
       '';
     };
 
-    template = lib.mkOption {
-      type = lib.types.str;
-      default = "gh:Bullish-Design/template-py";
-      description = "copyroom's canonical template (the repo 'genome') for new/converge.";
-    };
-
     # D1: shell expression for the system-wide toolchain venv's bin dir. Manager modules
     # interpolate it into task execs: "''${cfg.toolchainBin}"/gitman status. Honours
     # $REPOMAN_TOOLCHAIN_VENV, else $XDG_DATA_HOME/repoman/venv, else ~/.local/share/repoman/venv.
@@ -146,24 +185,16 @@ in
       '';
     };
 
-    installSkills = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Generate the aggregated RepoMan entrypoint (router) skill at sync time.";
-    };
-
-    skillsDir = lib.mkOption {
-      type = lib.types.str;
-      default = ".agents/skills";
-      description = "Directory (relative to repo root) where agent skills are installed (the family's agent-files convention).";
-    };
   };
 
   config = lib.mkIf cfg.enable {
     # Tell the `repoman` CLI which managers are wired in (it reads this to know
     # which sub-doctors / sub-status commands to aggregate) and where skills go.
     env.REPOMAN_MANAGERS = lib.concatStringsSep " " cfg.managers;
-    env.REPOMAN_SKILLS_DIR = cfg.skillsDir;
+    # Project 039: `skillsDir` and `installSkills` were dead option surface — the
+    # 2026-09-15 measurement found zero of twenty-three importing repositories set
+    # either. The path itself stays the family's agent-files convention.
+    env.REPOMAN_SKILLS_DIR = ".agents/skills";
 
     # Verify the shared toolchain, then generate this repo's lifecycle router skill.
     scripts.repoman-sync = {

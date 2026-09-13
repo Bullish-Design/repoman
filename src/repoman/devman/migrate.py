@@ -25,12 +25,7 @@ class ManifestProposal:
 
     def to_toml(self) -> str:
         groups = ", ".join(f'"{group}"' for group in self.groups)
-        return (
-            "schema = 1\n"
-            f'project = "{self.project}"\n'
-            f"groups = [{groups}]\n"
-            'policy = "stable"\n'
-        )
+        return f'schema = 1\nproject = "{self.project}"\ngroups = [{groups}]\npolicy = "stable"\n'
 
 
 @dataclass(frozen=True)
@@ -55,9 +50,7 @@ def derive_manifest(root: Path) -> ManifestProposal:
 
     blocks = re.findall(r"\bdevman\s*=\s*\{(?P<body>.*?)\n\s*\};", text, re.DOTALL)
     if len(blocks) != 1:
-        raise MigrationError(
-            f"expected one devman option block in {source}, found {len(blocks)}"
-        )
+        raise MigrationError(f"expected one devman option block in {source}, found {len(blocks)}")
     body = blocks[0]
     enabled = re.search(r"\benable\s*=\s*(true|false)\s*;", body)
     if enabled is None or enabled.group(1) != "true":
@@ -106,9 +99,7 @@ def apply_migration(root: Path, *, force: bool = False) -> MigrationResult:
     if result.state == "current":
         return result
     if result.state == "different" and not force:
-        raise MigrationError(
-            f"{result.path} differs from the derived options; review it or pass --force"
-        )
+        raise MigrationError(f"{result.path} differs from the derived options; review it or pass --force")
     result.path.parent.mkdir(parents=True, exist_ok=True)
     temporary = result.path.with_name(f".{result.path.name}.new")
     temporary.write_text(result.content)
@@ -125,6 +116,4 @@ def _single_string(body: str, key: str, source: Path) -> str:
 
 def _validate_reference(kind: str, value: str, source: Path) -> None:
     if not _REFERENCE.fullmatch(value):
-        raise MigrationError(
-            f"{source}: devman {kind} {value!r} is not a portable identity"
-        )
+        raise MigrationError(f"{source}: devman {kind} {value!r} is not a portable identity")

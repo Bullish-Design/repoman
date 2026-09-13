@@ -289,9 +289,7 @@ def install_skills() -> None:
 
 
 @devman_app.command("status")
-def devman_status(
-    repo_root: str | None = typer.Option(None, "--repo-root", help="repository to inspect")
-) -> None:
+def devman_status(repo_root: str | None = typer.Option(None, "--repo-root", help="repository to inspect")) -> None:
     """Report whether this repository has the stable Devman manifest."""
 
     try:
