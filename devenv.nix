@@ -90,14 +90,6 @@
     echo ""
   '';
 
-  # devman — the automation plane (CONCEPT.md §5). `base` alone: this repository
-  # ships no scheduled work and writes none of its own files.
-  devman = {
-    enable = true;
-    project = "repoman";
-    groups = [ "base" ];
-  };
-
   # Re-lock devenv.lock from the FLEET shape: the published tags in devenv.yaml,
   # not the machine-local urls in devenv.local.yaml.
   #
