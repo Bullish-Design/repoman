@@ -119,12 +119,16 @@
           # devman's link-adapter install check: assert the packaged module file
           # exists, that `builtins.functionArgs (import …)` evaluates, and that
           # `evalModules` against a fixture with no manifest resolves the default
-          # roster `[ "copy" "git" "test" ]`.
-          defaultRosterConsumer = (lib.evalModules {
+          # roster `[ "copy" "git" "test" ]`. A second fixture carries a manifest
+          # and proves `managers` and `cliProvider` both resolve from it.
+          # Evaluate the real module against a fixture repository root. A root with
+          # no `.repoman/project.toml` proves the defaults; a root that carries one
+          # proves the manifest path independently of any consumer's devenv.nix.
+          consumerAt = root: (lib.evalModules {
             specialArgs = { inherit pkgs; inputs = { }; };
             modules = [
               ({ lib, ... }: {
-                options.devenv.root = lib.mkOption { type = lib.types.str; default = toString (self + "/.flake-check-fixture-no-manifest"); };
+                options.devenv.root = lib.mkOption { type = lib.types.str; default = toString root; };
                 options.devenv.state = lib.mkOption { type = lib.types.str; default = "/state"; };
                 options.packages = lib.mkOption { type = lib.types.listOf lib.types.unspecified; default = [ ]; };
                 options.tasks = lib.mkOption { type = lib.types.attrsOf lib.types.unspecified; default = { }; };
@@ -137,7 +141,10 @@
               (self + "/modules/devenv.nix")
               { repoman.enable = true; }
             ];
-          }).config.repoman.managers;
+          }).config.repoman;
+
+          noManifestConsumer = consumerAt (self + "/.flake-check-fixture-no-manifest");
+          venvManifestConsumer = consumerAt (self + "/tests/fixtures/manifest-venv");
         in
         {
           gitman-rust-gate =
@@ -152,7 +159,13 @@
             in
             assert builtins.pathExists moduleFile;
             assert functionArgs ? config;
-            assert defaultRosterConsumer == [ "copy" "git" "test" ];
+            # No manifest: both settings fall back to their pre-039 defaults.
+            assert noManifestConsumer.managers == [ "copy" "git" "test" ];
+            assert noManifestConsumer.cliProvider == "store";
+            # A manifest carrying the opt-out resolves it without any devenv.nix
+            # option, which is what lets the compatibility fallback be withdrawn.
+            assert venvManifestConsumer.cliProvider == "venv";
+            assert venvManifestConsumer.managers == [ "copy" "git" ];
             pkgs.runCommand "repoman-consumer-module-check" { } "touch $out";
         });
 

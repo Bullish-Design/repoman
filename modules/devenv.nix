@@ -32,6 +32,10 @@ let
 
   allManagers = [ "copy" "git" "test" "doc" ];
 
+  # One list, shared by the manifest validator and the `cliProvider` option's enum,
+  # so a value the manifest accepts is never one the option then rejects.
+  allCliProviders = [ "venv" "store" ];
+
   # Project 039: the roster moves from a devenv.nix option to a tracked repo
   # manifest, `.repoman/project.toml`, modelled on
   # `devman/src/devman_contract/manifest.py`'s discipline — fixed field set,
@@ -39,7 +43,7 @@ let
   # the option already enforces. Absent file means the default roster, so 15 of
   # 23 known consumers need no file at all.
   manifestPath = "${config.devenv.root}/.repoman/project.toml";
-  manifestKnownFields = [ "schema" "managers" ];
+  manifestKnownFields = [ "schema" "managers" "cliProvider" ];
   rawManifest =
     if builtins.pathExists manifestPath then
       builtins.fromTOML (builtins.readFile manifestPath)
@@ -62,6 +66,10 @@ let
     else if rawManifest ? managers && !(builtins.all (m: builtins.elem m allManagers) rawManifest.managers) then
       throw ("repoman: " + manifestPath + " field 'managers' names an unknown manager;"
         + " valid values are " + lib.concatStringsSep ", " allManagers)
+    else if rawManifest ? cliProvider && !(builtins.elem rawManifest.cliProvider allCliProviders) then
+      throw ("repoman: " + manifestPath + " field 'cliProvider' has unsupported value "
+        + toString rawManifest.cliProvider + "; valid values are "
+        + lib.concatStringsSep ", " allCliProviders)
     else
       rawManifest;
 
@@ -162,11 +170,26 @@ in
     # "venv" stays first-class, and remains the answer for a consumer that has not
     # imported vendomat's toolchain module: the store branch of `enterShell` below
     # names it in the message it prints when REPOMAN_TOOLCHAIN_BIN is unset.
+    # Project 039: like `managers`, this resolves from `.repoman/project.toml` first.
+    # It MUST have a manifest home. The ten repositories that decline the store
+    # toolchain carry the opt-out as `repoman.cliProvider = "venv"` in devenv.nix,
+    # and that option is the compatibility fallback slated for removal. Without a
+    # manifest field, removing the fallback would flip all ten onto a store closure
+    # they never imported. Measured 2026-09-16: llgym, nix-secrets and
+    # image-gen-pipeline already sit in that exact state — `enterShell` warns, the
+    # roster still populates, and NO manager command is on PATH. A repo reports
+    # healthy while every tool it names is missing, so the fallback needs a
+    # successor before it is withdrawn, not after.
     cliProvider = lib.mkOption {
-      type = lib.types.enum [ "venv" "store" ];
-      default = "store";
+      type = lib.types.enum allCliProviders;
+      default =
+        if manifest ? cliProvider then manifest.cliProvider else "store";
       description = ''
         How the shared manager commands are materialised.
+
+        Resolved from `.repoman/project.toml` (`cliProvider = "venv"`) when that
+        file sets it; this option is the pre-039 compatibility fallback, consulted
+        only when the manifest is absent or when a consumer sets this explicitly.
 
         "store" — a pinned Nix closure built by Vendomat, exported as
                   $REPOMAN_TOOLCHAIN_BIN. The consumer venv holds no manager at all.
