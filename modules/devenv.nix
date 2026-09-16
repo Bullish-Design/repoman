@@ -109,7 +109,19 @@ in
   ++ lib.optional (inputs ? shellij) (inputs.shellij + "/modules/devenv.nix");
 
   options.repoman = {
-    enable = lib.mkEnableOption "RepoMan: the agentic repo lifecycle conductor";
+    # Project 039: defaults to true, not `lib.mkEnableOption`'s usual false. Before
+    # 039 the module was ALWAYS imported (the per-repo devenv.yaml pin), so an
+    # explicit `repoman.enable = true;` was the real signal and false let a repo
+    # opt out without removing the pin. Now the module is only present when a
+    # consumer's central devenv.local.nix imports it — that import IS the enable
+    # signal, the same presence-gated pattern shellij and docman already use.
+    # `repoman.enable = false;` still opts a repo out explicitly if it ever needs
+    # to keep the import (e.g. transitively, for shellij) without running repoman.
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "RepoMan: the agentic repo lifecycle conductor.";
+    };
 
     managers = lib.mkOption {
       type = lib.types.listOf (lib.types.enum allManagers);
