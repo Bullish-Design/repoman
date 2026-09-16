@@ -10,22 +10,12 @@
     jq
   ];
 
-  # Machine bootstrap (project 12): export UV_FIND_LINKS at vendomat's prebuilt pyjutsu
-  # wheelhouse so `repoman-sync --machine` can resolve the `wheel:pyjutsu` source in the
-  # machine repoman.lock. Consumers no longer need the vendomat input (the toolchain is
-  # system-wide); repoman's own devenv is the one place that must still resolve wheels.
-  vendor.enable = true;
-  vendor.libs = [ "pyjutsu" ];
-
-  # Face D, editable mode. Vendomat now delivers the shared command closure by default
-  # (vendomat v0.3.4), and this repo BUILDS one of the commands in it. Store mode would
-  # put a tagged `repoman` ahead of this checkout on PATH, so every edit here would be
-  # tested against the last release instead of the working tree. Editable mode delivers
-  # nothing and leaves `repoman.cliProvider` alone: the machine venv still resolves the
-  # other managers, and this tree resolves itself.
-  #
-  # Every tool in the roster needs this line in its own repo — copyroom, docman, gitman.
-  vendor.toolchain.mode = "editable";
+  # Project 039: the vendor settings moved to vendomat.toml -- `[vendor] enable`
+  # and `libs` for the pyjutsu wheelhouse bootstrap, and `[toolchain] mode =
+  # "editable"` so a tagged `repoman` never sits ahead of this checkout on PATH.
+  # The vendomat module now reaches this repository from the system profile, so
+  # those options no longer belong to an input declared here. The reasoning for
+  # each setting travelled with it, into the manifest.
 
   # Self-hosting (project 14 seam): this shell is a real managed repo with the full roster
   # wired — copy/git/test/doc — so the shared toolchain (copyroom, gitman, docman) is on

@@ -1,0 +1,30 @@
+# Vendomat project manifest.
+#
+# Project 039 moved these settings out of devenv.nix, which declared them
+# against the vendomat module this repository used to pin directly. The module
+# now arrives from the system profile and reads them here.
+
+[vendor]
+# Machine bootstrap (project 12): vendomat's module exports UV_FIND_LINKS at the
+# prebuilt pyjutsu wheelhouse, so `repoman-sync --machine` can resolve the
+# `wheel:pyjutsu` source in the machine repoman.lock. Consumers do not need this;
+# repoman's own devenv is the one place that must still resolve wheels.
+enable = true
+libs = ["pyjutsu"]
+
+[vendor.publish]
+# The publish face installs a pre-push git hook whenever a vendomat.toml exists,
+# because file presence is the opt-in. This repository releases through gitman
+# and had no such hook before this file existed, so the face is declined.
+enable = false
+
+[toolchain]
+# Face D, editable mode. Vendomat delivers the shared command closure by default,
+# and this repo BUILDS one of the commands in it. Store mode would put a tagged
+# `repoman` ahead of this checkout on PATH, so every edit here would be tested
+# against the last release instead of the working tree. Editable mode delivers
+# nothing and leaves `repoman.cliProvider` alone: the machine venv still resolves
+# the other managers, and this tree resolves itself.
+#
+# Every tool in the roster needs this in its own repo -- copyroom, docman, gitman.
+mode = "editable"
