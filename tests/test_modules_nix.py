@@ -116,12 +116,36 @@ def test_cli_provider_option_exists_and_defaults_to_store():
     # A default of "venv" is what gave templateer two owners: the shelf venv inside a
     # devenv, the store closure outside it, with PATH order deciding. Both values stay
     # in the enum; only the default moves.
+    #
+    # Project 039: the enum and the default both moved behind an indirection — the
+    # values into `allCliProviders`, shared with the manifest validator so the two
+    # can never disagree, and the default behind a `.repoman/project.toml` lookup.
+    # Both original guarantees still hold and are asserted below. The BEHAVIOUR is
+    # proved by `checks.repoman-consumer-module`, which evaluates the real module
+    # against two fixture roots; grep cannot follow the indirection.
     text = (MODULES / "devenv.nix").read_text()
+    assert 'allCliProviders = [ "venv" "store" ];' in text
     option = re.search(r"cliProvider = lib\.mkOption \{(.*?)\n    \};", text, re.DOTALL)
     assert option is not None, "modules/devenv.nix must declare repoman.cliProvider"
     body = option.group(1)
-    assert 'lib.types.enum [ "venv" "store" ]' in body
-    assert 'default = "store"' in body
+    assert "lib.types.enum allCliProviders" in body
+    # The manifest wins, and "store" stays the answer when no manifest sets it.
+    assert "manifest ? cliProvider" in body
+    assert 'else "store"' in body
+
+
+def test_the_manifest_can_carry_the_cli_provider_opt_out():
+    # Project 039: `repoman.cliProvider` is the compatibility fallback, and the ten
+    # repositories that decline the store toolchain hold their opt-out in it. The
+    # manifest MUST be able to carry that value BEFORE the fallback is withdrawn.
+    # Measured 2026-09-16: llgym, nix-secrets and image-gen-pipeline already run
+    # with cliProvider "store" and no toolchain — the shell warns, the roster still
+    # populates, and no manager command is on PATH. Withdrawing the fallback without
+    # this field reproduces that state in ten more repositories.
+    text = (MODULES / "devenv.nix").read_text()
+    assert 'manifestKnownFields = [ "schema" "managers" "cliProvider" ];' in text
+    # An unsupported value must fail loudly, not silently select a provider.
+    assert "field 'cliProvider' has unsupported value" in text
 
 
 def test_toolchain_bin_resolves_through_the_provider():
