@@ -42,19 +42,19 @@ source = "git+https://github.com/Bullish-Design/repoman@v0.7.5"
 package = "copyroom"
 source = "git+https://github.com/Bullish-Design/copyroom@v0.7.4"
 
-# v0.6.1, not the v0.6.0 the retired vendomat.toml named. gitman v0.6.0's
-# [tool.uv.sources] pins pyjutsu by URL at v0.20.0, which conflicts with the v0.21.1 URL
-# [managers.git-pyjutsu] names below — uv rejects two direct URLs for one package. Any
-# bump to the pyjutsu entry must move this pin to a gitman release built against it.
+# v0.8.0. gitman's [tool.uv.sources] pins pyjutsu by URL, and uv rejects two direct
+# URLs for one package — so this pin and the [managers.git-pyjutsu] URL below must always
+# name the same pyjutsu release. v0.8.0 pins pyjutsu v0.22.0, so both moved together.
+# Any future bump to either entry must move the other in the same change.
 [managers.git]
 package = "gitman"
-source = "git+https://github.com/Bullish-Design/gitman@v0.6.1"
+source = "git+https://github.com/Bullish-Design/gitman@v0.8.0"
 
 # gitman's native dep — not a manager. Resolved by the "<manager>-*" pseudo-entry rule.
 #
 # The published, relocated manylinux asset — the same URL gitman's own
 # [tool.uv.sources] names, and the one `direct_url.json` already records for the
-# installed wheel. As of pyjutsu 0.21.1 this URL and vendomat's wheelhouse name
+# installed wheel. As of pyjutsu 0.22.0 this URL and vendomat's wheelhouse name
 # the *same bytes*: vendomat performs the single hermetic build, stamps the
 # manylinux tag, strips the store RUNPATH, and uploads that exact store file
 # (devman 023-toolchain). The earlier note here — that the wheelhouse wheel
@@ -68,7 +68,7 @@ source = "git+https://github.com/Bullish-Design/gitman@v0.6.1"
 # P8).
 [managers.git-pyjutsu]
 package = "pyjutsu"
-source = "url:pyjutsu @ https://github.com/Bullish-Design/Pyjutsu/releases/download/v0.21.1/pyjutsu-0.21.1-cp313-abi3-manylinux_2_39_x86_64.whl"
+source = "url:pyjutsu @ https://github.com/Bullish-Design/Pyjutsu/releases/download/v0.22.0/pyjutsu-0.22.0-cp313-abi3-manylinux_2_39_x86_64.whl"
 
 # v0.2.0, not the v0.1.0 the retired vendomat.toml named. The v0.1.0 tag predates
 # docman becoming a Python package and carries no pyproject.toml, so uv refuses it.

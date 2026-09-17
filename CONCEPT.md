@@ -127,7 +127,7 @@ repoman doctor     # run every enabled manager's doctor; exit = worst sub-exit (
 repoman status     # gitman status + testee last-run + copyroom drift, side by side
 # optional lifecycle pass-throughs (sequence, gate on exit codes):
 repoman verify     # → testee
-repoman save -m    # → testee verify, then gitman save (gated on green)
+repoman save -m    # → testee verify, then gitman describe (gated on green)
 repoman release    # → testee ci → gitman release → docman
 ```
 
