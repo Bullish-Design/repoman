@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -184,6 +185,36 @@ def _main(
     ),
 ) -> None:
     """RepoMan - the single agentic front door to a devenv.sh repo's lifecycle."""
+
+
+def _passthrough(binary: str, subcommand: str, args: list[str]) -> int:
+    """Exec ``binary subcommand *args`` and return its exit code, verbatim.
+
+    RepoMan re-implements nothing: birth (``new``) and adoption (``adopt``) are
+    copyroom's own commands. This just spares the caller from having to know
+    that copyroom, not RepoMan, owns scaffolding — RepoMan is the front door.
+    """
+
+    try:
+        completed = subprocess.run([binary, subcommand, *args])
+    except FileNotFoundError as exc:
+        typer.echo(f"repoman: `{binary}` not found on PATH — is the toolchain venv active?", err=True)
+        raise typer.Exit(code=_INFRA) from exc
+    return completed.returncode
+
+
+@app.command("new", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def new(ctx: typer.Context) -> None:
+    """Birth a new repo from the genome — a transparent pass-through to `copyroom new`."""
+
+    raise typer.Exit(code=_passthrough("copyroom", "new", ctx.args))
+
+
+@app.command("adopt", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def adopt(ctx: typer.Context) -> None:
+    """Link an existing repo to a template — a transparent pass-through to `copyroom adopt`."""
+
+    raise typer.Exit(code=_passthrough("copyroom", "adopt", ctx.args))
 
 
 @app.command()

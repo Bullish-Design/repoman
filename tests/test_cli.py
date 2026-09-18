@@ -32,6 +32,47 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
     assert "bogus" not in result.stdout
 
 
+def test_new_passes_through_to_copyroom(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "repoman.cli.subprocess.run",
+        lambda argv, **kw: calls.append(argv) or type("R", (), {"returncode": 0})(),
+    )
+    result = runner.invoke(app, ["new", "gh:Bullish-Design/template-py", "/tmp/x", "--trust"])
+    assert result.exit_code == 0
+    assert calls == [["copyroom", "new", "gh:Bullish-Design/template-py", "/tmp/x", "--trust"]]
+
+
+def test_new_returns_copyroom_exit_code(monkeypatch):
+    monkeypatch.setattr(
+        "repoman.cli.subprocess.run",
+        lambda argv, **kw: type("R", (), {"returncode": 3})(),
+    )
+    result = runner.invoke(app, ["new", "gh:x/y", "/tmp/x"])
+    assert result.exit_code == 3
+
+
+def test_new_missing_copyroom_reports_infra_error(monkeypatch):
+    def _raise(argv, **kw):
+        raise FileNotFoundError
+
+    monkeypatch.setattr("repoman.cli.subprocess.run", _raise)
+    result = runner.invoke(app, ["new", "gh:x/y", "/tmp/x"])
+    assert result.exit_code == 2
+    assert "copyroom" in result.stdout or "copyroom" in (result.stderr or "")
+
+
+def test_adopt_passes_through_to_copyroom(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "repoman.cli.subprocess.run",
+        lambda argv, **kw: calls.append(argv) or type("R", (), {"returncode": 0})(),
+    )
+    result = runner.invoke(app, ["adopt", "gh:x/template-py", "--ref", "v1.0.0", "--write"])
+    assert result.exit_code == 0
+    assert calls == [["copyroom", "adopt", "gh:x/template-py", "--ref", "v1.0.0", "--write"]]
+
+
 #: Commands that live in the shared toolchain venv (testee is uv-declared, so it does not).
 _TOOLCHAIN_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
 

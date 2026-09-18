@@ -229,8 +229,10 @@ a slim conductor.
 
 - ~~**`repoman-sync` resolution**~~ — **decided:** single `repoman.lock` manifest
   (TOML), proven end to end. See `SPIKE.md`.
-- **`repoman new`** — fleet-less repo *birth* via copyroom: does it belong in v1, or
-  is adoption (`repoman adopt`) of existing repos the more valuable first move?
+- ~~**`repoman new`**~~ — **decided:** both shipped. `repoman new` and
+  `repoman adopt` are thin pass-throughs to `copyroom new`/`copyroom adopt`
+  (`src/repoman/cli.py`); RepoMan re-implements neither, it just spares the
+  caller from needing to know copyroom owns birth/adoption.
 - ~~**Skill merge narrative**~~ — **built:** generated entrypoint/router skill from the
   roster (`repoman install-skills`, run by `repoman-sync`). Design + verification in
   `docs/SKILLS.md`. Remaining: conflict-precedence table, installing sub-skills, and

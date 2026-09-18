@@ -15,7 +15,54 @@ code and one agent-facing front door.
 
 ---
 
-## Adding RepoMan to a repo
+## Bootstrapping a brand-new repo
+
+```bash
+repoman new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
+```
+
+`repoman new` is a transparent pass-through to `copyroom new`: RepoMan does not
+re-implement scaffolding, it just spares you from having to know that copyroom,
+not RepoMan, owns it. It generates the `devenv.yaml` input block and `devenv.nix`
+toggle below for you.
+
+```bash
+cd /path/to/new-repo && devenv shell && repoman-sync
+```
+
+That's the whole adoption step.
+
+## Adopting an existing repo
+
+Already have a repo and want RepoMan's lifecycle wiring instead of starting
+over? `repoman adopt` is the same kind of pass-through, to `copyroom adopt`:
+
+```bash
+cd /path/to/existing-repo && repoman adopt gh:Bullish-Design/template-py --ref v1.2.3 --answers answers.yaml --write
+```
+
+`adopt` is report-only unless you pass `--write`: without it, you get a
+reviewable drift patch under `.copyroom/adopt/` and nothing else. `--write`
+additionally records the link (`.copier-answers.yml`) but still does not place
+the template's files — that's a separate step, `copyroom layer add` (not
+wrapped by RepoMan; run it directly once the drift report looks right). See
+copyroom's own `copyroom-adopt` skill for the full adopt / layer add /
+templatize decision tree.
+
+Once the link is recorded and the files are in place, same as a new repo:
+
+```bash
+devenv shell && repoman-sync
+```
+
+`repoman doctor` confirms the wiring landed.
+
+## What `repoman new` / `repoman adopt` generate
+
+Both commands write the same two blocks. Pin a published tag, and fetch it
+with `git+https://` rather than the `github:` shorthand: the shorthand uses
+nix's builtin fetcher, which needs `access-tokens` and fails on a private
+repo, while the git fetcher uses your git credential helper.
 
 ```yaml
 # devenv.yaml
@@ -27,12 +74,6 @@ imports:
   - repoman
 ```
 
-Pin a published tag, and fetch it with `git+https://` rather than the `github:`
-shorthand: the shorthand uses nix's builtin fetcher, which needs `access-tokens`
-and fails on a private repo, while the git fetcher uses your git credential
-helper. `copyroom new` generates this block for you — see "Where the local paths
-go" below.
-
 ```nix
 # devenv.nix
 {
@@ -41,7 +82,21 @@ go" below.
 }
 ```
 
-`devenv shell`, then `repoman-sync`. That's the whole adoption step.
+See "Where the local paths go" below for developing against a local `*man`
+checkout instead of a published tag.
+
+## Re-syncing an existing RepoMan repo
+
+Pulled changes to an already-managed repo, or bumped a manager version?
+
+```bash
+devenv shell && repoman-sync && repoman doctor
+```
+
+`repoman-sync` regenerates the entrypoint (router) skill from the roster;
+`repoman doctor` confirms the wiring is still satisfied. A machine-level
+toolchain bump (a new `copyroom`/`gitman`/`docman`/`repoman` release) needs a
+separate, once-per-machine step — see "Bootstrapping a machine" below.
 
 ## Where the local paths go
 
@@ -140,6 +195,8 @@ REPOMAN_LOCAL_LOCK=/path/to/other.local.lock repoman-sync --machine   # a differ
 ## Commands
 
 ```bash
+repoman new              # birth a new repo from the genome — pass-through to `copyroom new`
+repoman adopt            # link an existing repo to a template — pass-through to `copyroom adopt`
 repoman managers        # what's wired into this repo
 repoman doctor          # preflight + every enabled manager's doctor
 repoman doctor --self-only   # just RepoMan's own wiring
@@ -158,6 +215,10 @@ It derives `project` and ordered `groups` from that repository's tracked
 `.devman/project.toml`; it never updates the machine plane, edits `devenv.nix`,
 or commits the result. Review and commit the file through the repository's
 normal GitMan lane.
+
+No further step registers the repo with devman: devman has no `register`
+command by design and auto-discovers `.devman/project.toml` lazily, wherever
+it next resolves this repo's identity.
 
 Exit codes follow the family contract: `0` ok · `1` a domain decision is needed ·
 `2` infra/config · `3` invalid usage. `repoman doctor` returns the worst of its own
@@ -216,7 +277,7 @@ PATH inside it. That makes this checkout the canonical **host** for bootstrappin
 repo — no need to hop into another repo's shell:
 
 ```bash
-cd <repoman checkout> && devenv shell -- copyroom new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
+cd <repoman checkout> && devenv shell -- repoman new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
 ```
 
 Design notes live in [`CONCEPT.md`](CONCEPT.md), the skill architecture in
