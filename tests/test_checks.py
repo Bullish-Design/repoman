@@ -785,9 +785,9 @@ def test_ownership_warns_when_nothing_installed(tmp_path):
 
 def test_ownership_ok_after_canonical_skills_present(tmp_path):
     skills = tmp_path / ".agents/skills"
-    from repoman.devman.check import CANONICAL_COPYROOM_SKILLS
+    from repoman.devman.check import EXPECTED_SKILLS
 
-    for name in CANONICAL_COPYROOM_SKILLS:
+    for name in EXPECTED_SKILLS:
         skill = skills / name
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")

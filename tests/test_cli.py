@@ -261,8 +261,8 @@ def test_install_skills_writes_entrypoint_only(monkeypatch, tmp_path):
     result = runner.invoke(app, ["install-skills"])
     assert result.exit_code == 0
     assert (tmp_path / ".agents/skills/repoman/SKILL.md").exists()
-    # The router is the ONLY skill RepoMan installs — manager skills are
-    # tool-shipped (copyroom agent-files export) or genome-shipped (copyroom update).
+    # The router is the ONLY skill RepoMan installs — manager skills are devman
+    # pool links and project-specific skills are real content in the central dir.
     assert not (tmp_path / ".agents/skills/devenv-run-commands").exists()
     assert not (tmp_path / ".agents/skills/.devman-source").exists()
 
@@ -275,17 +275,17 @@ def test_doctor_reports_skill_ownership(monkeypatch, tmp_path):
     assert result.exit_code == 0
 
 
-def test_doctor_ownership_ok_when_canonical_skills_present(monkeypatch, tmp_path):
+def test_doctor_ownership_ok_when_expected_skills_present(monkeypatch, tmp_path):
     _healthy_repo(tmp_path, monkeypatch, "copy test")
     skills = tmp_path / ".agents/skills"
-    from repoman.devman.check import CANONICAL_COPYROOM_SKILLS
+    from repoman.devman.check import EXPECTED_SKILLS
 
-    for name in CANONICAL_COPYROOM_SKILLS:
+    for name in EXPECTED_SKILLS:
         skill = skills / name
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
     result = runner.invoke(app, ["doctor", "--self-only"])
-    assert "skill:tool-shipped — canonical copyroom skills present" in result.stdout
+    assert "skill:tool-shipped — expected pool links present" in result.stdout
     assert result.exit_code == 0
 
 

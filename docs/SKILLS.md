@@ -90,26 +90,30 @@ can lint these in `repoman doctor`):
 - `repoman install-skills` (CLI) — renders + writes the router; called by
   `repoman-sync`. This is the **only** skill RepoMan installs.
 
-## Skill ownership (the agent-files convention)
+## Skill links (the central overlay)
 
-`install-skills` shrunk to the router because the family adopted the agent-files
-convention (see the decision doc `docs/AGENT-FILES.md`): skills live under
-`.agents/skills/` (default `skillsDir`), and each skill has one owner:
+`install-skills` writes the router only. The agent surface is composed in the
+central devman overlay at `~/.config/devman` (`.scratch/PLATFORM-INVESTIGATION.md`
+§3.3 R3; see also `docs/AGENT-FILES.md`): skills live in the shared pool
+`~/.config/devman/skills/`, and each project's central dir links the skills it
+should get:
 
-- **tool-shipped** — version-locked skills ship with their tool. CopyRoom's
-  canonical set (`copyroom`, `copyroom-adopt`, `copyroom-template-edit`) ships in
-  copyroom's package assets and is materialized by `copyroom agent-files export`;
-  copyroom's own `doctor` checks currency.
-- **genome / fleet** — the devenv-literacy skills + docs ship with the **genome**
-  (template-py, under `template/.agents/`) and are converged by `copyroom update`.
-- **overlay** — a repo's own additions/modifications; permanent divergence is
-  declared in `copyroom.project.yml` `agent.overlay`.
-- **repoman's router** — generated at sync time from the runtime manager roster.
+    ~/.config/devman/projects/<p>/agents/skills/<name> -> ../../../../skills/<name>
 
-`repoman doctor` lints *ownership*, not static copies: it classifies every skill
-under `.agents/skills/` as tool-shipped / genome-or-overlay and warns when a
-canonical copyroom skill is missing (`skill:tool-shipped`). No static-copy
-manifest is generated.
+Each entry has one writer:
+
+- **devman** — curates the pool, the per-project relative symlinks, and the
+  project-specific skills that stay real content in the same dir.
+- **repoman** — generates the router at sync time from the runtime manager roster.
+
+No repo tracks agent skills, and copyroom is not a writer.
+
+`repoman doctor` lints the *link set*, not static copies: `skill:tool-shipped`
+checks every expected link (the four manager skills the router needs, the
+copyroom canonical set, and the personal layer) and `skill:genome-overlay`
+reports the project-specific or overlay skills it cannot judge. A missing link is
+a warning, never a gate: the agent surface is developer guidance, not an input to
+evaluating a clone.
 
 ## Open questions
 

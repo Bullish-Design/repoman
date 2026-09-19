@@ -307,8 +307,8 @@ def install_skills() -> None:
     """Generate the entrypoint skill (the router) from the enabled roster.
 
     The router is the only skill RepoMan itself owns: manager sub-skills are
-    tool-shipped (copyroom's canonical set via `copyroom agent-files export`)
-    or genome-shipped (converged by `copyroom update`).
+    devman pool links (a relative symlink per skill in the project's central
+    dir), and any project-specific skill is real content in that same dir.
     """
 
     try:
