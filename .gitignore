@@ -53,6 +53,9 @@ coverage.xml
 cover/
 tests/test_output/
 
+# Testee verification artifacts
+.testee/
+
 # Translations
 *.mo
 *.pot
