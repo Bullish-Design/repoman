@@ -47,7 +47,7 @@ in
     # toolchain is absent its own doctor reports the gap.
     (lib.mkIf enabled {
       tasks = {
-        # docman lives in the SYSTEM-WIDE toolchain venv (project 12), resolved at runtime.
+        # docman lives in Vendomat's shared store closure, resolved at runtime.
         "repoman:docs:doctor".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/docman doctor'';
         "repoman:docs:build".exec  = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/docman build'';
       };

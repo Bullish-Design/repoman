@@ -8,7 +8,7 @@ dependencies = []
 # testee is the ONLY manager that runs INSIDE this codebase (its tools — pytest /
 # ruff / ty — import the app), so it is a declared per-repo uv dev dependency
 # (project 12). The other managers (repoman/gitman/copyroom/docman) come from the
-# system-wide toolchain venv and never appear here.
+# Vendomat's shared store closure and never appear here.
 dev = ["testee"]
 
 [tool.uv.sources]

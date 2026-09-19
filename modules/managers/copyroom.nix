@@ -21,7 +21,7 @@ in
     packages = [ pkgs.git pkgs.gnupatch ];
 
     tasks = {
-      # copyroom lives in the SYSTEM-WIDE toolchain venv (project 12), resolved at runtime.
+      # copyroom lives in Vendomat's shared store closure, resolved at runtime.
       "repoman:template:status".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/copyroom status'';
     };
   };

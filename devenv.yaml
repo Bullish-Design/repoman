@@ -14,11 +14,9 @@ inputs:
   # this file by devenv. Same rule as repoman.lock + repoman.local.lock: the
   # committed file says WHAT, the local overlay says WHERE.
 
-  # Machine-bootstrap only: vendomat's module exports UV_FIND_LINKS at the prebuilt
-  # pyjutsu wheelhouse, which `repoman-sync --machine` needs to resolve the wheel:
-  # source in the machine repoman.lock. Project 039: that module now arrives from
-  # the system profile through this repository's central devenv.local.nix, so there
-  # is no vendomat input here either. Its settings live in vendomat.toml.
+  # Vendomat's consumer module arrives from this repository's central devenv.local.nix.
+  # Its shared store closure supplies the pure-CLI managers through
+  # REPOMAN_TOOLCHAIN_BIN; its settings live in vendomat.toml.
 
   # Self-hosting (project 14 seam): repoman's OWN dev shell is a first-class managed
   # repo. Importing the meta-module from ./modules puts the whole manager suite on

@@ -288,7 +288,7 @@ def test_doctor_ownership_ok_when_expected_skills_present(monkeypatch, tmp_path)
 
 
 def test_empty_roster_is_not_the_default_roster(monkeypatch):
-    # `repoman.managers = [ ]` in nix exports REPOMAN_MANAGERS="". "Wire nothing" must
+    # An empty project manifest exports REPOMAN_MANAGERS="". "Wire nothing" must
     # not silently become the three core managers.
     monkeypatch.setenv("REPOMAN_MANAGERS", "")
     result = runner.invoke(app, ["managers"])

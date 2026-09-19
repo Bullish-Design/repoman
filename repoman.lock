@@ -1,9 +1,8 @@
-# repoman.lock — the MACHINE toolchain manifest (project 12).
+# repoman.lock — RepoMan's legacy self-hosting manifest.
 #
-# Pins the pure-CLI managers that live in the single system-wide toolchain venv
-# ($REPOMAN_TOOLCHAIN_VENV, default ~/.local/share/repoman/venv). `repoman-sync --machine`
-# reads this file and installs EVERY entry in ONE `uv pip install --upgrade` — the
-# consumer's `repoman.managers` roster gates wiring/skills, not installation.
+# Consumer repositories use Vendomat's shared store closure and do not read this file.
+# `repoman-sync` rejects it in consumers; RepoMan itself may retain it for compatibility
+# with its own source and release workflow.
 #
 # This file is a FLOOR, not the whole truth. Each manager's own metadata carries its real
 # requirements, and the sync resolves the lock and the managers together, so the stricter

@@ -29,10 +29,10 @@ dev = [
 
 [dependency-groups]
 # testee is the ONLY manager that runs inside this codebase (its tools — pytest / ruff /
-# ty — import the app), so it is a declared per-repo uv dev dependency (project 12), exactly
-# as the README tells consumers. Self-hosting the full roster in repoman's own devenv shell
-# (devenv.nix: repoman.managers = [copy git test doc]) requires it — otherwise `repoman
-# doctor` would flag uv:test and the repoman:test tasks would have no testee console script.
+# ty — import the app), so it is a declared per-repo uv dev dependency, exactly as the README
+# tells consumers. Self-hosting the full roster in repoman's own devenv shell requires it —
+# otherwise `repoman doctor` would flag uv:test and the repoman:test tasks would have no testee
+# console script.
 # testee needs Python >=3.13, which is why requires-python and the dev venv moved to
 # 3.13 (matching the rest of the family and the machine toolchain venv).
 dev = ["testee"]

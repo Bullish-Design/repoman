@@ -2,7 +2,7 @@
 #
 # Imported unconditionally by ../devenv.nix; activates only when "git" is in
 # the project manifest roster. gitman's native dep pyjutsu (jj-lib via PyO3) is normally vended as
-# a prebuilt wheel by vendomat (repoman.lock `source = "wheel:…"`), so the default path
+# a prebuilt wheel in Vendomat's shared store closure, so the default path
 # pulls ZERO Rust. The native toolchain (maturin + languages.rust) is an explicit opt-out:
 # set `repoman.nativeBuild = true` in pyjutsu's own repo, or any consumer with no vendomat
 # wheelhouse, to compile pyjutsu from source. When on, this is the proof that the
@@ -21,7 +21,7 @@ in
     description = ''
       Provision a Rust toolchain + maturin so pyjutsu's native extension is compiled
       in-repo. Leave false (default) when pyjutsu installs as a prebuilt wheel via
-      vendomat (repoman.lock `source = "wheel:…"`). Set true only in pyjutsu's OWN repo
+      Vendomat's store closure. Set true only in pyjutsu's OWN repo
       or a consumer with no vendomat wheelhouse, which must compile pyjutsu itself.
     '';
   };
@@ -32,7 +32,7 @@ in
       packages = [ pkgs.git ];
 
       tasks = {
-        # gitman lives in the SYSTEM-WIDE toolchain venv (project 12), resolved at runtime.
+        # gitman lives in Vendomat's shared store closure, resolved at runtime.
         # Not a bare `gitman`: the task exec must not depend on PATH state, so it uses the
         # toolchain bin shell expression directly (D1 — devenv tasks may not inherit the
         # shell's PATH prepend).

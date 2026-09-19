@@ -1,9 +1,5 @@
-# Flake-check fixture: a repository that declines the store toolchain.
-#
-# This is the shape the ten opt-out repositories take once the
-# `repoman.cliProvider` compatibility option is withdrawn. The check in
-# flake.nix evaluates the real module against this root and asserts both
-# fields resolve from here, with no devenv.nix option set.
+# Flake-check fixture: a repository that selects only its core managers.
+# The check in flake.nix evaluates the real module against this root and
+# asserts the roster resolves from the manifest, with no devenv.nix option set.
 schema = 1
 managers = ["copy", "git"]
-cliProvider = "venv"

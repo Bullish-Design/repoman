@@ -99,7 +99,7 @@
           pkgs = import nixpkgs { inherit system; };
           lib = pkgs.lib;
           rustEnabled = nativeBuild: (lib.evalModules {
-            specialArgs = { inherit pkgs; };
+            specialArgs = { inherit pkgs; repomanManagers = [ "git" ]; };
             modules = [
               ({ lib, ... }: {
                 options.languages.rust.enable = lib.mkOption { type = lib.types.bool; default = false; };
@@ -107,10 +107,9 @@
                 options.packages = lib.mkOption { type = lib.types.listOf lib.types.unspecified; default = [ ]; };
                 options.tasks = lib.mkOption { type = lib.types.attrsOf lib.types.unspecified; default = { }; };
                 options.repoman.enable = lib.mkEnableOption "repoman";
-                options.repoman.managers = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
               })
               ./modules/managers/gitman.nix
-              { repoman = { enable = true; managers = [ "git" ]; inherit nativeBuild; }; }
+              { repoman = { enable = true; inherit nativeBuild; }; }
             ];
           }).config.languages.rust.enable;
 
@@ -120,7 +119,7 @@
           # exists, that `builtins.functionArgs (import …)` evaluates, and that
           # `evalModules` against a fixture with no manifest resolves the default
           # roster `[ "copy" "git" "test" ]`. A second fixture carries a manifest
-          # and proves `managers` and `cliProvider` both resolve from it.
+          # and proves `managers` resolves from it.
           # Evaluate the real module against a fixture repository root. A root with
           # no `.repoman/project.toml` proves the defaults; a root that carries one
           # proves the manifest path independently of any consumer's devenv.nix.
@@ -141,10 +140,10 @@
               (self + "/modules/devenv.nix")
               { repoman.enable = true; }
             ];
-          }).config.repoman;
+          }).config;
 
           noManifestConsumer = consumerAt (self + "/.flake-check-fixture-no-manifest");
-          venvManifestConsumer = consumerAt (self + "/tests/fixtures/manifest-venv");
+          manifestConsumer = consumerAt (self + "/tests/fixtures/manifest-venv");
         in
         {
           gitman-rust-gate =
@@ -159,13 +158,10 @@
             in
             assert builtins.pathExists moduleFile;
             assert functionArgs ? config;
-            # No manifest: both settings fall back to their pre-039 defaults.
-            assert noManifestConsumer.managers == [ "copy" "git" "test" ];
-            assert noManifestConsumer.cliProvider == "store";
-            # A manifest carrying the opt-out resolves it without any devenv.nix
-            # option, which is what lets the compatibility fallback be withdrawn.
-            assert venvManifestConsumer.cliProvider == "venv";
-            assert venvManifestConsumer.managers == [ "copy" "git" ];
+            # No manifest: the roster falls back to its default.
+            assert noManifestConsumer.env.REPOMAN_MANAGERS == "copy git test";
+            # A manifest carrying a roster resolves it without any devenv.nix option.
+            assert manifestConsumer.env.REPOMAN_MANAGERS == "copy git";
             pkgs.runCommand "repoman-consumer-module-check" { } "touch $out";
         });
 
