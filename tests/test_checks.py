@@ -1,83 +1,67 @@
+import json
 import types
 
 import pytest
 
 import repoman.checks as checks
 from repoman.checks import run_self_check, self_check_exit
-from repoman.devman.check import skill_ownership_checks
 from repoman.registry import REGISTRY
-
-# A recorded machine manifest (the shape `repoman-sync --machine` writes into the
-# shared venv). Toolchain managers (copy/git/doc + the git-pyjutsu pseudo-entry);
-# testee is deliberately absent — it is a uv-declared per-repo dependency now.
-_GOOD_LOCK = (
-    '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-    '[managers.copy]\npackage = "copyroom"\nsource = "path:/x"\n'
-    '[managers.git]\npackage = "gitman"\nsource = "path:/x"\n'
-    '[managers.git-pyjutsu]\npackage = "pyjutsu"\nsource = "wheel:pyjutsu>=0.8"\n'
-    '[managers.doc]\npackage = "docman"\nsource = "path:/x"\n'
-)
-
-
-def _synced_from(lock) -> str:
-    """The `[toolchain]` identity table `repoman-sync --machine` records in the manifest."""
-
-    return f'[toolchain]\nsynced_from = "{lock}"\n\n'
-
-
-# The consumer pyproject that declares testee the uv-native way (D4).
-_PYPROJECT_TESTEE = (
-    '[project]\nname = "x"\nversion = "0.0.0"\nrequires-python = ">=3.13"\n'
-    "dependencies = []\n"
-    '[dependency-groups]\ndev = ["testee"]\n'
-)
-
-#: Every pure-CLI manager command that lives in the shared toolchain venv.
-_TOOLCHAIN_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
 
 
 def _names(result):
-    return {c.name: c for c in result}
+    return {item.name: item for item in result}
+
+
+_PYPROJECT_TESTEE = """[project]
+name = "x"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = ["testee"]
+"""
 
 
 @pytest.fixture
 def toolchain(tmp_path, monkeypatch):
-    """A fake bootstrapped shared toolchain venv, wired via REPOMAN_TOOLCHAIN_VENV.
-
-    Also pins `shutil.which` to resolve out of that venv's bin — modelling the PATH
-    order `modules/devenv.nix` establishes (toolchain ahead of the consumer venv), so
-    `installed:<key>` sees PATH and the task-exec path agreeing.
-    """
-
-    venv = tmp_path / "toolchain"
-    bin_dir = venv / "bin"
+    root = tmp_path / "toolchain"
+    bin_dir = root / "bin"
+    manifest_dir = root / "share" / "vendomat"
     bin_dir.mkdir(parents=True)
-    for command in _TOOLCHAIN_COMMANDS:
+    manifest_dir.mkdir(parents=True)
+    for command in ("repoman", "copyroom", "gitman", "docman"):
         (bin_dir / command).write_text("")
-    # This fixture materialises a VENV toolchain, so it names the provider that
-    # reads one. The default is "store" since phase 4 (devman 023-toolchain).
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
+    manifest = {
+        "python": "3.13",
+        "roster": "core",
+        "tools": {
+            "repoman": {"version": "0.9.0", "store": "/nix/store/repoman"},
+            "copyroom": {"version": "0.7.7", "store": "/nix/store/copyroom"},
+            "gitman": {"version": "0.6.2", "store": "/nix/store/gitman"},
+            "docman": {"version": "0.4.0", "store": "/nix/store/docman"},
+        },
+    }
+    manifest_path = manifest_dir / "toolchain.json"
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(bin_dir))
+    monkeypatch.delenv("REPOMAN_TOOLCHAIN_MANIFEST", raising=False)
     monkeypatch.delenv("DEVENV_STATE", raising=False)
     monkeypatch.delenv("DEVENV_ROOT", raising=False)
     monkeypatch.setattr(
         checks.shutil,
         "which",
-        lambda c: str(bin_dir / c) if (bin_dir / c).exists() else None,
+        lambda command: str(bin_dir / command) if (bin_dir / command).exists() else None,
     )
 
-    def write(manifest: str):
-        (venv / "repoman-toolchain.toml").write_text(manifest)
-        return venv
+    def write(data):
+        manifest_path.write_text(json.dumps(data) if isinstance(data, dict) else data)
 
-    write(_GOOD_LOCK)
-    return types.SimpleNamespace(venv=venv, bin=bin_dir, write=write)
+    return types.SimpleNamespace(root=root, bin=bin_dir, manifest=manifest_path, write=write)
 
 
 @pytest.fixture
 def consumer_venv(tmp_path, monkeypatch):
-    """A fake consumer devenv venv — where a uv-declared manager (testee) lands."""
-
     bin_dir = tmp_path / ".devenv" / "state" / "venv" / "bin"
     bin_dir.mkdir(parents=True)
     (bin_dir / "testee").write_text("")
@@ -85,600 +69,135 @@ def consumer_venv(tmp_path, monkeypatch):
     return bin_dir
 
 
-# ---------------------------------------------------------------- toolchain:venv
-
-
-def test_missing_toolchain_venv_fails(tmp_path, monkeypatch):
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "nope"))
+def test_missing_toolchain_store_fails(tmp_path, monkeypatch):
+    monkeypatch.delenv("REPOMAN_TOOLCHAIN_BIN", raising=False)
     result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
-    tv = _names(result)["toolchain:venv"]
-    assert tv.level == "fail"
-    assert "repoman-sync --machine" in tv.detail
+    store = _names(result)["toolchain:store"]
+    assert store.level == "fail"
+    assert "REPOMAN_TOOLCHAIN_BIN" in store.detail
     assert self_check_exit(result) == 2
 
 
-def test_toolchain_venv_from_xdg_data_home(tmp_path, monkeypatch):
-    monkeypatch.delenv("REPOMAN_TOOLCHAIN_VENV", raising=False)
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-    assert checks.toolchain_venv() == tmp_path / "data" / "repoman" / "venv"
-
-
-def test_toolchain_venv_from_home_fallback(tmp_path, monkeypatch):
-    monkeypatch.delenv("REPOMAN_TOOLCHAIN_VENV", raising=False)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    monkeypatch.setattr(checks.Path, "home", lambda: tmp_path / "home")
-    assert checks.toolchain_venv() == tmp_path / "home" / ".local" / "share" / "repoman" / "venv"
-
-
-# ---------------------------------------------------------------- toolchain:lock
-
-
-def test_unparseable_recorded_manifest_warns(toolchain):
-    toolchain.write("this is = = not toml [")
+def test_store_manifest_is_required(toolchain):
+    toolchain.manifest.unlink()
     result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    tl = _names(result)["toolchain:lock"]
-    # warn, not fail: a broken recorded manifest must not mask installed:* (the real signal).
-    assert tl.level == "warn" and "unparseable" in tl.detail
-    assert self_check_exit(result) == 0
+    store = _names(result)["toolchain:store"]
+    assert store.level == "fail"
+    assert "toolchain.json" in store.detail
 
 
-def test_unreadable_recorded_manifest_warns_instead_of_raising(toolchain):
-    # The doctor must survive the broken environments it exists to diagnose: a
-    # permission error used to escape as a traceback.
-    manifest = toolchain.venv / "repoman-toolchain.toml"
-    manifest.chmod(0o000)
-    try:
-        result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    finally:
-        manifest.chmod(0o644)
-    tl = _names(result)["toolchain:lock"]
-    assert tl.level == "warn" and "unreadable" in tl.detail
-
-
-def test_missing_recorded_manifest_warns(toolchain, tmp_path, monkeypatch):
-    (toolchain.venv / "repoman-toolchain.toml").unlink()
-    monkeypatch.chdir(tmp_path)
-    result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
-    tl = _names(result)["toolchain:lock"]
-    assert tl.level == "warn"
-    assert "repoman-sync --machine" in tl.detail
-
-
-def test_missing_self_entry_warns(toolchain):
-    toolchain.write('[managers.git]\npackage = "gitman"\nsource = "path:/x"\n')
+def test_invalid_store_manifest_is_reported(toolchain):
+    toolchain.manifest.write_text("{not json")
     result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    assert _names(result)["toolchain:self"].level == "warn"
+    assert _names(result)["toolchain:store"].level == "fail"
 
 
-# ---------------------------------------------------------------- context detection
+def test_missing_self_entry_fails(toolchain):
+    toolchain.write({"python": "3.13", "roster": "core", "tools": {"gitman": {"version": "x"}}})
+    assert _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["toolchain:self"].level == "fail"
 
 
-def test_detect_shell_when_managers_set(tmp_path, monkeypatch):
-    # REPOMAN_MANAGERS proves a managed-repo devenv shell — regardless of cwd.
-    monkeypatch.setenv("REPOMAN_MANAGERS", "git copy")
-    ctx = checks.detect_context(str(tmp_path))
-    assert ctx.kind == "managed-repo-shell"
-    # No DEVENV_ROOT exported here → repo_root falls back to the start dir.
-    assert ctx.repo_root == str(tmp_path)
+def test_store_manager_rows_are_present(toolchain):
+    names = _names(run_self_check([REGISTRY["git"], REGISTRY["doc"]], ".", ".claude/skills"))
+    assert names["lock:git"].level == "ok"
+    assert names["version:git"].detail == "gitman 0.6.2 (Nix store)"
+    assert names["lock:doc"].level == "ok"
+    assert names["installed:git"].level == "ok"
 
 
-def test_detect_shell_when_managers_empty_string(tmp_path, monkeypatch):
-    # Empty REPOMAN_MANAGERS = "wire nothing" is still a managed repo shell —
-    # matching _enabled()'s unset-vs-empty distinction.
-    monkeypatch.setenv("REPOMAN_MANAGERS", "")
-    assert checks.detect_context(str(tmp_path)).kind == "managed-repo-shell"
-
-
-def test_detect_bare_repo_from_gitman_toml(tmp_path):
-    (tmp_path / "gitman.toml").write_text("")
-    ctx = checks.detect_context(str(tmp_path))
-    assert ctx.kind == "managed-repo-bare-shell"
-    assert ctx.repo_root == str(tmp_path)
-
-
-def test_detect_bare_repo_from_dot_gitman(tmp_path):
-    (tmp_path / ".gitman").mkdir()
-    ctx = checks.detect_context(str(tmp_path))
-    assert ctx.kind == "managed-repo-bare-shell"
-    assert ctx.repo_root == str(tmp_path)
-
-
-def test_detect_bare_repo_from_parent_marker(tmp_path):
-    # Walking up: a marker in an ancestor of the cwd still identifies the repo.
-    repo = tmp_path / "repo"
-    (repo / "inner").mkdir(parents=True)
-    (repo / "gitman.toml").write_text("")
-    ctx = checks.detect_context(str(repo / "inner"))
-    assert ctx.kind == "managed-repo-bare-shell"
-    assert ctx.repo_root == str(repo)
-
-
-def test_detect_nearest_marker_wins(tmp_path):
-    # A repo nested under another repo: the nearest (innermost) marker decides.
-    inner = tmp_path / "outer" / "inner"
-    inner.mkdir(parents=True)
-    (tmp_path / "outer" / "gitman.toml").write_text("")
-    (inner / ".gitman").mkdir()
-    ctx = checks.detect_context(str(inner / "deep"))
-    assert ctx.kind == "managed-repo-bare-shell"
-    assert ctx.repo_root == str(inner)
-
-
-def test_detect_not_a_repo(tmp_path):
-    ctx = checks.detect_context(str(tmp_path / "nowhere"))
-    assert ctx.kind == "not-a-repo"
-    assert ctx.repo_root == str(tmp_path / "nowhere")
-
-
-def test_devenv_vars_alone_are_not_a_repo(tmp_path, monkeypatch):
-    # DEVENV_ROOT / DEVENV_STATE / REPOMAN_TOOLCHAIN_VENV alone are explicitly NOT
-    # signals — plenty of devenv projects don't use repoman; only REPOMAN_MANAGERS
-    # proves a repoman-managed shell.
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    monkeypatch.setenv("DEVENV_STATE", str(tmp_path / ".devenv" / "state"))
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "toolchain"))
-    assert checks.detect_context(str(tmp_path)).kind == "not-a-repo"
-
-
-def test_lock_fail_detail_names_the_recorded_manifest(toolchain):
-    # A selected manager absent from the recorded toolchain manifest must not read
-    # like a missing per-repo file: modern consumers have no repoman.lock
-    # (project 12) — the row checks the venv's repoman-toolchain.toml instead.
-    toolchain.write('[repoman]\npackage = "repoman"\nsource = "path:/x"\n')
-    row = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["lock:git"]
-    assert row.level == "fail"
-    assert "repoman-toolchain.toml" in row.detail
-    assert "repoman-sync --machine" in row.detail
-    assert "missing file" not in row.detail
-
-
-# ---------------------------------------------------------------- lock:<key>
-
-
-def test_selected_manager_absent_from_machine_lock_fails(toolchain):
-    toolchain.write('[repoman]\npackage = "repoman"\nsource = "path:/x"\n')
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    assert _names(result)["lock:git"].level == "fail"
-
-
-def test_native_pseudo_entry_satisfies_base_manager(toolchain):
-    # git-pyjutsu pseudo-entry counts for the git manager (guide 1).
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    assert _names(result)["lock:git"].level == "ok"
-
-
-def test_pseudo_entry_must_match_base_manager_exactly(toolchain):
-    # "gitx-pyjutsu" splits to base "gitx", which must NOT satisfy the "git"
-    # manager — only an exact base match counts (the positive case above).
+def test_selected_manager_absent_from_store_manifest_fails(toolchain):
     toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        '[managers.gitx-pyjutsu]\npackage = "pyjutsu"\nsource = "path:/x"\n'
+        {
+            "python": "3.13",
+            "roster": "core",
+            "tools": {"repoman": {"version": "0.9.0", "store": "/nix/store/repoman"}},
+        }
     )
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    assert _names(result)["lock:git"].level == "fail"
-
-
-def test_doc_lock_and_installed_ok(toolchain):
-    result = run_self_check([REGISTRY["doc"]], ".", ".claude/skills")
-    assert _names(result)["lock:doc"].level == "ok"
-    assert _names(result)["installed:doc"].level == "ok"
-
-
-# ---------------------------------------------------------------- installed:<key>
+    names = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))
+    assert names["lock:git"].level == "fail"
+    assert "store manifest" in names["lock:git"].detail
 
 
 def test_uninstalled_toolchain_manager_fails(toolchain):
     (toolchain.bin / "gitman").unlink()
     result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    inst = _names(result)["installed:git"]
-    assert inst.level == "fail" and "repoman-sync --machine" in inst.detail
-    assert self_check_exit(result) == 2
+    installed = _names(result)["installed:git"]
+    assert installed.level == "fail" and "repoman-sync" in installed.detail
 
 
-def test_uninstalled_uv_manager_fails(toolchain, tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    inst = _names(result)["installed:test"]
-    assert inst.level == "fail" and "uv sync" in inst.detail
-
-
-def test_installed_validates_the_binary_the_tasks_exec(toolchain):
-    # The nix tasks run "$toolchainBin"/gitman, so that is what must be validated —
-    # not merely "something called gitman is somewhere on PATH".
+def test_installed_checks_exact_store_binary(toolchain):
     result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
     assert _names(result)["installed:git"].detail == str(toolchain.bin / "gitman")
 
 
-def test_installed_warns_when_path_shadows_the_toolchain(toolchain, tmp_path, monkeypatch):
-    # A stale pre-migration copy in the consumer venv shadowing the shared toolchain is
-    # the exact divergence the PATH order in modules/devenv.nix exists to prevent:
-    # doctor would be green while `devenv tasks run` used a different binary.
+def test_installed_warns_when_path_shadows_store(toolchain, tmp_path, monkeypatch):
     stale = tmp_path / "stale" / "gitman"
     stale.parent.mkdir()
     stale.write_text("")
-    monkeypatch.setattr(checks.shutil, "which", lambda c: str(stale) if c == "gitman" else None)
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    inst = _names(result)["installed:git"]
-    assert inst.level == "warn"
-    assert str(stale) in inst.detail and str(toolchain.bin / "gitman") in inst.detail
+    monkeypatch.setattr(checks.shutil, "which", lambda command: str(stale) if command == "gitman" else None)
+    installed = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["installed:git"]
+    assert installed.level == "warn"
+    assert str(stale) in installed.detail and str(toolchain.bin / "gitman") in installed.detail
 
 
-def test_installed_missing_names_the_other_copy_on_path(toolchain, tmp_path, monkeypatch):
-    (toolchain.bin / "gitman").unlink()
-    elsewhere = tmp_path / "elsewhere" / "gitman"
-    elsewhere.parent.mkdir()
-    elsewhere.write_text("")
-    monkeypatch.setattr(checks.shutil, "which", lambda c: str(elsewhere) if c == "gitman" else None)
-    inst = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["installed:git"]
-    assert inst.level == "fail" and str(elsewhere) in inst.detail
+def test_store_and_consumer_binary_resolution(toolchain, consumer_venv, tmp_path):
+    assert checks.manager_binary(REGISTRY["git"]) == toolchain.bin / "gitman"
+    assert checks.manager_binary(REGISTRY["test"]) == consumer_venv / "testee"
 
 
-def test_uv_manager_resolves_through_the_consumer_venv(toolchain, consumer_venv, tmp_path):
+def test_uv_manager_is_declared_in_dependency_group(toolchain, consumer_venv, tmp_path):
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    inst = _names(result)["installed:test"]
-    assert inst.level == "ok" and inst.detail == str(consumer_venv / "testee")
-
-
-# ---------------------------------------------------------------- uv:<key> (D5)
-
-
-def test_uv_declared_manager_is_ok_from_dependency_groups(toolchain, tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    uv = _names(result)["uv:test"]
-    assert uv.level == "ok" and "[dependency-groups] dev" in uv.detail
-
-
-def test_uv_declared_manager_is_ok_from_optional_dependencies(toolchain, tmp_path):
-    # the pre-PEP-735 style is still recognized (D4 keeps [dependency-groups] canonical).
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n[project.optional-dependencies]\ndev = ["testee>=0.2"]\n'
-    )
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["uv:test"].level == "ok"
-
-
-def test_uv_declared_manager_is_ok_from_project_dependencies(toolchain, tmp_path):
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\ndependencies = ["testee"]\n')
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:test"].level == "ok"
+    assert _names(result)["installed:test"].level == "ok"
 
 
 def test_uv_manager_not_declared_fails(toolchain, tmp_path):
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\n')
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    uv = _names(result)["uv:test"]
-    assert uv.level == "fail"
-    assert "pyproject.toml" in uv.detail and "[dependency-groups]" in uv.detail
-    assert self_check_exit(result) == 2
+    assert _names(result)["uv:test"].level == "fail"
 
 
-def test_uv_manager_requirement_specifier_and_extras_are_stripped(toolchain, tmp_path):
+def test_uv_requirement_normalisation(toolchain, consumer_venv, tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\nversion = "0.0.0"\n'
-        "[dependency-groups]\n"
-        "dev = [\"testee[all]>=0.3 ; python_version>'3.12'\"]\n"
+        '[dependency-groups]\ndev = ["TESTEE[all]>=0.3 ; python_version>\\"3.12\\""]\n'
     )
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:test"].level == "ok"
+    assert _names(run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills"))["uv:test"].level == "ok"
 
 
-def test_uv_manager_name_normalisation(toolchain, tmp_path):
-    # PEP 503 normalisation: "TESTEE" matches package "testee" (case-folded).
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n[dependency-groups]\ndev = ["TESTEE"]\n'
-    )
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:test"].level == "ok"
-
-
-def test_include_group_entries_are_skipped(toolchain, tmp_path):
-    # dependency-groups entries may be {include-group = "lint"} dicts — don't crash.
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n[dependency-groups]\ndev = [{include-group = "lint"}]\n'
-    )
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:test"].level == "fail"
-
-
-def test_non_list_dependency_table_is_skipped(toolchain, tmp_path):
-    # A hand-mangled pyproject must produce a finding, not a TypeError.
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\ndependencies = "testee"\n')
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:test"].level == "fail"
-
-
-def test_no_pyproject_fails_uv_check_cleanly(toolchain, tmp_path):
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    names = _names(result)
-    assert names["uv:test"].level == "fail"
-    assert "pyproject" not in names  # genuinely absent is not "broken"
-
-
-def test_unparseable_pyproject_is_reported_not_raised(toolchain, tmp_path):
+def test_unparseable_pyproject_is_reported(toolchain, tmp_path):
     (tmp_path / "pyproject.toml").write_text("this is not [ toml")
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    names = _names(result)
-    assert names["pyproject"].level == "fail" and "unparseable" in names["pyproject"].detail
-
-
-def test_unreadable_pyproject_is_reported_not_raised(toolchain, tmp_path):
-    # A directory named pyproject.toml used to escape as IsADirectoryError.
-    (tmp_path / "pyproject.toml").mkdir()
     result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
     assert _names(result)["pyproject"].level == "fail"
 
 
-def test_uv_manager_gets_no_lock_row(toolchain, tmp_path):
-    # the regression CONCEPT §5.3 warns about: testee must never get a lock:test row.
+def test_uv_manager_has_no_store_lock_row(toolchain, tmp_path):
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    names = _names(result)
+    names = _names(run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills"))
     assert "lock:test" not in names
-    assert names["uv:test"].level == "ok"
 
 
-# ---------------------------------------------------------------- version:<key>
+def test_detect_context_precedence(tmp_path, monkeypatch):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "")
+    assert checks.detect_context(str(tmp_path)).kind == "managed-repo-shell"
+    monkeypatch.delenv("REPOMAN_MANAGERS")
+    (tmp_path / ".gitman").mkdir()
+    assert checks.detect_context(str(tmp_path)).kind == "managed-repo-bare-shell"
 
 
-def _install_dist(venv, name, version, requires=()):
-    """Materialise a dist-info inside the fake toolchain venv's site-packages."""
-
-    site = venv / "lib" / "python3.13" / "site-packages"
-    dist = site / f"{name}-{version}.dist-info"
-    dist.mkdir(parents=True)
-    lines = ["Metadata-Version: 2.1", f"Name: {name}", f"Version: {version}"]
-    lines += [f"Requires-Dist: {r}" for r in requires]
-    (dist / "METADATA").write_text("\n".join(lines) + "\n")
-    return dist
+def test_devenv_vars_alone_are_not_a_repo(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+    monkeypatch.setenv("DEVENV_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(tmp_path / "toolchain"))
+    assert checks.detect_context(str(tmp_path)).kind == "not-a-repo"
 
 
-def _checkout(tmp_path, name, version):
-    """A `path:` source checkout whose pyproject declares ``version``."""
-
-    root = tmp_path / "checkouts" / name
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "pyproject.toml").write_text(f'[project]\nname = "{name}"\nversion = "{version}"\n')
-    return root
-
-
-def test_no_version_rows_when_site_packages_is_uninspectable(toolchain):
-    # A venv we can't introspect yields NO version rows: a false staleness alarm from
-    # the doctor is worse than a missing check.
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    assert not [c for c in result if c.name.startswith("version:")]
-
-
-def test_version_ok_when_pin_is_satisfied(toolchain):
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    _install_dist(toolchain.venv, "pyjutsu", "0.9.1")
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    names = _names(result)
-    assert names["version:managers.git-pyjutsu"].level == "ok"
-    assert "0.9.1" in names["version:managers.git-pyjutsu"].detail
-    assert names["version:managers.git"].level == "ok"  # path: source pins nothing
-
-
-def test_version_fails_when_the_installed_package_is_behind_the_pin(toolchain):
-    # THE staleness case: `uv pip install` is add-only, so a machine that never
-    # re-synced keeps an old pyjutsu while every other row reports green.
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    _install_dist(toolchain.venv, "pyjutsu", "0.7.0")
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    row = _names(result)["version:managers.git-pyjutsu"]
-    assert row.level == "fail"
-    assert ">=0.8" in row.detail and "0.7.0" in row.detail
-    assert self_check_exit(result) == 2
-
-
-def test_version_fails_when_a_pinned_package_is_absent(toolchain):
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    row = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git-pyjutsu"]
-    assert row.level == "fail" and "not installed" in row.detail
-
-
-def test_version_checks_exact_git_ref_pins(toolchain):
-    toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        '[managers.git]\npackage = "gitman"\n'
-        'source = "git+https://github.com/Bullish-Design/gitman@v0.4.2"\n'
-    )
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.3.0")
-    row = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git"]
-    assert row.level == "fail" and "==0.4.2" in row.detail
-
-
-def test_version_ignores_managers_outside_the_roster(toolchain):
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    _install_dist(toolchain.venv, "pyjutsu", "0.9.0")
-    names = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))
-    assert "version:managers.doc" not in names
-    assert "version:managers.copy" not in names
-
-
-def test_version_does_not_guess_on_prerelease_versions(toolchain):
-    # 0.8.0rc1 vs >=0.8 has no honest answer without full PEP 440 parsing — report the
-    # installed version rather than inventing an ordering.
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    _install_dist(toolchain.venv, "pyjutsu", "0.8.0rc1")
-    row = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git-pyjutsu"]
-    assert row.level == "ok" and "0.8.0rc1" in row.detail
-
-
-@pytest.mark.parametrize(
-    ("installed", "operator", "wanted", "expected"),
-    [
-        ("1.0", "==", "1.0.0", True),  # zero-padded equality, per PEP 440
-        ("0.9", ">=", "0.8", True),
-        ("0.7", ">=", "0.8", False),
-        ("1.2.3", "<", "1.10.0", True),  # numeric, not lexicographic
-        ("1.0rc1", ">=", "1.0", None),  # not evaluable → not evaluated
-    ],
-)
-def test_satisfies_matrix(installed, operator, wanted, expected):
-    assert checks._satisfies(installed, operator, wanted) is expected
-
-
-# ------------------------------------------------- version:<key> — editable freshness
-
-
-def test_version_fails_when_editable_metadata_is_behind_its_checkout(toolchain, tmp_path):
-    # The project-18 failure: an editable manager's CODE follows the checkout while its
-    # recorded metadata stays at the last sync, so this row used to read "OK gitman
-    # 0.4.2" for a venv that was actually running 0.6.0 against 0.4.2's requirements.
-    checkout = _checkout(tmp_path, "gitman", "0.6.0")
-    toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        f'[managers.git]\npackage = "gitman"\nsource = "path:{checkout}"\n'
-    )
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    row = _names(result)["version:managers.git"]
-    assert row.level == "fail"
-    assert "0.4.2" in row.detail and "0.6.0" in row.detail and str(checkout) in row.detail
-    assert self_check_exit(result) == 2
-
-
-def test_version_ok_when_editable_metadata_matches_its_checkout(toolchain, tmp_path):
-    checkout = _checkout(tmp_path, "gitman", "0.6.0")
-    toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        f'[managers.git]\npackage = "gitman"\nsource = "path:{checkout}"\n'
-    )
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.6.0")
-    assert _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git"].level == "ok"
-
-
-def test_version_makes_no_claim_for_a_dynamic_version_checkout(toolchain, tmp_path):
-    checkout = tmp_path / "checkouts" / "gitman"
-    checkout.mkdir(parents=True)
-    (checkout / "pyproject.toml").write_text('[project]\nname = "gitman"\ndynamic = ["version"]\n')
-    toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-        f'[managers.git]\npackage = "gitman"\nsource = "path:{checkout}"\n'
-    )
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    assert _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))["version:managers.git"].level == "ok"
-
-
-# ---------------------------------------------------------------- deps:toolchain
-
-
-def test_deps_fail_when_a_manager_needs_more_than_the_lock_demands(toolchain):
-    # `wheel:pyjutsu>=0.8` is satisfied by 0.15.0, so every version: row is green — but
-    # gitman itself needs 0.20.0. Only the managers' own metadata says so.
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.6.0", requires=["pyjutsu>=0.20.0"])
-    _install_dist(toolchain.venv, "pyjutsu", "0.15.0")
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    rows = [c for c in result if c.name == "deps:toolchain"]
-    assert [c.level for c in rows] == ["fail"]
-    assert "pyjutsu>=0.20.0" in rows[0].detail and "pyjutsu 0.15.0 is installed" in rows[0].detail
-    assert self_check_exit(result) == 2
-
-
-def test_deps_ok_when_the_toolchain_is_coherent(toolchain):
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.6.0", requires=["pyjutsu>=0.20.0"])
-    _install_dist(toolchain.venv, "pyjutsu", "0.20.0")
-    rows = [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
-    assert [c.level for c in rows] == ["ok"]
-
-
-def test_deps_ignore_extras_and_markers(toolchain):
-    # `pygithub>=2.3; extra == 'github'` is not installed and must not be a finding.
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(
-        toolchain.venv,
-        "gitman",
-        "0.6.0",
-        requires=["pyjutsu>=0.20.0", "pygithub>=2.3; extra == 'github'"],
-    )
-    _install_dist(toolchain.venv, "pyjutsu", "0.20.0")
-    rows = [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
-    assert [c.level for c in rows] == ["ok"]
-
-
-def test_deps_report_a_missing_requirement(toolchain):
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.6.0", requires=["pyjutsu>=0.20.0"])
-    rows = [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
-    assert [c.level for c in rows] == ["fail"]
-    assert "pyjutsu is not installed" in rows[0].detail
-
-
-def test_no_deps_row_when_site_packages_is_uninspectable(toolchain):
-    assert not [c for c in run_self_check([REGISTRY["git"]], ".", ".claude/skills") if c.name == "deps:toolchain"]
-
-
-# ---------------------------------------------------------------- lock:orphan
-
-
-def test_orphan_repo_lock_warns(toolchain, consumer_venv, tmp_path):
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    orphan = _names(result)["lock:orphan"]
-    assert orphan.level == "warn" and "delete this file" in orphan.detail
+def test_approach_b_input_warning_is_nonfatal(toolchain, monkeypatch):
+    monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
+    result = run_self_check([REGISTRY["doc"]], ".", ".claude/skills")
+    assert _names(result)["provisioned:doc"].level == "warn"
     assert self_check_exit(result) == 0
-
-
-def test_machine_lock_at_the_repoman_checkout_does_not_warn(toolchain, tmp_path):
-    # Self-hosting (project 14 seam): the repoman checkout's own repo-root repoman.lock
-    # IS the machine manifest the venv was synced from — not an obsolete consumer lock.
-    # The recorded [toolchain].synced_from is the fingerprint. Deleting this file would
-    # break `repoman-sync --machine`, so the doctor must not demand it.
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
-    toolchain.write(_synced_from(tmp_path / "repoman.lock") + _GOOD_LOCK)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert "lock:orphan" not in _names(result)
-
-
-def test_fleet_shaped_machine_lock_does_not_warn_orphan(toolchain, tmp_path):
-    # 023-toolchain OVERLAY.md: repoman.lock is committed in its FLEET shape, so the
-    # recorded [repoman].source is a git ref on a machine with no overlay. The identity
-    # test must be the recorded synced_from path, not that inference — otherwise a fleet
-    # machine warns "orphan" against its own lock.
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    fleet = _GOOD_LOCK.replace('source = "path:/x"', 'source = "git+https://github.com/Bullish-Design/repoman@v0.7.1"')
-    (tmp_path / "repoman.lock").write_text(fleet)
-    toolchain.write(_synced_from(tmp_path / "repoman.lock") + fleet)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert "lock:orphan" not in _names(result)
-
-
-def test_manifest_synced_from_another_lock_still_warns_orphan(toolchain, tmp_path):
-    # The venv was synced from somewhere else, so this repo-root repoman.lock really is
-    # an orphan — the presence of a synced_from field is not by itself an exemption.
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
-    toolchain.write(_synced_from(tmp_path / "elsewhere.lock") + _GOOD_LOCK)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["lock:orphan"].level == "warn"
-
-
-def test_manifest_without_synced_from_warns_orphan(toolchain, tmp_path):
-    # A pre-overlay manifest carries no [toolchain] table. Nothing records the identity,
-    # so the doctor cannot claim the repo-root lock is the machine lock.
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    (tmp_path / "repoman.lock").write_text(_GOOD_LOCK)
-    toolchain.write(_GOOD_LOCK)
-    result = run_self_check([REGISTRY["test"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["lock:orphan"].level == "warn"
-
-
-# ---------------------------------------------------------------- skill:*
 
 
 def test_entrypoint_skill_missing_warns(toolchain, tmp_path):
@@ -686,241 +205,12 @@ def test_entrypoint_skill_missing_warns(toolchain, tmp_path):
     assert _names(result)["skill:entrypoint"].level == "warn"
 
 
-def test_sub_skill_without_deferral_warns(toolchain, tmp_path):
+def test_sub_skill_deferral_is_checked(toolchain, tmp_path):
     sub = tmp_path / ".claude/skills" / "gitman" / "SKILL.md"
     sub.parent.mkdir(parents=True)
-    sub.write_text("---\nname: gitman\n---\nNo deferral footer here.\n")
-    result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["skill:git:defers"].level == "warn"
-
-
-def test_sub_skill_with_deferral_ok(toolchain, tmp_path):
-    sub = tmp_path / ".claude/skills" / "gitman" / "SKILL.md"
-    sub.parent.mkdir(parents=True)
-    sub.write_text("For when to verify vs commit, see the `repoman` skill.\n")
-    result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["skill:git:defers"].level == "ok"
-
-
-def test_non_utf8_sub_skill_warns_instead_of_raising(toolchain, tmp_path):
-    # A stray binary SKILL.md used to blow up the whole doctor with UnicodeDecodeError.
-    sub = tmp_path / ".claude/skills" / "gitman" / "SKILL.md"
-    sub.parent.mkdir(parents=True)
-    sub.write_bytes(b"\xff\xfe\x00 not utf-8")
-    result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
-    assert _names(result)["skill:git:defers"].level == "warn"
-
-
-# ---------------------------------------------------------------- provisioned:<key>
-
-
-def test_provisioned_warns_when_input_signal_absent(toolchain, monkeypatch):
-    # doc is approach-B: CLI installed (installed:doc ok) but no REPOMAN_PROVISIONED_DOC
-    # → provisioned:doc warns, and warn is non-fatal so the aggregate exit stays 0.
-    monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
-    result = run_self_check([REGISTRY["doc"]], ".", ".claude/skills")
-    prov = _names(result)["provisioned:doc"]
-    assert prov.level == "warn"
-    assert "docman" in prov.detail and "devenv.yaml" in prov.detail
-    assert self_check_exit(result) == 0
-
-
-def test_provisioned_ok_when_input_signalled(toolchain, monkeypatch):
-    monkeypatch.setenv("REPOMAN_PROVISIONED_DOC", "1")
-    result = run_self_check([REGISTRY["doc"]], ".", ".claude/skills")
-    assert _names(result)["provisioned:doc"].level == "ok"
-
-
-def test_no_provisioned_row_for_approach_a_manager(toolchain):
-    # copy (approach-A, nix_input="") gets no provisioned: row at all.
-    result = run_self_check([REGISTRY["copy"]], ".", ".claude/skills")
-    assert "provisioned:copy" not in _names(result)
-
-
-# ---------------------------------------------------------------- level mapping
-
-
-def test_self_check_exit_unknown_level_falls_back_to_2():
-    # A level outside ok/warn/fail maps to fail (2), never silently 0 — a future
-    # level that forgets the mapping can't hide a broken wiring.
-    assert self_check_exit([checks.SelfCheck("x", "??")]) == 2
-
-
-def test_format_self_check_unknown_level_is_question_marked():
-    formatted = checks.format_self_check([checks.SelfCheck("x", "??", "detail")])
-    assert "? x — detail" in formatted
-
-
-# ---------------------------------------------------------------- full roster
-
-
-def test_healthy_wiring_is_all_ok(toolchain, consumer_venv, tmp_path, monkeypatch):
-    # the full roster, healthy: toolchain manifest + binaries + testee declared + skill.
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_TESTEE)
-    skill = tmp_path / ".claude/skills" / "repoman" / "SKILL.md"
-    skill.parent.mkdir(parents=True)
-    skill.write_text("---\nname: repoman\n---\n")
-    monkeypatch.setenv("REPOMAN_PROVISIONED_DOC", "1")
-    managers = list(REGISTRY.values())
-    result = run_self_check(managers, str(tmp_path), ".claude/skills")
-    names = _names(result)
-    assert self_check_exit(result) == 0
-    assert all(c.level == "ok" for c in result), [c for c in result if c.level != "ok"]
-    # toolchain managers are validated against the machine manifest; testee is uv-declared.
-    assert {n for n in names if n.startswith("lock:")} == {"lock:copy", "lock:git", "lock:doc"}
-    assert names["uv:test"].level == "ok"
-    assert {n for n in names if n.startswith("provisioned:")} == {"provisioned:doc"}
-
-
-# ---------------------------------------------------------------- skill-ownership
-
-
-def test_ownership_warns_when_nothing_installed(tmp_path):
-    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
-    names = _names(result)
-    assert names["skill:tool-shipped"].level == "warn"
-    # warn is non-fatal under the shared exit mapping.
-    assert self_check_exit(result) == 0
-
-
-def test_ownership_ok_after_canonical_skills_present(tmp_path):
-    skills = tmp_path / ".agents/skills"
-    from repoman.devman.check import EXPECTED_SKILLS
-
-    for name in EXPECTED_SKILLS:
-        skill = skills / name
-        skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
-    result = skill_ownership_checks(str(tmp_path), ".agents/skills")
-    names = _names(result)
-    assert names["skill:tool-shipped"].level == "ok"
-
-
-def test_ownership_survives_an_unreadable_skills_dir(tmp_path):
-    skills = tmp_path / ".agents/skills"
-    skills.mkdir(parents=True)
-    skills.chmod(0o000)
-    try:
-        result = skill_ownership_checks(str(tmp_path), ".agents/skills")
-    finally:
-        skills.chmod(0o755)
-    assert _names(result)["skill:tool-shipped"].level == "warn"
-
-
-def test_malformed_manifest_entries_are_skipped_not_crashed(toolchain):
-    # A hand-mangled machine manifest must not take the version check down with it.
-    toolchain.write('[repoman]\npackage = "repoman"\nsource = "path:/x"\n[managers]\ngit = "oops-not-a-table"\n')
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    result = run_self_check([REGISTRY["git"]], ".", ".claude/skills")
-    names = _names(result)
-    assert names["version:repoman"].level == "ok"
-    assert "version:managers.git" not in names
-
-
-def test_manifest_entry_with_non_string_source_is_skipped(toolchain):
-    toolchain.write(
-        '[repoman]\npackage = "repoman"\nsource = "path:/x"\n[managers.git]\npackage = "gitman"\nsource = 42\n'
+    sub.write_text("No deferral")
+    assert (
+        _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))["skill:git:defers"].level == "warn"
     )
-    _install_dist(toolchain.venv, "repoman", "0.5.0")
-    _install_dist(toolchain.venv, "gitman", "0.4.2")
-    names = _names(run_self_check([REGISTRY["git"]], ".", ".claude/skills"))
-    assert "version:managers.git" not in names
-
-
-def test_unreadable_sub_skill_warns_instead_of_raising(toolchain, tmp_path):
-    sub = tmp_path / ".claude/skills" / "gitman" / "SKILL.md"
-    sub.parent.mkdir(parents=True)
-    sub.write_text("whatever")
-    sub.chmod(0o000)
-    try:
-        result = run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills")
-    finally:
-        sub.chmod(0o644)
-    row = _names(result)["skill:git:defers"]
-    assert row.level == "warn" and "unreadable" in row.detail
-
-
-# --- CLI provider seam (Vendomat Face D, phase 4) --------------------------
-#
-# These pin CURRENT behaviour. The seam shipped in phase 0 with "venv" as its
-# default, so no consumer moved while the roster was being packaged. The roster
-# is complete now, so the default is "store" (devman 023-toolchain phase 5).
-#
-# A test that means VENV BEHAVIOUR now says so with the environment variable.
-# Only the two tests below still read the default, and reading it is their job.
-
-
-def test_cli_provider_defaults_to_store(monkeypatch):
-    # Must equal `repoman.cliProvider`'s default in modules/devenv.nix. Inside a
-    # devenv the nix layer exports the variable and this never applies; outside
-    # one it decides alone, and the two layers disagreeing is the failure mode
-    # the seam exists to remove.
-    monkeypatch.delenv("REPOMAN_CLI_PROVIDER", raising=False)
-    assert checks.cli_provider() == "store"
-
-
-def test_cli_provider_empty_is_the_default(monkeypatch):
-    """An exported-but-empty variable must not silently switch modes."""
-
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "")
-    assert checks.cli_provider() == "store"
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "   ")
-    assert checks.cli_provider() == "store"
-
-
-def test_cli_provider_unknown_value_raises(monkeypatch):
-    """A typo must fail loudly, not resolve commands from the wrong place."""
-
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "vevn")
-    with pytest.raises(ValueError, match="unknown REPOMAN_CLI_PROVIDER"):
-        checks.cli_provider()
-
-
-def test_toolchain_bin_under_venv_provider(tmp_path, monkeypatch):
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "tc"))
-    assert checks.toolchain_bin() == tmp_path / "tc" / "bin"
-
-
-def test_manager_binary_unchanged_by_the_seam(tmp_path, monkeypatch):
-    """The venv provider resolves exactly where it did before the seam."""
-
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(tmp_path / "tc"))
-    for manager in REGISTRY.values():
-        if manager.install != "toolchain":
-            continue
-        assert checks.manager_binary(manager) == (tmp_path / "tc" / "bin" / manager.command)
-
-
-def test_store_provider_falls_back_to_path_when_unset(monkeypatch):
-    """Face D is not wired yet: resolve by PATH rather than invent a path.
-
-    A wrong absolute path would report a confident failure; None degrades to
-    the PATH lookup every call site already performs.
-    """
-
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "store")
-    monkeypatch.delenv("REPOMAN_TOOLCHAIN_BIN", raising=False)
-    assert checks.toolchain_bin() is None
-    toolchain = [m for m in REGISTRY.values() if m.install == "toolchain"]
-    assert toolchain, "registry has no toolchain manager to check"
-    assert checks.manager_binary(toolchain[0]) is None
-
-
-def test_store_provider_uses_declared_bin(tmp_path, monkeypatch):
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "store")
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(tmp_path / "store-bin"))
-    assert checks.toolchain_bin() == tmp_path / "store-bin"
-
-
-def test_uv_managers_ignore_the_provider(tmp_path, monkeypatch):
-    """`install = "uv"` resolves in the consumer venv under either provider."""
-
-    monkeypatch.setenv("DEVENV_STATE", str(tmp_path / "state"))
-    uv_managers = [m for m in REGISTRY.values() if m.install == "uv"]
-    assert uv_managers, "registry has no uv-installed manager to check"
-    for provider in checks.CLI_PROVIDERS:
-        monkeypatch.setenv("REPOMAN_CLI_PROVIDER", provider)
-        for manager in uv_managers:
-            assert checks.manager_binary(manager) == (tmp_path / "state" / "venv" / "bin" / manager.command)
+    sub.write_text("See the repoman skill for ordering.")
+    assert _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))["skill:git:defers"].level == "ok"

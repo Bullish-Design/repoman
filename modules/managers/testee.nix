@@ -1,15 +1,15 @@
 # RepoMan manager wiring: testee (verification).
 #
 # Imported unconditionally by ../devenv.nix; activates only when "test" is in
-# `repoman.managers`. Mirrors testee's own nix/testee.nix: it assumes the
+# the project manifest roster. Mirrors testee's own nix/testee.nix: it assumes the
 # `testee` console script is in the consumer venv (project 12 — testee is a
 # per-repo uv dev dependency declared in pyproject.toml) and resolves
 # ruff/ty/pytest relative to its own interpreter.
-{ lib, config, ... }:
+{ lib, config, repomanManagers, ... }:
 
 let
   cfg = config.repoman;
-  enabled = cfg.enable && builtins.elem "test" cfg.managers;
+  enabled = cfg.enable && builtins.elem "test" repomanManagers;
   venvBin = "${config.devenv.state}/venv/bin";
 in
 {

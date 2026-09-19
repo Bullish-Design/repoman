@@ -1,18 +1,18 @@
 # RepoMan manager wiring: gitman (version control: jujutsu via pyjutsu + colocated git).
 #
 # Imported unconditionally by ../devenv.nix; activates only when "git" is in
-# `repoman.managers`. gitman's native dep pyjutsu (jj-lib via PyO3) is normally vended as
+# the project manifest roster. gitman's native dep pyjutsu (jj-lib via PyO3) is normally vended as
 # a prebuilt wheel by vendomat (repoman.lock `source = "wheel:…"`), so the default path
 # pulls ZERO Rust. The native toolchain (maturin + languages.rust) is an explicit opt-out:
 # set `repoman.nativeBuild = true` in pyjutsu's own repo, or any consumer with no vendomat
 # wheelhouse, to compile pyjutsu from source. When on, this is the proof that the
 # meta-module can provision nix-level system toolchains, not just venv pip installs; and it
 # stays gated on "git", so repos without gitman never pull Rust regardless.
-{ pkgs, lib, config, ... }:
+{ pkgs, lib, config, repomanManagers, ... }:
 
 let
   cfg = config.repoman;
-  enabled = cfg.enable && builtins.elem "git" cfg.managers;
+  enabled = cfg.enable && builtins.elem "git" repomanManagers;
 in
 {
   options.repoman.nativeBuild = lib.mkOption {

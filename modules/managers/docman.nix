@@ -1,7 +1,7 @@
 # RepoMan manager wiring: docman (docs build/check).
 #
 # Imported unconditionally by ../devenv.nix; activates only when "doc" is in
-# `repoman.managers`. docman is an APPROACH-B manager: its docs toolchain
+# the project manifest roster. docman is an APPROACH-B manager: its docs toolchain
 # (zensical + lychee/markdownlint/typos/…) and its `enterShell` config seeding live
 # in docman's OWN reusable, enable-gated module (`<docman>/modules/docman.nix`,
 # `options.docman.*`, whole `config` behind `mkIf cfg.enable`). Rather than
@@ -13,11 +13,11 @@
 # *activated* (`docman.enable = true`) only when "doc" is also selected. A consumer
 # that selects "doc" but hasn't declared the input still gets the doctor task wired;
 # `repoman doctor` warns that the nix provisioning is absent (see checks.py).
-{ inputs ? {}, lib, config, ... }:
+{ inputs ? {}, lib, config, repomanManagers, ... }:
 
 let
   cfg = config.repoman;
-  enabled = cfg.enable && builtins.elem "doc" cfg.managers;
+  enabled = cfg.enable && builtins.elem "doc" repomanManagers;
   # Did the consumer declare the docman input? (Approach-B managers require it —
   # devenv.yaml inputs are not transitive across a remote module import.)
   hasInput = inputs ? docman;

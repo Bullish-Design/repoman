@@ -1,0 +1,2 @@
+schema = 1
+managers = ["copy", "git", "test", "doc"]

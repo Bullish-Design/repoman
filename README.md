@@ -78,8 +78,14 @@ imports:
 # devenv.nix
 {
   repoman.enable = true;
-  repoman.managers = [ "copy" "git" "test" ];   # pick your toolchain
 }
+```
+
+Create `.repoman/project.toml` to choose the lifecycle roster:
+
+```toml
+schema = 1
+managers = ["copy", "git", "test"]
 ```
 
 See "Where the local paths go" below for developing against a local `*man`
@@ -93,10 +99,9 @@ Pulled changes to an already-managed repo, or bumped a manager version?
 devenv shell && repoman-sync && repoman doctor
 ```
 
-`repoman-sync` regenerates the entrypoint (router) skill from the roster;
-`repoman doctor` confirms the wiring is still satisfied. A machine-level
-toolchain bump (a new `copyroom`/`gitman`/`docman`/`repoman` release) needs a
-separate, once-per-machine step — see "Bootstrapping a machine" below.
+`repoman-sync` verifies Vendomat's shared command closure and regenerates the
+entrypoint (router) skill from the roster. `repoman doctor` confirms the wiring.
+Vendomat's flake owns toolchain versions and updates.
 
 ## Where the local paths go
 
@@ -135,62 +140,21 @@ copies **tracked** files only, so a brand-new `modules/*.nix` would be invisible
 to nix until `git add` — and it would surface as an eval error, never as "you
 forgot to stage". A path input reads the directory literally.
 
-## Two install models (project 12)
+## Two install models
 
 The manager family deliberately splits in two, and knowing which is which explains
 most of what `repoman doctor` tells you:
 
 - **Toolchain managers** (`copyroom`, `gitman`, `docman`, plus `repoman` itself) are
-  pure CLIs. They live **once per machine** in a shared venv —
-  `$REPOMAN_TOOLCHAIN_VENV`, default `~/.local/share/repoman/venv` — installed by
-  `repoman-sync --machine` from the machine `repoman.lock` at the repoman checkout.
-  A consumer repo has no `repoman.lock`.
+  pure CLIs. Vendomat supplies them from one pinned Nix closure and exports its
+  bin directory as `$REPOMAN_TOOLCHAIN_BIN`. A consumer repo has no toolchain
+  lock or provider option.
 - **uv managers** (today only `testee`) run *inside* your code — its tools import your
   package — so it is a normal per-repo dev dependency declared in your
   `pyproject.toml` under `[dependency-groups] dev` and installed by `uv sync`.
 
-`repoman.managers` selects what is **wired** (tasks, skills, routing). It does not
-gate toolchain installation.
-
-## Bootstrapping a machine
-
-Once per machine, and again on every toolchain bump:
-
-```bash
-cd <your repoman checkout>
-devenv shell -- repoman-sync --machine
-```
-
-This creates the shared venv, installs every entry in `repoman.lock` (with
-`--upgrade`, so a bump actually takes effect), and records the EFFECTIVE manifest
-inside the venv as `repoman-toolchain.toml`. That manifest names the lock it came from
-in `[toolchain].synced_from`. `repoman doctor` reads it to tell you whether this repo's
-roster is satisfied — and whether what's installed still matches what the lock pins.
-
-### The lock and its overlay
-
-`repoman.lock` is committed in its **fleet** shape: every entry names a release, so the
-command above works on a fresh clone with no working trees beside it.
-
-To develop a manager from a local checkout, write `repoman.local.lock` next to the lock.
-It is untracked, uses the same schema, and needs only `source`:
-
-```toml
-[managers.git]
-source = "path:/home/you/Projects/gitman"
-```
-
-The sync layers the overlay over the lock. An overlay key the lock does not declare is
-an error: the overlay says *where* a package comes from, never *what* the toolchain
-contains.
-
-Two escapes:
-
-```bash
-repoman-sync --machine --no-local          # ignore the overlay; pure fleet shape (CI)
-REPOMAN_LOCK=/path/to/other.lock repoman-sync --machine     # a different lock entirely
-REPOMAN_LOCAL_LOCK=/path/to/other.local.lock repoman-sync --machine   # a different overlay
-```
+`.repoman/project.toml` selects what is wired (tasks, skills, and routing). It
+does not select or install the shared closure.
 
 ## Commands
 
@@ -228,10 +192,9 @@ preflight and every sub-doctor.
 
 | Row | Means |
 |---|---|
-| `toolchain:venv` | the shared machine venv exists |
-| `toolchain:lock` | the manifest `repoman-sync --machine` recorded inside the shared venv (`repoman-toolchain.toml`) |
-| `lock:<key>` | this manager is present in the recorded toolchain manifest (`repoman-toolchain.toml` in the shared venv) |
-| `version:<entry>` | what's **installed** still satisfies what the lock **pins** (catches a stale toolchain) |
+| `toolchain:store` | Vendomat's shared command closure exists |
+| `lock:<key>` | this manager is present in Vendomat's toolchain manifest |
+| `version:<key>` | the store version for this manager |
 | `uv:<key>` | a uv manager is declared in `pyproject.toml` |
 | `installed:<key>` | the exact binary the nix tasks exec is present (warns if `PATH` would give you a different copy) |
 | `provisioned:<key>` | an approach-B manager's nix module actually imported |
@@ -255,9 +218,8 @@ as a pile of per-row failures. The fix is always the same invocation:
 |---|---|
 | `REPOMAN_MANAGERS` | roster (set by the nix module). Unset → core default; **empty → wire nothing** |
 | `REPOMAN_SKILLS_DIR` | where skills go, repo-relative (default `.agents/skills`) |
-| `REPOMAN_TOOLCHAIN_VENV` | override the shared venv location |
-| `REPOMAN_LOCK` | override the machine lock path (`--machine` only) |
-| `REPOMAN_ROOT` | where to look for `repoman.lock` (`--machine` only) |
+| `REPOMAN_TOOLCHAIN_BIN` | Vendomat's shared command-closure bin directory |
+| `REPOMAN_TOOLCHAIN_MANIFEST` | optional path to Vendomat's provenance manifest |
 | `REPOMAN_SUB_TIMEOUT` | seconds before a sub-manager is killed (default 900; `0` disables) |
 
 ## Developing RepoMan
@@ -271,8 +233,8 @@ format    # ruff format
 ```
 
 Repoman's own dev shell is a first-class managed repo: it imports the meta-module
-(`devenv.yaml` → `imports: [repoman]`, `repoman.managers = [copy git test doc]`), so the
-full manager suite is wired and the shared toolchain (`copyroom`, `gitman`, `docman`) is on
+(`devenv.yaml` → `imports: [repoman]`) and its tracked manifest selects the full
+roster, so the shared toolchain (`copyroom`, `gitman`, `docman`) is on
 PATH inside it. That makes this checkout the canonical **host** for bootstrapping a new
 repo — no need to hop into another repo's shell:
 

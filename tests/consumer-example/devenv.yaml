@@ -22,7 +22,7 @@ inputs:
     flake: false
   # shellij is installed by default (not a roster manager): RepoMan presence-imports
   # shellij's own devenv module (packages + guarded `shellij open` enterShell hook)
-  # when this input is declared — no repoman.managers entry, no repoman config.
+  # when this input is declared — no extra RepoMan option is needed.
   shellij:
     url: path:../../../shellij
     flake: false

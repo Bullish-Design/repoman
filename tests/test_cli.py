@@ -73,34 +73,29 @@ def test_adopt_passes_through_to_copyroom(monkeypatch):
     assert calls == [["copyroom", "adopt", "gh:x/template-py", "--ref", "v1.0.0", "--write"]]
 
 
-#: Commands that live in the shared toolchain venv (testee is uv-declared, so it does not).
+#: Commands that live in Vendomat's shared closure (testee is uv-declared, so it does not).
 _TOOLCHAIN_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
 
 
 def _healthy_repo(tmp_path, monkeypatch, managers):
-    """A tmp repo whose toolchain venv + consumer venv + pyproject satisfy the doctor.
+    """Create a healthy store-backed repo for the aggregate doctor tests."""
 
-    Models the PATH order `modules/devenv.nix` establishes — toolchain ahead of the
-    consumer venv — so `installed:<key>` sees PATH agreeing with the absolute path the
-    nix tasks exec.
-    """
     selected = managers.split()
-
-    # fake bootstrapped SYSTEM-WIDE toolchain venv (project 12)
-    venv = tmp_path / "toolchain"
-    toolchain_bin = venv / "bin"
+    root = tmp_path / "toolchain"
+    toolchain_bin = root / "bin"
+    manifest_dir = root / "share" / "vendomat"
     toolchain_bin.mkdir(parents=True)
+    manifest_dir.mkdir(parents=True)
     for command in _TOOLCHAIN_COMMANDS:
         (toolchain_bin / command).write_text("")
-    manifest = '[repoman]\npackage = "repoman"\nsource = "path:/x"\n'
-    for key in ("copy", "git", "doc"):
-        if key in selected:
-            manifest += f'[managers.{key}]\npackage = "{key}"\nsource = "path:/x"\n'
-    if "git" in selected:
-        manifest += '[managers.git-pyjutsu]\npackage = "pyjutsu"\nsource = "wheel:pyjutsu>=0.8"\n'
-    (venv / "repoman-toolchain.toml").write_text(manifest)
+    tools = {
+        "repoman": {"version": "0.9.0", "store": "/nix/store/repoman"},
+        "copyroom": {"version": "0.7.7", "store": "/nix/store/copyroom"},
+        "gitman": {"version": "0.6.2", "store": "/nix/store/gitman"},
+        "docman": {"version": "0.4.0", "store": "/nix/store/docman"},
+    }
+    (manifest_dir / "toolchain.json").write_text(json.dumps({"python": "3.13", "roster": "core", "tools": tools}))
 
-    # the consumer declares testee as a uv dev dependency and `uv sync` put it here
     state = tmp_path / ".devenv" / "state"
     consumer_bin = state / "venv" / "bin"
     consumer_bin.mkdir(parents=True)
@@ -112,12 +107,12 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
         (consumer_bin / "testee").write_text("")
 
     def which(command):
-        for directory in (toolchain_bin, consumer_bin):  # toolchain first, as on a real PATH
+        for directory in (toolchain_bin, consumer_bin):
             if (directory / command).exists():
                 return str(directory / command)
         return None
 
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(toolchain_bin))
     monkeypatch.setenv("DEVENV_STATE", str(state))
     monkeypatch.setenv("REPOMAN_MANAGERS", managers)
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
@@ -235,7 +230,7 @@ def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
     (venv / "bin" / "repoman").write_text("")
     (venv / "repoman-toolchain.toml").write_text('[repoman]\npackage="repoman"\nsource="path:/x"\n')
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\n')
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(venv))
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(venv / "bin"))
     monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
@@ -368,7 +363,7 @@ def test_doctor_in_shell_passes_through_unscathed(monkeypatch, tmp_path):
     result = runner.invoke(app, ["doctor", "--self-only"])
     assert result.exit_code == 0
     assert "=== repoman (self-check) ===" in result.stdout
-    assert "OK   toolchain:venv" in result.stdout
+    assert "OK   toolchain:store" in result.stdout
 
 
 def test_doctor_json_context_error(monkeypatch, tmp_path):
@@ -426,7 +421,7 @@ def test_unavailable_manager_explains_itself(monkeypatch, tmp_path):
             [manager.command, *args],
             127,
             False,
-            reason="gitman is not installed — run `repoman-sync --machine`",
+            reason="gitman is not installed — run `repoman-sync`",
         ),
     )
     result = runner.invoke(app, ["status"])

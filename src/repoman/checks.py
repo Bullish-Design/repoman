@@ -1,14 +1,13 @@
 """RepoMan self-check (preflight) for `repoman doctor`.
 
 Validates the conductor's own wiring before delegating to manager doctors:
-the system-wide toolchain venv, the machine manifest it was synced from, the
-lock↔managers consistency, installed manager CLIs, and skills. This catches
-the class of problem the spike hit — a manager selected but not installed, or
-a lock/manager mismatch — before the sub-doctors even run.
+Vendomat's store toolchain, its provenance manifest, installed manager CLIs,
+and skills. This catches the class of problem the spike hit — a manager
+selected but not installed, or a provider mismatch — before sub-doctors run.
 
 Project 12: the manager family splits by install model. Pure-CLI managers
 (`install == "toolchain"`) live in one system-wide shared venv, validated
-against the manifest `repoman-sync --machine` recorded inside it. uv-declared
+against the manifest `repoman-sync` recorded inside it. uv-declared
 managers (`install == "uv"`, today: testee) live in the consumer's uv graph,
 validated against `pyproject.toml`.
 
@@ -25,12 +24,12 @@ Two disciplines this module holds to, because it is the *diagnostic* layer:
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import tomllib
 from dataclasses import dataclass
-from importlib.metadata import Distribution, DistributionFinder
 from pathlib import Path
 
 from .registry import Manager
@@ -38,8 +37,6 @@ from .registry import Manager
 # A self-check level maps to an exit-code contribution. "warn" is non-fatal (0);
 # "fail" is broken wiring → 2 (infra/config), merged with the sub-doctors' worst.
 _LEVELS = {"ok": 0, "warn": 0, "fail": 2}
-
-_DEFAULT_TOOLCHAIN = "repoman/venv"
 
 
 @dataclass
@@ -89,7 +86,7 @@ def detect_context(start: str) -> Context:
     3. Neither → ``not-a-repo``.
 
     Explicitly NOT signals: ``DEVENV_ROOT`` / ``DEVENV_STATE`` /
-    ``REPOMAN_TOOLCHAIN_VENV`` alone. Plenty of devenv projects don't use repoman;
+    ``REPOMAN_TOOLCHAIN_BIN`` alone. Plenty of devenv projects don't use repoman;
     only ``REPOMAN_MANAGERS`` proves a repoman-managed shell.
 
     Walks ``start`` → root and stops at the first match, so a repo nested under
@@ -116,16 +113,6 @@ def _normalize(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def toolchain_venv() -> Path:
-    """The system-wide toolchain venv (project 12), mirroring repoman-sync.sh's resolution."""
-
-    env = os.environ.get("REPOMAN_TOOLCHAIN_VENV")
-    if env:
-        return Path(env)
-    data_home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(data_home) / _DEFAULT_TOOLCHAIN
-
-
 def consumer_venv_bin() -> Path | None:
     """The consumer devenv venv's bin dir — where a uv-declared manager lands.
 
@@ -143,57 +130,9 @@ def consumer_venv_bin() -> Path | None:
     return None
 
 
-#: How the shared toolchain's console scripts are materialised. This is
-#: orthogonal to ``Manager.install``, which says WHICH venv owns a manager;
-#: the provider says HOW that owner's commands come to exist.
-#:
-#: ``"store"`` — Vendomat Face D: the commands are a Nix closure and the venv
-#:               holds no manager at all. The default since phase 4 of the
-#:               shared-command-closure migration (devman 023-toolchain).
-#: ``"venv"``  — one uv-built venv, ``repoman-sync --machine`` fills it from
-#:               ``repoman.lock``. The pre-phase-4 behaviour, still first-class.
-#:
-#: This default MUST equal ``modules/devenv.nix``'s ``repoman.cliProvider``
-#: default. Inside a devenv the nix layer exports ``REPOMAN_CLI_PROVIDER`` and
-#: this value never applies; outside one it decides alone, and a doctor that
-#: resolved a different binary from the tasks is the failure the seam removes.
-CLI_PROVIDERS = ("venv", "store")
-_DEFAULT_CLI_PROVIDER = "store"
-
-
-def cli_provider() -> str:
-    """Which provider materialises the shared toolchain's commands.
-
-    ``REPOMAN_CLI_PROVIDER`` overrides. An unset or empty value is the default,
-    so an exported-but-empty variable cannot silently switch modes. An unknown
-    value is a hard error rather than a silent fallback: a typo here would
-    otherwise resolve commands from the wrong place and report success.
-    """
-
-    value = (os.environ.get("REPOMAN_CLI_PROVIDER") or "").strip()
-    if not value:
-        return _DEFAULT_CLI_PROVIDER
-    if value not in CLI_PROVIDERS:
-        raise ValueError(
-            f"unknown REPOMAN_CLI_PROVIDER {value!r}; expected one of " + ", ".join(repr(p) for p in CLI_PROVIDERS)
-        )
-    return value
-
-
 def toolchain_bin() -> Path | None:
-    """The bin dir holding the shared toolchain's console scripts.
+    """The Nix store bin dir exported by Vendomat, if the shell provides it."""
 
-    ``None`` means "not derivable here" — the caller falls back to a ``PATH``
-    lookup, which is what every call site already does for a missing path.
-    """
-
-    provider = cli_provider()
-    if provider == "venv":
-        return toolchain_venv() / "bin"
-    # "store": Vendomat exports the closure's bin dir. Until Face D ships there
-    # is nothing to point at, so resolve by PATH rather than inventing a path
-    # that does not exist — a wrong absolute path reports a confident failure,
-    # while None degrades to the lookup that already works.
     env = os.environ.get("REPOMAN_TOOLCHAIN_BIN")
     return Path(env) if env else None
 
@@ -224,20 +163,19 @@ def _read_toml(path: Path) -> tuple[dict | None, str | None]:
         return None, f"unreadable: {exc.strerror or exc}"
 
 
-def _load_toolchain_manifest(venv: Path) -> tuple[dict | None, SelfCheck]:
-    """Read the lock `repoman-sync --machine` recorded inside the shared venv (D7)."""
+def _load_toolchain_manifest(bin_dir: Path) -> tuple[dict | None, SelfCheck]:
+    """Read Vendomat's provenance manifest for the materialized store closure."""
 
-    path = venv / "repoman-toolchain.toml"
-    if not path.exists():
-        return None, SelfCheck(
-            "toolchain:lock",
-            "warn",
-            f"no manifest at {path} — re-run `repoman-sync --machine` to record one",
-        )
-    data, error = _read_toml(path)
-    if error is not None:
-        return None, SelfCheck("toolchain:lock", "warn", error)
-    return data, SelfCheck("toolchain:lock", "ok", str(path))
+    configured = os.environ.get("REPOMAN_TOOLCHAIN_MANIFEST")
+    path = Path(configured) if configured else bin_dir.parent / "share" / "vendomat" / "toolchain.json"
+    try:
+        with path.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, SelfCheck("toolchain:store", "fail", f"unreadable store manifest {path}: {exc}")
+    if not isinstance(data, dict) or not isinstance(data.get("tools"), dict):
+        return None, SelfCheck("toolchain:store", "fail", f"invalid store manifest {path}")
+    return data, SelfCheck("toolchain:store", "ok", str(path))
 
 
 def _requirement_name(req: str) -> str:
@@ -276,256 +214,6 @@ def _load_pyproject(repo_root: str) -> tuple[dict | None, str | None]:
     return _read_toml(path)
 
 
-# --------------------------------------------------------------------- versions
-
-#: Comparison operators this module evaluates. `~=` is deliberately absent: its
-#: PEP 440 semantics need full version parsing, and a wrong answer from the
-#: doctor is worse than no answer, so it degrades to "not evaluated".
-_SPECIFIER = re.compile(r"(==|!=|>=|<=|>|<)\s*([0-9][^,\s]*)")
-_GIT_REF = re.compile(r"@v?([0-9][^@/]*)$")
-
-
-def _site_packages(venv: Path) -> Path | None:
-    try:
-        candidates = sorted((venv / "lib").glob("python*/site-packages"))
-    except OSError:
-        return None
-    for path in candidates:
-        if path.is_dir():
-            return path
-    return None
-
-
-def installed_distributions(venv: Path) -> dict[str, tuple[str, list[str]]] | None:
-    """Distribution name → ``(version, Requires-Dist)`` for the packages inside ``venv``.
-
-    Reads the venv's own ``site-packages`` rather than this interpreter's, so the
-    answer is right regardless of which python is running ``repoman``. ``None``
-    means "couldn't inspect" — the caller then emits no rows at all, because a
-    false staleness alarm is worse than a missing check.
-    """
-
-    site = _site_packages(venv)
-    if site is None:
-        return None
-    found: dict[str, tuple[str, list[str]]] = {}
-    try:
-        dists = list(Distribution.discover(context=DistributionFinder.Context(path=[str(site)])))
-    except OSError:
-        return None
-    for dist in dists:
-        try:
-            name = dist.metadata["Name"]
-            version = dist.version
-            requires = dist.metadata.get_all("Requires-Dist") or []
-        except (OSError, KeyError, ValueError):
-            continue
-        if name and version:
-            found[_normalize(name)] = (version, [str(r) for r in requires])
-    return found
-
-
-def installed_versions(venv: Path) -> dict[str, str] | None:
-    """Distribution name → version for the packages inside ``venv``."""
-
-    dists = installed_distributions(venv)
-    if dists is None:
-        return None
-    return {name: version for name, (version, _requires) in dists.items()}
-
-
-def declared_version(source: str) -> str | None:
-    """The ``[project].version`` a ``path:`` lock source's checkout declares.
-
-    ``None`` means "no answer" — not a ``path:`` source, an unreadable checkout, or
-    a project that computes its version dynamically. The caller then makes no claim.
-    """
-
-    if not source.startswith("path:"):
-        return None
-    data, error = _read_toml(Path(source[len("path:") :]) / "pyproject.toml")
-    if error is not None or data is None:
-        return None
-    version = (data.get("project") or {}).get("version")
-    return version if isinstance(version, str) else None
-
-
-def _constraints(source: str) -> list[tuple[str, str]]:
-    """The version pins a lock ``source`` implies, as ``(operator, version)`` pairs.
-
-    A ``path:`` source pins no *range* — its checkout is the pin, and
-    :func:`declared_version` reads it. A ``git+…@vX.Y.Z`` ref is an exact pin.
-    """
-
-    if source.startswith("path:"):
-        return []
-    if source.startswith("wheel:"):
-        source = source[len("wheel:") :]
-    if source.startswith("git+"):
-        ref = _GIT_REF.search(source)
-        return [("==", ref.group(1))] if ref else []
-    return _SPECIFIER.findall(source)
-
-
-def _release(version: str) -> tuple[int, ...] | None:
-    """Numeric release segments, or ``None`` for anything with pre/post/dev parts.
-
-    Refusing to guess on ``1.0rc1`` keeps this honest: the caller treats ``None``
-    as "not evaluated" instead of inventing an ordering.
-    """
-
-    core = version.split("+", 1)[0]
-    parts = core.split(".")
-    out: list[int] = []
-    for part in parts:
-        if not part.isdigit():
-            return None
-        out.append(int(part))
-    return tuple(out) if out else None
-
-
-def _satisfies(installed: str, operator: str, wanted: str) -> bool | None:
-    """Whether ``installed <operator> wanted`` holds; ``None`` if not evaluable."""
-
-    left, right = _release(installed), _release(wanted)
-    if left is None or right is None:
-        return None
-    width = max(len(left), len(right))
-    left += (0,) * (width - len(left))
-    right += (0,) * (width - len(right))
-    return {
-        "==": left == right,
-        "!=": left != right,
-        ">=": left >= right,
-        "<=": left <= right,
-        ">": left > right,
-        "<": left < right,
-    }.get(operator)
-
-
-def version_checks(venv: Path, manifest: dict, managers: list[Manager]) -> list[SelfCheck]:
-    """Compare what's installed in the toolchain venv against what the lock pins.
-
-    This is the check that catches a *stale* toolchain: `lock:<key>` only proves a
-    key is present in the recorded manifest, so without this a machine that never
-    re-synced reports entirely green.
-    """
-
-    versions = installed_versions(venv)
-    if versions is None:
-        return []  # can't inspect the venv — stay silent rather than cry wolf
-
-    keys = {m.key for m in managers if m.install == "toolchain"}
-    entries: dict[str, object] = {}
-    if isinstance(manifest.get("repoman"), dict):
-        entries["repoman"] = manifest["repoman"]
-    managers_table = manifest.get("managers")
-    if isinstance(managers_table, dict):
-        for key, entry in managers_table.items():
-            # native-dep pseudo-entry: "git-pyjutsu" belongs to the "git" manager.
-            # Rows are named by TOML path ("managers.git"), matching the lock itself
-            # and repoman-sync's error labels — and keeping the [repoman] self entry
-            # distinct from a manager that happened to be keyed "repoman".
-            if key.split("-", 1)[0] in keys:
-                entries[f"managers.{key}"] = entry
-
-    out: list[SelfCheck] = []
-    for key, entry in sorted(entries.items()):
-        if not isinstance(entry, dict):
-            continue  # malformed manifest entry; toolchain:lock shape is not our job
-        source = entry.get("source")
-        package = entry.get("package") or key
-        if not isinstance(source, str) or not isinstance(package, str):
-            continue
-        installed = versions.get(_normalize(package))
-        if installed is None:
-            out.append(
-                SelfCheck(
-                    f"version:{key}",
-                    "fail",
-                    f"{package} is pinned in the machine lock but is not installed in {venv}"
-                    " — run `repoman-sync --machine`",
-                )
-            )
-            continue
-        violated = [f"{op}{want}" for op, want in _constraints(source) if _satisfies(installed, op, want) is False]
-        if violated:
-            out.append(
-                SelfCheck(
-                    f"version:{key}",
-                    "fail",
-                    f"{package} {installed} installed but the machine lock pins "
-                    f"{','.join(violated)} — re-run `repoman-sync --machine`",
-                )
-            )
-            continue
-        # A `path:` manager is installed --editable: its CODE follows the checkout,
-        # its METADATA is a snapshot of the last sync. When the two disagree the venv
-        # runs new code against the OLD dependency requirements — the failure that
-        # made this row lie ("OK gitman 0.4.2") while the checkout ran 0.6.0.
-        declared = declared_version(source)
-        if declared is not None and _release(declared) != _release(installed) and declared != installed:
-            out.append(
-                SelfCheck(
-                    f"version:{key}",
-                    "fail",
-                    f"{package} {installed} installed but the checkout at "
-                    f"{source[len('path:') :]} declares {declared} — the recorded metadata is "
-                    "stale; re-run `repoman-sync --machine`",
-                )
-            )
-            continue
-        out.append(SelfCheck(f"version:{key}", "ok", f"{package} {installed}"))
-    return out
-
-
-def _requirement_specifiers(requirement: str) -> list[tuple[str, str]]:
-    """The ``(operator, version)`` pairs in one PEP 508 requirement string."""
-
-    return _SPECIFIER.findall(requirement)
-
-
-def dependency_checks(venv: Path) -> list[SelfCheck]:
-    """Verify every installed distribution's own requirements hold inside ``venv``.
-
-    ``version:<entry>`` compares the venv against the LOCK. This compares the venv
-    against the MANAGERS: a loose pseudo-entry (``wheel:pyjutsu>=0.8``) can satisfy
-    the lock while leaving a version no manager supports, and only the managers'
-    own ``Requires-Dist`` metadata says so.
-
-    Requirements carrying an environment marker or an extra are not evaluated —
-    this module has no PEP 508 marker parser, and a wrong answer from the doctor is
-    worse than no answer.
-    """
-
-    dists = installed_distributions(venv)
-    if dists is None:
-        return []  # can't inspect the venv — stay silent rather than cry wolf
-
-    findings: list[str] = []
-    for name, (version, requires) in sorted(dists.items()):
-        for raw in requires:
-            if ";" in raw:
-                continue
-            head = _requirement_name(raw)
-            if not head:
-                continue
-            found = dists.get(head)
-            if found is None:
-                findings.append(f"{name} {version} requires {raw.strip()}, but {head} is not installed")
-                continue
-            violated = [
-                f"{op}{want}" for op, want in _requirement_specifiers(raw) if _satisfies(found[0], op, want) is False
-            ]
-            if violated:
-                findings.append(
-                    f"{name} {version} requires {head}{','.join(violated)}, but {head} {found[0]} is installed"
-                )
-    if not findings:
-        return [SelfCheck("deps:toolchain", "ok", f"{len(dists)} package(s) mutually compatible")]
-    return [SelfCheck("deps:toolchain", "fail", f) for f in findings]
-
-
 # ------------------------------------------------------------------ self-check
 
 
@@ -537,7 +225,7 @@ def _installed_check(manager: Manager) -> SelfCheck:
     exist but differ, that shadowing IS the finding — report it.
     """
 
-    heal = "run `repoman-sync --machine`" if manager.install == "toolchain" else "run `uv sync`"
+    heal = "run `repoman-sync`" if manager.install == "toolchain" else "run `uv sync`"
     expected = manager_binary(manager)
     on_path = shutil.which(manager.command)
 
@@ -571,34 +259,6 @@ def _installed_check(manager: Manager) -> SelfCheck:
     return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
 
 
-def _is_machine_lock(repo_root: str, manifest: dict | None) -> bool:
-    """Whether ``<repo_root>/repoman.lock`` is the MACHINE lock, not a consumer orphan.
-
-    The repoman checkout itself keeps its machine manifest (the file `repoman-sync
-    --machine` syncs from) at the repo root under the same filename a pre-project-12
-    consumer lock would use. The recorded toolchain manifest (inside the venv) names the
-    lock it was synced from as DATA, in ``[toolchain].synced_from``. That path pointing
-    at this repo root means the file IS the machine lock. Anything else — no recorded
-    manifest, no field, a different checkout — still warns as an orphan.
-
-    This reads a recorded fact instead of inferring one. The earlier test asked whether
-    ``[repoman].source`` was a ``path:`` resolving to the repo root; since repoman.lock
-    is committed in its fleet shape, that inference makes a fleet machine warn "orphan"
-    against its own lock (023-toolchain OVERLAY.md).
-    """
-
-    if manifest is None:
-        return False
-    toolchain = manifest.get("toolchain")
-    synced_from = toolchain.get("synced_from") if isinstance(toolchain, dict) else None
-    if not isinstance(synced_from, str) or not synced_from.strip():
-        return False
-    try:
-        return Path(synced_from).resolve() == (Path(repo_root) / "repoman.lock").resolve()
-    except OSError:
-        return False
-
-
 def _skill_defers(path: Path) -> bool | None:
     """Whether a sub-skill defers to the entrypoint; ``None`` if unreadable."""
 
@@ -614,30 +274,31 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
 
     out: list[SelfCheck] = []
 
-    # --- toolchain: the system-wide shared venv (project 12) -------------------
-    venv = toolchain_venv()
-    have_venv = (venv / "bin" / "repoman").exists()
+    # --- toolchain: the Vendomat store closure -------------------------------
+    bin_dir = toolchain_bin()
+    have_toolchain = bin_dir is not None and (bin_dir / "repoman").exists()
     out.append(
         SelfCheck(
-            "toolchain:venv",
-            "ok" if have_venv else "fail",
-            str(venv)
-            if have_venv
-            else f"missing or incomplete: {venv} — run `repoman-sync --machine` from the repoman checkout",
+            "toolchain:store",
+            "ok" if have_toolchain else "fail",
+            str(bin_dir)
+            if have_toolchain
+            else "REPOMAN_TOOLCHAIN_BIN is unset or has no repoman — import Vendomat's consumer module",
         )
     )
 
     data = None
-    if have_venv:
-        data, manifest_check = _load_toolchain_manifest(venv)
+    if have_toolchain and bin_dir is not None:
+        assert bin_dir is not None
+        data, manifest_check = _load_toolchain_manifest(bin_dir)
         out.append(manifest_check)
-        if data is not None and "repoman" not in data:
-            out.append(SelfCheck("toolchain:self", "warn", "no [repoman] self entry"))
+        if data is not None and "repoman" not in (data.get("tools") or {}):
+            out.append(SelfCheck("toolchain:self", "fail", "store manifest has no repoman entry"))
 
     pyproject, pyproject_error = _load_pyproject(repo_root)
     if pyproject_error is not None:
         out.append(SelfCheck("pyproject", "fail", f"{repo_root}/pyproject.toml {pyproject_error}"))
-    lock_keys = set((data or {}).get("managers", {}))
+    toolchain_tools = (data or {}).get("tools", {})
 
     for m in managers:
         if m.install == "uv":
@@ -654,44 +315,18 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
             )
             continue
         if data is None:
-            continue  # no manifest to check against; toolchain:venv/lock already reported
-        # tolerate native-dep pseudo-entries like "git-pyjutsu" (guide 1)
-        has = any(k.split("-", 1)[0] == m.key for k in lock_keys)
-        # Never read as "a per-repo repoman.lock file is missing": modern consumers
-        # have none (project 12). Name the recorded toolchain manifest this row
-        # actually checks — the venv's repoman-toolchain.toml.
+            continue  # toolchain:store/manifest already reports the root failure
+        tool = toolchain_tools.get(m.command)
+        has = isinstance(tool, dict)
         out.append(
             SelfCheck(
                 f"lock:{m.key}",
                 "ok" if has else "fail",
-                ""
-                if has
-                else (
-                    "selected but absent from the recorded toolchain manifest "
-                    f"({venv / 'repoman-toolchain.toml'}) — re-run `repoman-sync --machine`"
-                ),
+                "" if has else ("selected but absent from Vendomat's store manifest"),
             )
         )
-
-    # Currency: the lock says what SHOULD be installed; check what IS. Without this,
-    # a machine that never re-synced still reports fully green.
-    if data is not None:
-        out.extend(version_checks(venv, data, managers))
-
-    # Coherence: the lock can be fully satisfied and the venv still unusable, because a
-    # pseudo-entry's floor is not the manager's requirement. Ask the managers themselves.
-    if have_venv:
-        out.extend(dependency_checks(venv))
-
-    repo_lock = Path(repo_root) / "repoman.lock"
-    if repo_lock.exists() and not _is_machine_lock(repo_root, data):
-        out.append(
-            SelfCheck(
-                "lock:orphan",
-                "warn",
-                "per-repo repoman.lock is obsolete — the toolchain is machine-level; delete this file",
-            )
-        )
+        if has and isinstance(tool.get("version"), str):
+            out.append(SelfCheck(f"version:{m.key}", "ok", f"{m.package} {tool['version']} (Nix store)"))
 
     # --- installed:<key> (the exact binary the tasks exec) ----------------------
     for m in managers:

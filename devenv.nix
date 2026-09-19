@@ -21,11 +21,9 @@
   # wired — copy/git/test/doc — so the shared toolchain (copyroom, gitman, docman) is on
   # PATH here and `copyroom new <target> --answers … --trust` can birth new repos from this
   # checkout's shell (no host-repo trick). The meta-module (devenv.yaml `imports: [repoman]`)
-  # owns the `repoman-sync` script now — consumer mode installs skills, `--machine` syncs
-  # the shared toolchain; repoman-sync.sh itself defaults REPOMAN_ROOT to DEVENV_ROOT.
+  # owns the `repoman-sync` script now; Vendomat supplies the shared toolchain closure.
   repoman = {
     enable = true;
-    managers = [ "copy" "git" "test" "doc" ];
   };
 
   scripts = {
@@ -74,7 +72,7 @@
     echo "  lint   - Lint code with ruff"
     echo ""
     echo "Quick start:"
-    echo "  0. Bootstrap the shared toolchain: repoman-sync --machine"
+    echo "  0. Verify the Vendomat toolchain and install the router: repoman-sync"
     echo "  1. Install dependencies: uv sync --all-extras"
     echo "  2. Run tests: test"
     echo ""

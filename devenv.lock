@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "copyroom": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788890371,
+        "narHash": "sha256-29Cpq/w74XYgVoPIX1otM4rJgKTMokRftqkJ5TWWNJg=",
+        "ref": "refs/tags/v0.7.7",
+        "rev": "eeba42561724c1319f48c354751933b2893488e1",
+        "revCount": 73,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/copyroom"
+      },
+      "original": {
+        "ref": "refs/tags/v0.7.7",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/copyroom"
+      }
+    },
     "devenv": {
       "locked": {
         "dir": "src/modules",
@@ -17,19 +34,50 @@
         "type": "github"
       }
     },
+    "devman": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_4"
+      },
+      "locked": {
+        "lastModified": 1789243182,
+        "narHash": "sha256-Pvs3mWxQmD/AMf5SQheZjd1rJicqnkGjeKFYywMBV3Q=",
+        "ref": "refs/tags/v0.5.2",
+        "rev": "8e7c3be6c8c02e7438cf3bb0b7be086b0e98ee12",
+        "revCount": 423,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/devman"
+      },
+      "original": {
+        "ref": "refs/tags/v0.5.2",
+        "rev": "8e7c3be6c8c02e7438cf3bb0b7be086b0e98ee12",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/devman"
+      }
+    },
     "docman": {
       "flake": false,
       "locked": {
-        "lastModified": 1788800621,
-        "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
-        "ref": "refs/tags/v0.2.0",
-        "rev": "be02887bef46136a8d91ab9e95355b39061bf153",
-        "revCount": 19,
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/docman"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/docman"
+      }
+    },
+    "docman_2": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788890093,
+        "narHash": "sha256-35iLQo6w3kuap4hEXWbdRjjYxU75tK1UF1fj4ckJ8Sg=",
+        "ref": "refs/tags/v0.2.1",
+        "rev": "0bf9116ae2a000f81f537df8e2ded0a2f1033964",
+        "revCount": 21,
         "type": "git",
         "url": "https://github.com/Bullish-Design/docman"
       },
       "original": {
-        "ref": "refs/tags/v0.2.0",
+        "ref": "refs/tags/v0.2.1",
         "type": "git",
         "url": "https://github.com/Bullish-Design/docman"
       }
@@ -48,6 +96,23 @@
         "owner": "edolstra",
         "repo": "flake-compat",
         "type": "github"
+      }
+    },
+    "gitman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789697351,
+        "narHash": "sha256-ZkNQq4xjdpCULwkyJnx8WWO7w7BDZzWm/ovp3wfZnsc=",
+        "ref": "refs/tags/v0.9.1",
+        "rev": "251c7a3eff6f1bf4ea938d7b581d573c0fc500f1",
+        "revCount": 162,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/gitman"
+      },
+      "original": {
+        "ref": "refs/tags/v0.9.1",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/gitman"
       }
     },
     "mk-shell-bin": {
@@ -134,6 +199,23 @@
         "type": "github"
       }
     },
+    "nixpkgs-src_2": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781607440,
+        "narHash": "sha256-rxO+uc/KFbSJp+pgyXRuAX6QlG9hJdnt0BXpEQRXY+U=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "3e41b24abd260e8f71dbe2f5737d24122f972158",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs_2": {
       "inputs": {
         "nixpkgs-src": "nixpkgs-src"
@@ -169,6 +251,105 @@
         "type": "github"
       }
     },
+    "nixpkgs_4": {
+      "locked": {
+        "lastModified": 1787135253,
+        "narHash": "sha256-RD2kNWCG+Bjo6h+JVjWVNntZs2GtRoeY2xHjts/FNkA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "ffb3c9b700e759be2ef13237c9d8f953b32a1e46",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_5": {
+      "inputs": {
+        "nixpkgs-src": "nixpkgs-src_2"
+      },
+      "locked": {
+        "lastModified": 1782132010,
+        "narHash": "sha256-ZnAVHdVrotp80iIMm5CSR1fdxPlw7Uwmwxb+O/wsgZ8=",
+        "owner": "cachix",
+        "repo": "devenv-nixpkgs",
+        "rev": "12866ae2dddbc0ab8b329915f8072bb9c75bde89",
+        "type": "github"
+      },
+      "original": {
+        "owner": "cachix",
+        "ref": "rolling",
+        "repo": "devenv-nixpkgs",
+        "type": "github"
+      }
+    },
+    "pyjutsu": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789662262,
+        "narHash": "sha256-6lT0IJt0A7YSVV32w6nI6Vf/L1mzQ5Ufx7BSHPr/k4o=",
+        "ref": "refs/tags/v0.22.0",
+        "rev": "1a2a913e9505571bee7262072ef9a503101082c1",
+        "revCount": 163,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/Pyjutsu"
+      },
+      "original": {
+        "ref": "refs/tags/v0.22.0",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/Pyjutsu"
+      }
+    },
+    "pyproject-build-systems": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "nixpkgs"
+        ],
+        "pyproject-nix": [
+          "vendomat",
+          "pyproject-nix"
+        ],
+        "uv2nix": "uv2nix"
+      },
+      "locked": {
+        "lastModified": 1788149501,
+        "narHash": "sha256-XKJP4KvhawV3pyVfraX3sflz05Rp7KP74gRt6QqKjNE=",
+        "owner": "pyproject-nix",
+        "repo": "build-system-pkgs",
+        "rev": "150839ac67b5a34db56a55e8f6b7099a4e7878ab",
+        "type": "github"
+      },
+      "original": {
+        "owner": "pyproject-nix",
+        "repo": "build-system-pkgs",
+        "type": "github"
+      }
+    },
+    "pyproject-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788394333,
+        "narHash": "sha256-xYOP0Xym1eVGUaHFx+eJEaycFGoiCbst3fZf0xFHP78=",
+        "owner": "nix-community",
+        "repo": "pyproject.nix",
+        "rev": "6a8a7881d75b6f98967e7b8069f4ead331384301",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "pyproject.nix",
+        "type": "github"
+      }
+    },
     "repoman": {
       "flake": false,
       "locked": {
@@ -181,6 +362,23 @@
       },
       "parent": []
     },
+    "repoman_2": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788823452,
+        "narHash": "sha256-G9ke+XOt5uK6gweQca1ARnF+8WCfpiwHA9Zaal3DGYg=",
+        "ref": "refs/tags/v0.7.5",
+        "rev": "cd34bfd4845d6dde310d3a263816c86cad977a9f",
+        "revCount": 154,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/repoman"
+      },
+      "original": {
+        "ref": "refs/tags/v0.7.5",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/repoman"
+      }
+    },
     "root": {
       "inputs": {
         "devenv": "devenv",
@@ -190,24 +388,111 @@
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-python": "nixpkgs-python",
         "repoman": "repoman",
-        "shellij": "shellij"
+        "shellij": "shellij",
+        "vendomat": "vendomat"
       }
     },
     "shellij": {
       "flake": false,
       "locked": {
-        "lastModified": 1788713516,
-        "narHash": "sha256-S0mudp5L8TGsCZE7+tCZotmAavsPPsm9+bdnBNIM9m4=",
-        "ref": "refs/tags/v0.3.0",
-        "rev": "2b28ce8408190c02380dca30cc67bea38f098a71",
-        "revCount": 43,
         "type": "git",
-        "url": "https://github.com/Bullish-Design/shellij"
+        "url": "file:///home/andrew/Documents/Projects/shellij"
       },
       "original": {
-        "ref": "refs/tags/v0.3.0",
         "type": "git",
-        "url": "https://github.com/Bullish-Design/shellij"
+        "url": "file:///home/andrew/Documents/Projects/shellij"
+      }
+    },
+    "templateer": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788888086,
+        "narHash": "sha256-lL+/QOmIJI5PXb3Pn6JTuerFregmsORMXy8OhBFC8Fc=",
+        "ref": "refs/tags/v0.4.1",
+        "rev": "73afed43ecdee99027cc687e1599861322dab6a9",
+        "revCount": 46,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/templateer_v2"
+      },
+      "original": {
+        "ref": "refs/tags/v0.4.1",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/templateer_v2"
+      }
+    },
+    "uv2nix": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "pyproject-build-systems",
+          "nixpkgs"
+        ],
+        "pyproject-nix": [
+          "vendomat",
+          "pyproject-build-systems",
+          "pyproject-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788001239,
+        "narHash": "sha256-AELmsXPI546MhbC/ZXC7WRUkCz7d4rqKTHUmliIgPpI=",
+        "owner": "pyproject-nix",
+        "repo": "uv2nix",
+        "rev": "7f9c6b613d2e749e54854b1d60ab6a2192db889e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "pyproject-nix",
+        "repo": "uv2nix",
+        "type": "github"
+      }
+    },
+    "uv2nix_2": {
+      "inputs": {
+        "nixpkgs": [
+          "vendomat",
+          "nixpkgs"
+        ],
+        "pyproject-nix": [
+          "vendomat",
+          "pyproject-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788001239,
+        "narHash": "sha256-AELmsXPI546MhbC/ZXC7WRUkCz7d4rqKTHUmliIgPpI=",
+        "owner": "adisbladis",
+        "repo": "uv2nix",
+        "rev": "7f9c6b613d2e749e54854b1d60ab6a2192db889e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "adisbladis",
+        "repo": "uv2nix",
+        "type": "github"
+      }
+    },
+    "vendomat": {
+      "inputs": {
+        "copyroom": "copyroom",
+        "devman": "devman",
+        "docman": "docman_2",
+        "gitman": "gitman",
+        "nixpkgs": "nixpkgs_5",
+        "pyjutsu": "pyjutsu",
+        "pyproject-build-systems": "pyproject-build-systems",
+        "pyproject-nix": "pyproject-nix",
+        "repoman": "repoman_2",
+        "templateer": "templateer",
+        "uv2nix": "uv2nix_2"
+      },
+      "locked": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/vendomat"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/vendomat"
       }
     }
   },

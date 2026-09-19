@@ -75,7 +75,7 @@ def run_sub(manager: Manager, args: list[str]) -> SubResult:
             exit_code=127,
             available=False,
             reason=f"{manager.command} is not installed — "
-            + ("run `repoman-sync --machine`" if manager.install == "toolchain" else "run `uv sync`"),
+            + ("run `repoman-sync`" if manager.install == "toolchain" else "run `uv sync`"),
         )
     try:
         proc = subprocess.run([executable, *args], timeout=_timeout())  # noqa: S603 - trusted roster

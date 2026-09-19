@@ -34,7 +34,7 @@ def test_run_sub_missing_command_is_unavailable(monkeypatch):
 def test_run_sub_missing_toolchain_command_points_at_the_machine_sync(monkeypatch):
     monkeypatch.setattr(agg.shutil, "which", lambda _c: None)
     res = agg.run_sub(REGISTRY["git"], ["doctor"])
-    assert "repoman-sync --machine" in res.reason
+    assert "repoman-sync" in res.reason
 
 
 def test_run_sub_prefers_the_binary_the_tasks_exec(tmp_path, monkeypatch):
@@ -43,10 +43,7 @@ def test_run_sub_prefers_the_binary_the_tasks_exec(tmp_path, monkeypatch):
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "bin" / "gitman").write_text("")
-    # A venv toolchain, so name the provider that reads one — the default is
-    # "store" since phase 4 (devman 023-toolchain).
-    monkeypatch.setenv("REPOMAN_CLI_PROVIDER", "venv")
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_VENV", str(toolchain))
+    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(toolchain / "bin"))
     monkeypatch.setattr(agg.shutil, "which", lambda _c: "/somewhere/else/gitman")
     assert agg.resolve(REGISTRY["git"]) == str(toolchain / "bin" / "gitman")
 

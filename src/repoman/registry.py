@@ -1,6 +1,6 @@
 """The RepoMan manager roster.
 
-Maps each manager key (used in ``repoman.managers``) to the console script that
+Maps each manager key (used in the project manifest) to the console script that
 implements it, its tier, and the sub-commands RepoMan calls when aggregating
 ``doctor`` / ``status``. RepoMan never models a manager's report — it only knows
 *how to invoke* each one.
@@ -16,7 +16,7 @@ class Manager:
     """One entry in the roster.
 
     Attributes:
-        key: Short key used in ``repoman.managers`` (e.g. ``"test"``).
+        key: Short key used in `.repoman/project.toml` (e.g. ``"test"`).
         command: Console script name on PATH (e.g. ``"testee"``).
         tier: ``"core"`` | ``"publish"`` | ``"situational"``.
         doctor: Args for this manager's doctor (every manager has one).
@@ -26,8 +26,7 @@ class Manager:
             module needs (presence-gated import); ``""`` for approach-A /
             pure-Python managers that need no consumer-declared input.
         install: ``"toolchain"`` (default) — the manager lives in the system-wide
-            shared toolchain venv, installed from the machine ``repoman.lock`` by
-            ``repoman-sync --machine``; ``"uv"`` — the manager is declared as a
+            Vendomat store closure; ``"uv"`` — the manager is declared as a
             dependency in the consumer's ``pyproject.toml`` and installed by
             ``uv sync`` (its ``doctor`` check is ``uv:<key>``, not ``lock:<key>``).
         package: Distribution name on the index; defaults to ``command``. Used to
@@ -43,7 +42,7 @@ class Manager:
     skill: str = ""  # sub-skill name the entrypoint routes to (default: command)
     route_when: str = ""  # "when you want to…" cell in the routing table
     nix_input: str = ""  # devenv.yaml input the manager's approach-B nix module needs; "" = none
-    install: str = "toolchain"  # "toolchain" = system-wide shared venv (machine repoman.lock);
+    install: str = "toolchain"  # "toolchain" = Vendomat's shared store closure;
     # "uv" = declared in the consumer's pyproject.toml, installed by uv sync
     package: str = ""  # distribution name; defaults to `command`
 
