@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 — legacy manifest compatibility
+
+The consumer module accepts and validates the legacy `cliProvider` field in
+`.repoman/project.toml`. The field does not select manager binaries; Vendomat
+continues to provide the shared CLI toolchain.
+
 ## Unreleased — the lock overlay (023-toolchain)
 
 `repoman.lock` committed the DEV shape — five managers as `path:` entries under one
