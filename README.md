@@ -88,6 +88,10 @@ schema = 1
 managers = ["copy", "git", "test"]
 ```
 
+RepoMan also accepts the legacy `cliProvider` key for shared manifests. It does
+not use that key to select manager binaries; Vendomat's `toolchain.enable`
+setting controls the shared command closure.
+
 See "Where the local paths go" below for developing against a local `*man`
 checkout instead of a published tag.
 

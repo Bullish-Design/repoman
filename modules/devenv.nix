@@ -34,10 +34,12 @@ let
   # manifest, `.repoman/project.toml`, modelled on
   # `devman/src/devman_contract/manifest.py`'s discipline — fixed field set,
   # unknown fields rejected outright, values checked against the same grammar
-  # the option already enforces. Absent file means the default roster, so 15 of
-  # 23 known consumers need no file at all.
+  # the option already enforces. `cliProvider` is a legacy key owned by the
+  # Vendomat consumer config; accept it for compatibility, but do not use it to
+  # select RepoMan's manager binaries. Absent file means the default roster, so
+  # 15 of 23 known consumers need no file at all.
   manifestPath = "${config.devenv.root}/.repoman/project.toml";
-  manifestKnownFields = [ "schema" "managers" ];
+  manifestKnownFields = [ "schema" "managers" "cliProvider" ];
   rawManifest =
     if builtins.pathExists manifestPath then
       builtins.fromTOML (builtins.readFile manifestPath)
@@ -60,6 +62,9 @@ let
     else if rawManifest ? managers && !(builtins.all (m: builtins.elem m allManagers) rawManifest.managers) then
       throw ("repoman: " + manifestPath + " field 'managers' names an unknown manager;"
         + " valid values are " + lib.concatStringsSep ", " allManagers)
+    else if rawManifest ? cliProvider && !(builtins.elem rawManifest.cliProvider [ "store" "venv" ]) then
+      throw ("repoman: " + manifestPath + " field 'cliProvider' has unsupported value "
+        + toString rawManifest.cliProvider + "; supported values are store and venv")
     else
       rawManifest;
 
