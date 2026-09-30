@@ -238,3 +238,5 @@ repoman.local.lock
 devenv.local.yaml
 # `relock` parks the overlay here while it re-locks; a stranded one is recoverable.
 .devenv.local.yaml.relock
+.loci
+devenv.local.nix

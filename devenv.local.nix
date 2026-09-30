@@ -1,1 +1,0 @@
-/home/andrew/.config/devman/projects/repoman/devenv.local.nix
