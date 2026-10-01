@@ -41,13 +41,5 @@ inputs:
     url: "git+https://github.com/Bullish-Design/docman?ref=refs/tags/v0.2.0"
     flake: false
 
-  # shellij: durable Zellij workbenches, installed by default (not a roster
-  # manager). This repo imports the meta-module below, so declaring the input is
-  # enough — modules/devenv.nix presence-imports shellij's own devenv module,
-  # exactly as it does for a template-py consumer.
-  shellij:
-    url: "git+https://github.com/Bullish-Design/shellij?ref=refs/tags/v0.3.0"
-    flake: false
-
 imports:
   - repoman
