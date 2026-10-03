@@ -42,14 +42,13 @@ Deeper detail belongs in `docs/`, not here.
 
 ## The standing configuration
 
-The user's cross-repo law — devenv discipline, the exit-code contract, manager
-routing, the agent-files convention — lives in
-[`.agents/skills/my-ai/SKILL.md`](.agents/skills/my-ai/SKILL.md), delivered by
-the `my-ai` personal layer. **Read it first.** Keep this file for what is true of
-*this* project only.
+`my-ai`, the personal layer that used to deliver this section, is retired.
+Its writing rules now live in
+[`.agents/skills/writing/SKILL.md`](.agents/skills/writing/SKILL.md). **Read
+it first.** For manager routing, start at the `repoman` skill. Keep this file
+for what is true of *this* project only.
 
 ```bash
 copyroom layer list              # which template layers manage this repo
-copyroom update --layer my-ai    # converge the personal layer
 copyroom agent-files check       # conformance report
 ```
