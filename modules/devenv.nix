@@ -85,8 +85,8 @@ in
   imports = [
     ./managers/testee.nix
     ./managers/copyroom.nix
-    ./managers/gitman.nix   # contributes a Rust/maturin toolchain when "git" is selected,
-                            # to build the unpublished pyjutsu native extension — see SPIKE.md
+    ./managers/gitman.nix   # activates when "git" is selected; contributes Rust/maturin only
+                            # when repoman.nativeBuild is true (opt-in, default false)
     ./managers/docman.nix   # activates when "doc" is selected (pure-Python; toolchain in docman's module)
   ]
   # shellij is NOT a roster manager: no roster entry, no repoman.session.*
@@ -142,8 +142,8 @@ in
   config = lib.mkMerge [
     { _module.args.repomanManagers = managerRoster; }
     (lib.mkIf cfg.enable {
-    # Tell the `repoman` CLI which managers are wired in (it reads this to know
-    # which sub-doctors / sub-status commands to aggregate) and where skills go.
+    # Tell the `repoman` CLI which managers are wired in (it reads this to build
+    # the router skill and to pick the expected skill set) and where skills go.
     env.REPOMAN_MANAGERS = lib.concatStringsSep " " managerRoster;
     # Project 039: `skillsDir` and `installSkills` were dead option surface — the
     # 2026-09-15 measurement found zero of twenty-three importing repositories set

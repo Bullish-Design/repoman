@@ -5,12 +5,20 @@
 ## What this project is
 
 RepoMan is the devenv meta-module and router generator for repositories that use
-the *man family. It wires the four lifecycle phases — `copy`, `git`, `test`, and
-`doc` — and gives agents one generated front door. The lifecycle roster stays
-four: `copy`, `git`, `test`, and `doc`. Devman, vendomat, and shellij belong to
-the automation plane, Nix layer, and terminal respectively; they are not
-lifecycle managers. RepoMan writes exactly one file, the router; copyroom ships
-or the genome converges every other skill.
+the *man family. It wires four managers — `copy`, `git`, `test`, and `doc` — and
+gives agents one generated front door. The roster stays four: `copy`, `git`,
+`test`, and `doc`. Devman, vendomat, and shellij belong to the automation plane,
+Nix layer, and terminal respectively; they are not lifecycle managers.
+
+The manager keys are not phase names. The lifecycle has three ordered phases:
+`change`, `verify`, and `integrate`. Birth and convergence (copyroom) and docs
+(docman) are unordered activities. Two laws apply: verify before you integrate,
+and never integrate on red.
+
+RepoMan writes exactly one file, the router. Devman's central overlay owns
+`.agents/`. The per-skill pool links are hand-authored, tracked content in
+`~/.config/devman`: one `ln -s` per skill. `devman-link reconcile` creates only
+the machine-local views, such as `.agents`.
 
 ## Python baseline
 
@@ -30,8 +38,8 @@ devenv tasks run -v base:test    # repoman:test
 
 ## Where things live
 
-- `src/` — the RepoMan Python package: the router generator and the four
-  lifecycle phases.
+- `src/` — the RepoMan Python package: the router generator and the
+  four-manager registry.
 - `modules/` — the devenv meta-module repositories link in.
 - `tests/` — the test suite `base:test` runs.
 
@@ -42,8 +50,3 @@ Deeper detail belongs in `docs/`, not here.
 Write in Simplified Technical English. See the
 [writing skill](.agents/skills/writing/SKILL.md). Keep this file specific to
 RepoMan.
-
-```bash
-copyroom layer list              # which template layers manage this repo
-copyroom agent-files check       # conformance report
-```

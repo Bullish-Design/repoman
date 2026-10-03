@@ -11,8 +11,7 @@ inputs:
   # EVERY first-party input below is committed in its FLEET shape: a published tag,
   # reachable from any machine and from CI. To develop against a local checkout,
   # override the url in `devenv.local.yaml` — untracked, same schema, merged over
-  # this file by devenv. Same rule as repoman.lock + repoman.local.lock: the
-  # committed file says WHAT, the local overlay says WHERE.
+  # this file by devenv. The committed file says WHAT, the local overlay says WHERE.
 
   # Vendomat's consumer module arrives from this repository's central devenv.local.nix.
   # Its shared store closure supplies the pure-CLI managers through

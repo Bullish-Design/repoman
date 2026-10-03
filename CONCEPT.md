@@ -1,245 +1,412 @@
 # RepoMan — Concept
 
-> **One devenv import that turns any repo into a fully-managed agentic repo.**
-> Add RepoMan to `devenv.yaml`, set `repoman.enable = true`, pick your managers —
-> and copyroom, gitman, testee, docman, … are installed, wired, and
-> skilled, with a single `repoman doctor` over all of them.
+> **One devenv import that turns a repo into a managed agentic repo.**
+> Import the module and name your managers in `.repoman/project.toml`. RepoMan wires
+> their tasks, generates one router skill, and checks its own wiring with `repoman doctor`.
+> RepoMan installs no manager commands. Vendomat supplies them, except testee, which the
+> repo declares.
 
-RepoMan is the **conductor** for the `*man` family: a per-repo lifecycle front door
-that *composes* the individual managers rather than replacing them.
+RepoMan is the **conductor** for the `*man` family. It is a per-repo lifecycle front
+door. It *composes* the individual managers and does not replace them.
+
+This document describes RepoMan 0.9.2. Blocks that start with **Superseded** record
+design history.
 
 ---
 
 ## 1. The family it belongs to
 
-RepoMan does not invent a new architecture — it composes an existing one. Every
-`*man` tool is the same pattern applied to a different domain:
+RepoMan does not invent a new architecture. It composes an existing one. Every
+`*man` tool is the same pattern applied to a different domain.
 
-| Manager | Domain it owns | Wraps |
-|---|---|---|
-| **copyroom** | templating / scaffolding / project lifecycle / convergence | Copier |
-| **gitman** | version control | jujutsu + colocated git |
-| **testee** | verification (test / lint / typecheck / format) | pytest, ruff, ty |
-| **docman** | docs | _(skeleton)_ |
-| **shellij** | durable remote workbenches — **installed by default, not a roster manager** | Zellij, Yazi |
+| Manager | Roster key | Domain it owns | Wraps |
+| --- | --- | --- | --- |
+| **copyroom** | `copy` | templating / scaffolding / project lifecycle / convergence | Copier |
+| **gitman** | `git` | version control | jujutsu + colocated git |
+| **testee** | `test` | verification (test / lint / typecheck / format) | pytest, ruff, ty |
+| **docman** | `doc` | docs (build / lint / check) | zensical |
 
-shellij is the one non-roster member of the family: RepoMan wires it in by default —
-new repos get it without selecting anything, and it is auto-configured for use (see §4).
+The lifecycle roster is exactly these four. Three neighbors are not lifecycle managers:
 
-They share a contract:
+- **devman** is the automation plane. Its central overlay owns `.agents/` in every repo.
+- **Vendomat** is the Nix layer. It builds the store closure that holds the manager
+  commands.
+- **shellij** is the terminal: durable remote workbenches on Zellij and Yazi. RepoMan
+  imports shellij's own devenv module when a repo declares a `shellij` input (see §4).
+
+The managers share a contract:
 
 - **Single interface** — the agent stops running raw tools ad hoc and asks one command.
 - **Pydantic-normalized output** → a compact, structured, actionable report.
-- **Typer CLI** with `init` (scaffolds a nix import + an agent skill) and `doctor`.
+- **Typer command-line interface (CLI)** with a `doctor` command.
 - **Runs inside `devenv shell`** as its execution boundary.
 - **A `0/1/2/3` exit-code contract**: ok / domain-decision-needed / infra-config / invalid-usage.
-- **Distributed as a devenv module**, imported via `devenv.yaml`.
+- **Distributed as a devenv module** that a repo imports.
 
-The four lifecycle managers share the family pattern; shellij is a family member
-outside the roster. RepoMan is the conductor.
+The four lifecycle managers share the family pattern. RepoMan is the conductor.
 
 ---
 
 ## 2. What RepoMan is (decisions)
 
-These were settled during brainstorming:
+Brainstorming settled four decisions. The code still follows them.
 
 - **Scope: per-repo conductor.** RepoMan lives inside one repo and orchestrates the
-  `*man` tools for the agent. Fleet/workspace management is explicitly out of scope
-  for v1 (shellij's project registry already covers per-project session discovery if needed later).
-- **Primary form: a devenv meta-module.** RepoMan is *mainly* the single one-liner
-  `devenv.yaml` import that pulls in and wires up the component managers. The Python
-  side is a thin conductor.
-- **Agent surface: pass-through + aggregate.** Each manager keeps its own report and
-  its own skill. RepoMan sequences them and aggregates `status` / `doctor`; it does
-  **not** re-model their reports.
-- **copyroom is the core pillar.** It is the *convergence engine*: it births repos
-  with the right managers pre-wired, adopts existing repos, and propagates toolchain
-  updates across repos. The other managers are organs; copyroom is the genome.
+  `*man` tools for the agent. Fleet and workspace management is out of scope by design.
+  shellij's project registry already covers per-project session discovery.
+- **Primary form: a devenv meta-module.** RepoMan is *mainly* one devenv module. The
+  module wires the managers in the repo's roster. The Python side is a thin conductor.
+- **Agent surface: pass-through, one router.** Each manager keeps its own report and
+  its own skill. RepoMan owns the lifecycle order and generates one file, the router
+  skill. It aggregates nothing at runtime and does **not** re-model their reports.
+- **copyroom is the core pillar.** It is the *convergence engine*. It births repos with
+  the right managers pre-wired, adopts existing repos, and converges the template layers
+  inside one repo. It has no cross-repo command. The other managers are organs. The
+  *genome* is the base template that copyroom renders, `template-py` or `template-nix`.
+
+Later projects settled two more decisions (see §6):
+
+- **RepoMan installs no manager commands.** Vendomat's store closure supplies them for
+  `copy`, `git`, and `doc`. testee is the one per-repo dependency.
+- **RepoMan writes one file in normal operation.** It is the router skill. devman links
+  every other skill.
 
 ---
 
 ## 3. The consumer experience (the whole point)
 
-What a repo adds — the "one-liner":
+A repo gets the module in one of two ways. First, devman's central overlay imports it.
+The overlay's `devenv.local.nix` imports
+`/run/current-system/sw/share/repoman/module/devenv.nix` from the machine profile.
+Second, the repo imports the module itself from `devenv.yaml`. RepoMan's own repo and
+`tests/consumer-example` do so:
 
 ```yaml
-# devenv.yaml
+# devenv.yaml — only when the repo imports the module itself
 inputs:
   repoman:
-    url: github:Bullish-Design/repoman?ref=v0.1.0   # flake:false; points at the module dir
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/vX.Y.Z"
     flake: false
 imports:
   - repoman
 ```
 
-```nix
-# devenv.nix
-{
-  repoman.enable = true;
-  repoman.managers = [ "copy" "git" "test" "doc" ];   # pick your toolchain
-}
-```
+Importing the module enables RepoMan. `repoman.enable` defaults to true, so a repo needs
+no line for it. Two small declarations complete the setup. `.repoman/project.toml` is
+optional. It replaces the default roster, `copy git test` (see §4). `pyproject.toml`
+declares testee under `[dependency-groups] dev`, because `test` is in the default roster
+(see §6).
 
-`devenv shell` — and now the repo has the selected managers on PATH, each one's nix
-wiring (tasks/scripts) active, each one's agent skill installed under `.claude/skills/`,
-and a top-level `repoman` command. **No eight separate `init` dances.**
+Then run `devenv shell` and `repoman-sync`. The repo now has the roster's manager tasks
+and the router skill under `.agents/skills/repoman/`. The manager commands are on `PATH`,
+from Vendomat's closure. A top-level `repoman doctor` checks RepoMan's own wiring. Each
+manager's own `doctor` checks that manager. Vendomat's consumer module exports the closure's location. A repo
+imports that module next to RepoMan's.
 
 ---
 
-## 4. Module options
+## 4. Module options and the roster manifest
 
 ```nix
-repoman.enable        = true;
-repoman.managers      = [ "copy" "git" "test" ];          # which managers to wire in
-repoman.template      = "gh:Bullish-Design/template-py";  # copyroom's canonical genome
-repoman.installSkills = true;                             # aggregated skill + each sub-skill
-repoman.skillsDir     = ".claude/skills";
-
-# escape hatch: pass options straight through to a component module
-repoman.test.mode     = "ci";
-repoman.git.trunk     = "main";
+repoman.enable      = true;    # default; importing the module is the enable signal
+repoman.nativeBuild = false;   # default; true adds Rust and maturin (gitman.nix)
 ```
+
+`repoman.nativeBuild` is opt-in, and `modules/managers/gitman.nix` declares it. When
+`true`, it adds `maturin` and `languages.rust.enable` so a consumer can build pyjutsu from
+source. pyjutsu ships as a prebuilt abi3 wheel for x86-64 Linux with glibc 2.39 or newer.
+Other platforms build it from its source distribution, which needs Rust. So the option
+exists only for a consumer that must build pyjutsu. A fleet search on 2026-10-06 found no
+repo that sets it to `true`.
+
+A third option, `repoman.toolchainBin`, is internal and read-only. It holds the shell
+expression for `$REPOMAN_TOOLCHAIN_BIN`. Manager modules interpolate it into task
+commands. A repo can set `repoman.enable = false` to keep the import and run no RepoMan.
+The skills directory is not an option: the module sets `REPOMAN_SKILLS_DIR` to
+`.agents/skills`.
+
+**The roster is not a Nix option.** It lives in the tracked file `.repoman/project.toml`:
+
+```toml
+schema = 1                           # required; the only supported value is 1
+managers = ["copy", "git", "test"]   # optional; any of copy, git, test, doc
+cliProvider = "store"                # legacy; validated, then ignored
+```
+
+The module parses and validates the file in Nix (`modules/devenv.nix`). It rejects
+unknown fields, a missing `schema`, and any `schema` other than 1. It rejects an unknown
+manager name and a `cliProvider` other than `store` or `venv`. An absent file means the
+default roster. `cliProvider` has no effect. It is a legacy key that Vendomat's consumer
+config owns.
 
 Manager roster, in default tiers:
 
 - **Core (default on):** `copy` (copyroom), `git` (gitman), `test` (testee).
-- **Publish:** `doc` (docman).
+- **Publish:** `doc` (docman). It is never in the default roster.
 
-**shellij is not in the roster.** There is no `repoman.session.*` config, no
-`repoman.managers` entry, nothing to select or tune. It is **installed by default**:
-new-repo templates (copyroom's canonical template) declare the `shellij` input in
-`devenv.yaml`, and RepoMan presence-imports shellij's own devenv module — which
-installs `shellij` + `zellij` + `yazi`, appends a guarded `shellij open`
-enterShell hook, and points `YAZI_CONFIG_HOME` at the packaged Yazi assets — so
-the durable workbench is wired and auto-configured for use with zero repoman
-configuration. A repo that doesn't declare the input simply doesn't get shellij.
+The roster leaves Nix by two channels. The module passes it to the manager modules as
+the module argument `repomanManagers`. It exports it to the shell as `REPOMAN_MANAGERS`,
+space-joined. The Python side reads only the variable. Unset means the default roster.
+Empty means wire nothing.
 
----
+> **Superseded by project 039 (manifest-driven roster).** Earlier versions declared four
+> Nix options: `repoman.managers`, `repoman.template`, `repoman.installSkills`, and
+> `repoman.skillsDir`. Project 039 removed the last three and moved the roster into
+> `.repoman/project.toml`. Release 0.9.1 removed `repoman.managers`. This section also once
+> sketched a `repoman.<manager>.*` pass-through for component options. No such options
+> exist.
 
-## 5. The thin `repoman` CLI (pass-through + aggregate)
-
-It re-implements nothing. It sequences and aggregates:
-
-```
-repoman managers   # list enabled managers, command, tier, one-line summary
-repoman doctor     # run every enabled manager's doctor; exit = worst sub-exit (0/1/2/3)
-repoman status     # gitman status + testee last-run + copyroom drift, side by side
-# optional lifecycle pass-throughs (sequence, gate on exit codes):
-repoman verify     # → testee
-repoman save -m    # → testee verify, then gitman describe (gated on green)
-repoman release    # → testee ci → gitman release → docman
-```
-
-Pass-through means each tool keeps its own report and skill; `repoman` runs them,
-prints each result, and returns the worst exit code under the shared `0/1/2/3` contract.
+**shellij is not in the roster.** RepoMan has no `repoman.session.*` config and no roster
+entry for it. RepoMan presence-imports shellij's own devenv module with
+`lib.optional (inputs ? shellij)`. A repo that declares the `shellij` input gets the module.
+That module installs shellij, Zellij, and Yazi, adds a guarded `shellij open` hook to
+`enterShell`, and sets `YAZI_CONFIG_HOME`. The gate is the input alone, so
+`repoman.enable = false` does not remove the module. This repo declares no `shellij` input.
 
 ---
 
-## 6. How composition actually works
+## 5. The thin `repoman` CLI
 
-> **Superseded by project 12 (toolchain single instance).** §6.2 below described a
-> per-repo toolchain: `repoman-sync` installing the manager CLIs into *each consumer's*
-> devenv venv from a per-repo `repoman.lock` — the mechanism project 11 measured pruning
-> 33 packages when `uv sync` ran. Project 12 splits the family by install model: the
-> pure-CLI managers (repoman/gitman/copyroom/docman + pyjutsu) live ONCE system-wide in
-> `$REPOMAN_TOOLCHAIN_VENV`, installed by `repoman-sync --machine` from a machine
-> `repoman.lock` at the repoman checkout; testee is a per-repo uv dev dependency in each
-> consumer's `pyproject.toml`. Consumers have no `repoman.lock` and `uv sync` prunes
-> nothing. The nix wiring described here is unchanged.
+RepoMan owns the lifecycle order and generates one file. It aggregates nothing at runtime.
+The CLI has four commands:
+
+```text
+repoman managers        # list the managers in the roster: key, command, tier, summary
+repoman doctor [--json] # self-check of RepoMan's own wiring
+repoman install-skills  # generate the router skill from the roster
+repoman --version
+```
+
+`repoman doctor` checks its context first. Outside a managed repo's `devenv shell`, it
+prints one message and exits `2`. Inside, it runs the self-check rows and the skill rows.
+It runs no manager. With `--json`, it prints one JSON document and nothing else.
+
+The skill rows are roster-derived. The lint expects `writing` always, each enabled
+manager's skill, and copyroom's two sub-skills only when `copy` is enabled. devman
+requires exactly one universal skill, `writing`, and refuses to universalise `gitman` and
+`copyroom`. The rows are `ok` or `warn`. They never gate.
+
+**The lifecycle spine.** The router states the order. It has three ordered phases:
+`change → verify → integrate`. `integrate` is gitman's `describe`, then `land`, then
+`push`. Two activities have no order: `birth / converge` (copyroom) and `docs` (docman).
+Two laws apply: verify before you integrate, and never integrate on red.
+
+To check a manager, run that manager's own `doctor` and read its report. To birth or
+adopt a repo, run `copyroom new` or `copyroom adopt`.
+
+> **Superseded by project 040 (the family contract): the aggregating CLI.** Earlier
+> versions ran the managers and merged their results. RepoMan removed these:
 >
-> **Lock shape (WS-3, project-12 follow-up):** the committed `repoman.lock` at the
-> checkout is the **dev** shape — `path:` sources installed `--editable` for this
-> machine. The **fleet** shape swaps each `path:` for
-> `git+https://github.com/Bullish-Design/<repo>@vX.Y.Z` (the resolver passes git
-> sources verbatim; proven by `test_git_https_source_passes_through_verbatim`). One
-> lock does NOT serve both — machine locks are per-machine by design. A CI runner
-> can point `repoman-sync --machine` at a fleet-shaped lock with the `REPOMAN_LOCK`
-> env override (WS-3 flag) without editing the checkout.
+> - `repoman status`. It mutated version-control state through `gitman status`, which
+>   snapshots `@`, mirrors refs, and writes `.gitman/markdown`. It carried no verdict,
+>   because `testee list-runs` always exits `0`. It failed in any repo with no Copier
+>   answers file, because `copyroom status` exits `1` there.
+> - The sub-doctor loop in `repoman doctor`, and the `--self-only` flag. Doctor now checks
+>   RepoMan's own wiring only, so `doctor --json` is pure JSON. The loop merged six
+>   incompatible exit-code dialects into one number. gitman's doctor returns only `0` or
+>   `2`. copyroom returns `1` for infrastructure faults. docman returns `0` or `2`, and `2`
+>   for a broken link. linkman uses `10` to `13`. loci-core returns `1` for everything.
+>   `worst_exit` mapped any code outside `0` to `3` to `2`, so distinct failure classes
+>   collapsed. The router skill is the aggregation. It aggregates knowledge, which loses
+>   nothing. Exit-code aggregation loses by construction.
+> - `repoman new` and `repoman adopt`. They hid which tool owns birth, had no timeout,
+>   and their `--help` never reached copyroom. Call `copyroom new` and `copyroom adopt`.
+> - `repoman devman status` and `repoman devman migrate`. devman deleted the
+>   `devman = {...}` devenv option that they parse on 2026-09-19. `migrate` raises
+>   `MigrationError` on this repo. devman writes no manifests by design. A person
+>   maintains `.devman/project.toml` by hand, and the template seeds it.
+> - `REPOMAN_SUB_TIMEOUT`. It governed only the sub-manager calls.
 
-Two layers, mirroring the proven family patterns:
+> **Superseded by project 040: the spine `scaffold → change → verify → save → docs`.**
+> `save` was a hidden, deprecated alias for gitman's `describe`. The real sequence is
+> `describe`, then `land`, then `push`. `scaffold` happens before the repository exists,
+> so it cannot be a phase of it. `docs` has no place in the order. The spine is now three
+> phases, and the two activities sit outside it.
+
+**Abandoned.** Earlier text proposed three gated lifecycle verbs:
+
+- `repoman verify` would run testee.
+- `repoman save -m` would run testee verify, then gitman describe, gated on green.
+- `repoman release` would run testee ci, gitman release, then docman.
+
+`cli.py` has none of them, and the project abandoned them. The router skill states the
+order instead.
+
+---
+
+## 6. How composition works
+
+Three layers cooperate. RepoMan owns the first two. Vendomat owns the third.
 
 1. **Nix layer (the meta-module).** `modules/devenv.nix` declares `options.repoman.*`
-   and statically imports one thin wiring module per manager from `modules/managers/`.
-   Each manager module gates its own `config` on membership in `repoman.managers`
-   (imports can't depend on `config`, so we import all and gate each — the standard
-   module-system idiom). Each manager module contributes that manager's `tasks` /
-   `scripts` and registers its skill for installation.
+   and reads the roster. It statically imports one thin wiring module per manager from
+   `modules/managers/`. Imports cannot depend on `config`. So the meta-module imports
+   every manager module, and each one gates its own `config` on roster membership. This
+   is the standard module-system idiom. A manager module contributes that manager's
+   tasks, and sometimes packages.
 
-2. **Python/CLI layer (getting the tools into the repo).** The manager CLIs
-   (copyroom, gitman, testee, …) are Python packages that must land in the devenv
-   venv. The proven family mechanism is a `*-sync` script that installs
-   assets into the repo, optionally on `enterShell`. RepoMan generalizes this:
-   `repoman-sync` installs the selected managers' Python packages into the venv and
-   installs their skills under `skillsDir`.
+   The meta-module also exports `REPOMAN_MANAGERS` and `REPOMAN_SKILLS_DIR`. It puts the
+   closure's bin directory first on `PATH` and defines `repoman-sync`.
 
-> **Managers may contribute nix-level provisioning, not just venv installs.** Most
-> managers are pure pip installs, but some carry native/system toolchain requirements
-> that a venv install alone can't satisfy. A manager module may therefore contribute
-> system `packages` and language toolchains (`languages.*`) to the consumer devenv —
-> conditionally on being selected — in addition to its tasks/scripts/skills. Proven by
-> gitman (project 01, guide 1): its `pyjutsu` dependency is a Rust/maturin native
-> extension, so `modules/managers/gitman.nix` adds `pkgs.maturin` +
-> `languages.rust.enable`, gated on `"git" ∈ managers` (repos without gitman never pull
-> Rust). Native deps that `uv pip install` can't resolve from `[tool.uv.sources]` get an
-> explicit `repoman.lock` pseudo-entry (`[managers.<m>-<dep>]`) that `repoman-sync`
-> installs alongside the manager. A pseudo-entry states a **floor**, never the whole
-> requirement: `repoman-sync --machine` resolves it together with the manager's own
-> metadata, so a loose floor cannot weaken the manager's stricter requirement, and the
-> sync verifies the installed result before it records a manifest (project 18). See
-> `SPIKE.md`.
+2. **Python/CLI layer (the conductor).** The `repoman` CLI reads `REPOMAN_MANAGERS`.
+   It lists the managers, self-checks the wiring, and generates the router. It runs no
+   manager. The variable is the only channel. The CLI never reads `.repoman/project.toml`.
+   One list feeds the Nix modules, the CLI, and the router skill, so the three cannot drift.
 
-> **De-risking note.** The original open question was "does devenv support transitive
-> *nix inputs* from an imported remote module." The spike shows that for Python-based
-> managers this is mostly **not needed**: the nix module only wires tasks/scripts/skills,
-> and the tools themselves arrive through the venv (pip/uv) via `repoman-sync`. The
-> resolution is settled: `repoman-sync` reads a single **`repoman.lock`** manifest
-> (TOML) pinning RepoMan + every manager, so the toolchain moves in lockstep. Proven
-> end to end — see `SPIKE.md`.
+3. **The toolchain (Vendomat's store closure).** Vendomat builds the manager commands
+   once, in one pinned Nix store closure. Vendomat's `flake.lock` is authoritative for
+   their versions. RepoMan finds the closure by environment variable only.
+   `REPOMAN_TOOLCHAIN_BIN` names the bin directory. `REPOMAN_TOOLCHAIN_MANIFEST` names
+   the provenance manifest, which defaults to `share/vendomat/toolchain.json` in the closure.
+   Vendomat exports both, so RepoMan guesses no path.
+
+A missing closure fails at the point of use: a manager task stops and names
+`REPOMAN_TOOLCHAIN_BIN`. Shell entry only warns, so a broken closure never blocks the shell.
+
+**Toolchain versions reach a repo in two ways.** The genome pins published tags in its
+`copier.yml`, and `copyroom update` applies those pins to one repo at a time. Vendomat's
+`flake.lock` pins the closure that supplies the manager commands. copyroom has no
+cross-repo command: it converges the template layers of one repo. A past fleet rollout
+ran from a scratch script that no longer exists.
+
+**Two install models.** The family splits on one question: does the tool import the
+consumer's own code?
+
+- **Toolchain managers** (`copy`, `git`, `doc`): the command comes from Vendomat's
+  closure.
+- **uv manager** (`test`): the command comes from the repo's own virtual environment
+  (venv). `pyproject.toml` declares testee under `[dependency-groups] dev`. testee's
+  tools (pytest, ruff, and ty) import the consumer's package, so they must run in that venv.
+
+The toolchain managers live outside the repo's venv, so `uv sync` prunes nothing of
+theirs. `Manager.install` in `src/repoman/registry.py` encodes the split. `repoman doctor`
+checks a toolchain manager against Vendomat's manifest. It checks a uv manager against
+`pyproject.toml`.
+
+**`repoman-sync` installs nothing.** It checks that the closure exists and holds
+`repoman`. It prints the closure's provenance from `toolchain.json`. Then it runs
+`repoman install-skills`. It exits `2` when the closure is missing or incomplete, and for
+the retired `--machine` flag. It also exits `2` in a consumer repo that still has a
+`repoman.lock`, because that file is obsolete there.
+
+**One generated file.** RepoMan writes `<DEVENV_ROOT>/.agents/skills/repoman/SKILL.md`, the
+router skill. `repoman install-skills` renders it from
+`src/repoman/templates/entrypoint.SKILL.md.j2` and the roster.
+
+devman's central overlay (`~/.config/devman`) owns `.agents/`. The overlay holds one
+hand-authored relative symlink per skill, each into a shared skill pool.
+`devman-link reconcile` creates only the machine-local views, such as `.agents`. No repo
+tracks skills, and copyroom does not write them. RepoMan writes no other file. See
+`docs/SKILLS.md` and `docs/AGENT-FILES.md`.
+
+**Managers may contribute nix-level provisioning, not only commands.** A manager module
+may add system `packages` and language toolchains (`languages.*`) to the consumer devenv.
+It does so only when the manager is in the roster.
+
+`modules/managers/gitman.nix` adds `git`. The opt-in `repoman.nativeBuild = true` also adds
+`maturin` and `languages.rust.enable`, to build pyjutsu from source (see §4). The default
+pulls no Rust. `copyroom.nix` adds `git` and `gnupatch`. `docman.nix` imports docman's own
+devenv module when the repo declares a `docman` input.
+
+> **Superseded by gitman's project 32 (the pyjutsu wheel pin).** Project 01 first showed
+> this pattern with gitman's Rust need. The need was real when project 01 measured it. A
+> plain `uv pip install` could not satisfy pyjutsu, so the spike built it from a sibling
+> checkout. Every repo that selected `git` then pulled `maturin` and Rust.
+>
+> That need has ended. pyjutsu now ships as a prebuilt `cp313-abi3-manylinux_2_39_x86_64`
+> wheel on a GitHub release. gitman pins the wheel by URL in its `[tool.uv.sources]`, and
+> uv carries the pin into a consumer's lock. So gitman needs no Rust, and neither does a
+> consumer on a platform that the wheel serves (see §4). Only pyjutsu's own repo needs Rust
+> in its dev shell, and it does not import RepoMan's module.
+
+**De-risking note.** The original open question was whether devenv supports transitive
+Nix *inputs* from an imported remote module. It does not. The manager commands arrive in
+Vendomat's closure, so RepoMan needs no extra input for them. docman's and shellij's own
+modules need inputs that the repo declares itself. RepoMan imports each one only when the
+input exists, as in `lib.optional (inputs ? docman)`. The spike proved this (see
+`SPIKE.md`).
+
+> **Superseded by project 12, then by project 031 (how the commands reached a repo).**
+> Two earlier mechanisms installed the manager commands. RepoMan retired both.
+>
+> 1. *Per-repo install.* `repoman-sync` installed the manager commands into each consumer's
+>    venv from a per-repo `repoman.lock`. Project 11 measured the flaw. `uv sync` pruned 33
+>    of 52 packages, because the project's own lock did not name them.
+> 2. *Machine venv (project 12).* The pure-CLI managers moved to one system-wide venv.
+>    `repoman-sync --machine` installed them from a machine `repoman.lock`. Project 12 also
+>    drew the install-model split that this section still describes.
+>
+> Project 031 adopted Vendomat's store closure. Release 0.9.1 then removed the venv
+> provider, `repoman-sync --machine`, and the lock model. Vendomat's `flake.lock` now
+> carries the goal that the lock files served: one toolchain that moves in lockstep.
+> RepoMan retired these names:
+>
+> - `repoman-sync --machine`
+> - `repoman.lock`, `repoman.local.lock`, and the `[managers.<m>-<dep>]` lock entries
+> - the lock overlay and the fleet-shape versus dev-shape lock split
+> - `REPOMAN_LOCK`, `REPOMAN_LOCAL_LOCK`, and `--no-local`
+> - `REPOMAN_TOOLCHAIN_VENV` and `REPOMAN_CLI_PROVIDER`
+> - per-repo venv installs of manager commands
+> - `cliProvider` as a binary selector
 
 ---
 
 ## 7. Repo layout for RepoMan itself
 
-```
+```text
 repoman/
-  devenv.yaml          # RepoMan's own dev shell inputs
+  devenv.yaml          # RepoMan's own dev shell inputs (it imports its own module)
   devenv.nix           # RepoMan's own dev shell (working ON repoman)
+  flake.nix            # packages the module for the machine profile
+  .repoman/project.toml  # this repo's roster: copy git test doc
   modules/
-    devenv.nix         # ← THE meta-module consumers import (options.repoman.* + wiring)
-    managers/
-      testee.nix       # per-manager wiring, gated on membership in repoman.managers
-      ...              # gitman.nix, copyroom.nix, … (added incrementally)
+    devenv.nix         # ← THE meta-module consumers import (options + roster + wiring)
+    managers/          # copyroom.nix, gitman.nix, testee.nix, docman.nix
+                       #   per-manager wiring, gated on membership in the roster
+    scripts/
+      repoman-sync.sh  # verify the closure, then generate the router skill
   src/repoman/
-    cli.py             # thin Typer CLI: managers, doctor, status, lifecycle
-    aggregate.py       # run sub-commands, merge exit codes (0/1/2/3 contract)
-    registry.py        # the manager roster + tiers + command mapping
+    cli.py             # thin Typer CLI: managers, doctor, install-skills
+    registry.py        # the manager roster + tiers + command mapping + install model
+    checks.py          # the doctor self-check
+    skills.py          # the router skill generator (template in templates/)
+    devman/            # skill-link lint
   tests/
     consumer-example/  # throwaway repo that imports the meta-module (the spike)
+  docs/                # SKILLS.md, AGENT-FILES.md
   CONCEPT.md
   SPIKE.md
 ```
 
-The center of gravity is **Nix** (`modules/devenv.nix` + `managers/`); the Python is
-a slim conductor.
+The center of gravity is **Nix** (`modules/devenv.nix` + `managers/`). The Python is a
+slim conductor.
 
 ---
 
 ## 8. Open questions / next steps
 
-- ~~**`repoman-sync` resolution**~~ — **decided:** single `repoman.lock` manifest
-  (TOML), proven end to end. See `SPIKE.md`.
-- ~~**`repoman new`**~~ — **decided:** both shipped. `repoman new` and
-  `repoman adopt` are thin pass-throughs to `copyroom new`/`copyroom adopt`
-  (`src/repoman/cli.py`); RepoMan re-implements neither, it just spares the
-  caller from needing to know copyroom owns birth/adoption.
-- ~~**Skill merge narrative**~~ — **built:** generated entrypoint/router skill from the
-  roster (`repoman install-skills`, run by `repoman-sync`). Design + verification in
-  `docs/SKILLS.md`. Remaining: conflict-precedence table, installing sub-skills, and
-  `doctor`-as-skill-linter.
-- ~~**gitman & native toolchains**~~ — **done** (project 01, guide 1). gitman needs
-  Rust/maturin + the unpublished pyjutsu; `modules/managers/gitman.nix` contributes the
-  toolchain (gated on `"git"`) and a `git-pyjutsu` lock pseudo-entry carries the native
-  dep. Proves the meta-module can do nix-level (not just venv) provisioning — see §6 and
-  `SPIKE.md`. Remaining gitman follow-up: a fleet path (published pyjutsu wheel + `git+…`
-  sources) so `path:` checkouts aren't required.
+Each item shows its status: **done**, **abandoned**, or **open**.
+
+- ~~**`repoman-sync` resolution**~~ — **abandoned.** The single `repoman.lock` design
+  shipped and worked. Vendomat's store closure replaced it. `repoman-sync` installs
+  nothing. See §6.
+- ~~**`repoman new`**~~ — **abandoned.** `repoman new` and `repoman adopt` were thin
+  pass-throughs. RepoMan removed them. Call `copyroom new` and `copyroom adopt` (see §5).
+- ~~**Skill merge narrative**~~ — **done.** `repoman install-skills` generates the router
+  skill from the roster, and `repoman-sync` runs it. `docs/SKILLS.md` has the design.
+  The three follow-ups ended differently:
+  - Installing sub-skills — **abandoned.** devman links the manager skills from a shared
+    pool. RepoMan generates the router only (`docs/AGENT-FILES.md`).
+  - `doctor` as a skill linter — **partly done.** `repoman doctor` lints the skill link set
+    (`skill:tool-shipped`, `skill:genome-overlay`). It checks that each manager skill defers
+    to the router (`skill:<key>:defers`, warn only). A check for colliding triggers is
+    **open**.
+  - Conflict-precedence table — **open.** `docs/SKILLS.md` lists it as an open question.
+- ~~**gitman & native toolchains**~~ — **done** (project 01, guide 1).
+  `modules/managers/gitman.nix` proved that the meta-module can provision nix-level
+  toolchains, not only commands. The proof used gitman's Rust need, which has since ended
+  (see §6). The fleet-path follow-up is also **done**. pyjutsu ships as a prebuilt wheel
+  that gitman pins by URL, so no `path:` checkout is needed. The Rust toolchain is opt-in
+  (`repoman.nativeBuild`). See §4, §6, and `SPIKE.md`.
+- ~~**Lifecycle verbs**~~ (`repoman verify`, `save`, `release`) — **abandoned.** The
+  router states the order instead (see §5).

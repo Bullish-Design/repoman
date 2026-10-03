@@ -40,13 +40,12 @@ dev = ["testee"]
 [tool.uv.sources]
 # A git tag, not `path = "../testee"`. testee is not on PyPI, so uv needs a source, and a
 # RELATIVE path resolves beside whatever directory the clone happens to sit in — a fresh
-# clone's `uv sync` then fails to find it. This is repoman.lock's rule applied one level
-# down: commit the portable shape.
+# clone's `uv sync` then fails to find it. Commit the portable shape.
 #
 # There is no overlay for this line. uv refuses a `sources` table in uv.toml ("`sources` is
-# only applicable in the context of a project"), so unlike the machine lock it cannot be
-# overridden from an untracked file. To verify against a testee you are editing, overlay
-# the run instead — this needs no edit here and leaves the tree clean:
+# only applicable in the context of a project"), so an untracked file cannot override it.
+# To verify against a testee you are editing, overlay the run instead — this needs no
+# edit here and leaves the tree clean:
 #
 #     uv run --with-editable ../testee testee verify
 #

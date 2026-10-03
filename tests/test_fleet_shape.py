@@ -1,7 +1,7 @@
 # The committed devenv files must be PORTABLE: they may not name any one machine's
 # working trees. devenv.yaml is committed in its FLEET shape (published tags); the
 # machine-local urls live in the untracked devenv.local.yaml overlay, which devenv
-# merges over devenv.yaml. Same rule as repoman.lock / repoman.local.lock.
+# merges over devenv.yaml.
 #
 # devenv.lock is NOT checked here. devenv rewrites it on every shell entry, so a shell
 # taken with the overlay active re-locks the overlaid inputs at their local paths —
@@ -45,8 +45,9 @@ def test_the_self_input_is_a_path_not_a_git_url():
 def test_the_lock_gate_is_wired_into_pre_push():
     # gitman pushes through pyjutsu, which never invokes git's hooks, and
     # `gitman.toml [publish].verify` gates publish/release but NOT push — which is how
-    # trunk reaches origin. A pyjutsu pre-push hook is the one place that covers all
-    # three, so this checks the wiring rather than re-implementing the check.
+    # trunk reaches origin. A pyjutsu pre-push hook is the one place that covers push,
+    # so this checks the wiring rather than re-implementing the check. The hook does not
+    # fire on `gitman release`, which pushes only a tag.
     hooks = (ROOT / ".pyjutsu-hooks.toml").read_text()
     assert "[hooks.pre-push]" in hooks
     assert "scripts/check-fleet-lock.py" in hooks

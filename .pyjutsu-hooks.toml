@@ -1,6 +1,11 @@
 # Pyjutsu hooks. Loaded automatically by `Workspace.load(..., hooks_config="auto")`,
-# which is what gitman uses — so these fire on `gitman push`, `gitman publish` and
-# `gitman release`.
+# which is what gitman uses. The pre-push hook fires on `gitman push` and
+# `gitman publish`. It also fires on the lane-branch delete-pushes inside `land`,
+# `abandon` and `sync --trunk`.
+#
+# It does NOT fire on `gitman release`. That verb pushes only a tag through
+# `ws.push_tag`, and pyjutsu's tag verbs emit no events. `release` is gated only by
+# `[publish].verify`, which it inherits.
 #
 # A git `.git/hooks/pre-push` would NOT do: gitman pushes through pyjutsu, which never
 # invokes git's hooks. `gitman.toml [publish].verify` would not do either — it gates

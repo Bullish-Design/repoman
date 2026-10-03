@@ -14,14 +14,14 @@ from pathlib import Path
 
 from jinja2 import Environment, StrictUndefined
 
-from .registry import SPINE, Manager
+from .registry import ACTIVITIES, SPINE, Manager
 
 _TEMPLATE = Path(__file__).parent / "templates" / "entrypoint.SKILL.md.j2"
 
-#: Position of each manager in the canonical lifecycle. The routing table follows the
-#: same order as the spine printed above it, rather than whatever order the roster
-#: happened to be written in `REPOMAN_MANAGERS`.
-_SPINE_ORDER = {key: i for i, (_label, key) in enumerate(SPINE) if key is not None}
+#: Position of each manager in the table order. Spine managers come first, in spine
+#: order. Activity managers follow, in `ACTIVITIES` order. The routing table uses this
+#: order, not the order of `REPOMAN_MANAGERS`.
+_ORDER = {key: i for i, key in enumerate(k for _label, k in (*SPINE, *ACTIVITIES) if k is not None)}
 
 
 class SkillsDirError(ValueError):
@@ -45,19 +45,31 @@ def resolve_skills_dir(skills_dir: str, repo_root: str) -> Path:
     return Path(repo_root) / candidate
 
 
-def build_spine(enabled_keys: set[str]) -> str:
-    """Assemble the lifecycle spine from only the enabled managers."""
+def _enabled_labels(entries: tuple[tuple[str, str | None], ...], enabled_keys: set[str]) -> list[str]:
+    return [label for label, key in entries if key is None or key in enabled_keys]
 
-    steps = [label for label, key in SPINE if key is None or key in enabled_keys]
-    return " → ".join(steps)
+
+def build_spine(enabled_keys: set[str]) -> str:
+    """Assemble the ordered phases from only the enabled managers."""
+
+    return " → ".join(_enabled_labels(SPINE, enabled_keys))
+
+
+def build_activities(enabled_keys: set[str]) -> str:
+    """Assemble the unordered activities from only the enabled managers."""
+
+    return " · ".join(_enabled_labels(ACTIVITIES, enabled_keys))
 
 
 def _ordered(managers: list[Manager]) -> list[Manager]:
-    """Roster in lifecycle order; managers outside the spine keep their relative order."""
+    """Roster in table order: spine managers, then activity managers, then the rest.
+
+    A manager outside both lists keeps its relative order.
+    """
 
     return sorted(
         managers,
-        key=lambda m: (_SPINE_ORDER.get(m.key, len(_SPINE_ORDER)), managers.index(m)),
+        key=lambda m: (_ORDER.get(m.key, len(_ORDER)), managers.index(m)),
     )
 
 
@@ -73,11 +85,13 @@ def render_entrypoint(
     ordered = _ordered(managers)
     skills_root = skills_root or resolve_skills_dir(skills_dir, repo_root)
     present = [m for m in ordered if (skills_root / m.skill / "SKILL.md").is_file()]
-    env = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
+    env = Environment(undefined=StrictUndefined, keep_trailing_newline=True, trim_blocks=True, lstrip_blocks=True)
     template = env.from_string(_TEMPLATE.read_text(encoding="utf-8"))
+    enabled = {m.key for m in ordered}
     return template.render(
         managers=" ".join(m.key for m in ordered),
-        spine=build_spine({m.key for m in ordered}),
+        spine=build_spine(enabled),
+        activities=build_activities(enabled),
         rows=[{"key": m.key, "command": m.command, "skill": m.skill, "when": m.route_when} for m in present],
         skills_dir=skills_dir,
     )

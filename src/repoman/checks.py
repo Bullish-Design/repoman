@@ -6,10 +6,11 @@ and skills. This catches the class of problem the spike hit — a manager
 selected but not installed, or a provider mismatch — before sub-doctors run.
 
 Project 12: the manager family splits by install model. Pure-CLI managers
-(`install == "toolchain"`) live in one system-wide shared venv, validated
-against the manifest `repoman-sync` recorded inside it. uv-declared
-managers (`install == "uv"`, today: testee) live in the consumer's uv graph,
-validated against `pyproject.toml`.
+(`install == "toolchain"`) come from Vendomat's one shared Nix store closure,
+found through `REPOMAN_TOOLCHAIN_BIN` and validated against the provenance
+manifest Vendomat ships beside it. uv-declared managers (`install == "uv"`,
+today: testee) live in the consumer's uv graph, validated against
+`pyproject.toml`.
 
 Two disciplines this module holds to, because it is the *diagnostic* layer:
 

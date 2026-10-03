@@ -93,7 +93,7 @@
       # Hermetic eval test: gitman.nix must contribute languages.rust ONLY when
       # repoman.nativeBuild = true. Evaluate the module under stub options twice and
       # assert the gate. `nix build .#checks.<system>.gitman-rust-gate` (or `nix flake
-      # check`) fails if the opt-out ever regresses to provisioning Rust by default.
+      # check`) fails if the opt-in ever regresses to provisioning Rust by default.
       checks = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };

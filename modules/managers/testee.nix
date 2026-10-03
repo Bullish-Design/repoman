@@ -15,8 +15,8 @@ in
 {
   config = lib.mkIf enabled {
     # Verification entrypoints, namespaced under repoman:* so the conductor and
-    # the underlying tool agree on the surface. testee owns its own report;
-    # `repoman doctor` / `repoman status` aggregate via the Python CLI.
+    # the underlying tool agree on the surface. testee owns its own report, and
+    # RepoMan does not aggregate it — run `testee doctor` to check testee.
     tasks = {
       "repoman:test".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/testee verify --mode quick'';
       "repoman:test:ci".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/testee verify --mode ci'';

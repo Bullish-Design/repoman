@@ -1,4 +1,4 @@
-from repoman.registry import DEFAULT_MANAGERS, REGISTRY, SPINE, Manager
+from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, REGISTRY, SPINE, Manager
 
 
 def test_keys_match_their_entry():
@@ -23,6 +23,32 @@ def test_tiers_are_known():
 def test_spine_keys_are_registered_or_none():
     for _label, key in SPINE:
         assert key is None or key in REGISTRY
+
+
+def test_spine_is_three_ordered_phases():
+    assert SPINE == (("change", None), ("verify", "test"), ("integrate", "git"))
+
+
+def test_activities_are_unordered_and_outside_the_spine():
+    assert ACTIVITIES == (("birth / converge", "copy"), ("docs", "doc"))
+    for _label, key in ACTIVITIES:
+        assert key in REGISTRY
+    spine_keys = {key for _label, key in SPINE}
+    assert not spine_keys & {key for _label, key in ACTIVITIES}
+
+
+def test_spine_has_no_save_or_scaffold_phase():
+    # `save` is a deprecated gitman alias; scaffold happens before the repo exists.
+    labels = {label for label, _key in (*SPINE, *ACTIVITIES)}
+    assert not labels & {"save", "scaffold"}
+
+
+def test_git_route_names_the_real_gitman_verbs():
+    when = REGISTRY["git"].route_when
+    for verb in ("start", "describe", "sync", "publish", "land", "push", "undo", "repair", "release"):
+        assert verb in when
+    assert "commit" not in when
+    assert "save" not in when
 
 
 def test_core_managers_present():

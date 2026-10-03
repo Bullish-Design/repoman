@@ -2,7 +2,6 @@ import json
 
 from typer.testing import CliRunner
 
-from repoman.aggregate import SubResult
 from repoman.cli import app
 
 runner = CliRunner()
@@ -32,53 +31,12 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
     assert "bogus" not in result.stdout
 
 
-def test_new_passes_through_to_copyroom(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        "repoman.cli.subprocess.run",
-        lambda argv, **kw: calls.append(argv) or type("R", (), {"returncode": 0})(),
-    )
-    result = runner.invoke(app, ["new", "gh:Bullish-Design/template-py", "/tmp/x", "--trust"])
-    assert result.exit_code == 0
-    assert calls == [["copyroom", "new", "gh:Bullish-Design/template-py", "/tmp/x", "--trust"]]
-
-
-def test_new_returns_copyroom_exit_code(monkeypatch):
-    monkeypatch.setattr(
-        "repoman.cli.subprocess.run",
-        lambda argv, **kw: type("R", (), {"returncode": 3})(),
-    )
-    result = runner.invoke(app, ["new", "gh:x/y", "/tmp/x"])
-    assert result.exit_code == 3
-
-
-def test_new_missing_copyroom_reports_infra_error(monkeypatch):
-    def _raise(argv, **kw):
-        raise FileNotFoundError
-
-    monkeypatch.setattr("repoman.cli.subprocess.run", _raise)
-    result = runner.invoke(app, ["new", "gh:x/y", "/tmp/x"])
-    assert result.exit_code == 2
-    assert "copyroom" in result.stdout or "copyroom" in (result.stderr or "")
-
-
-def test_adopt_passes_through_to_copyroom(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        "repoman.cli.subprocess.run",
-        lambda argv, **kw: calls.append(argv) or type("R", (), {"returncode": 0})(),
-    )
-    result = runner.invoke(app, ["adopt", "gh:x/template-py", "--ref", "v1.0.0", "--write"])
-    assert result.exit_code == 0
-    assert calls == [["copyroom", "adopt", "gh:x/template-py", "--ref", "v1.0.0", "--write"]]
-
-
 #: Commands that live in Vendomat's shared closure (testee is uv-declared, so it does not).
 _TOOLCHAIN_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
 
 
 def _healthy_repo(tmp_path, monkeypatch, managers):
-    """Create a healthy store-backed repo for the aggregate doctor tests."""
+    """Create a healthy store-backed repo for the doctor tests."""
 
     selected = managers.split()
     root = tmp_path / "toolchain"
@@ -119,112 +77,9 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
     monkeypatch.setattr("repoman.checks.shutil.which", which)
 
 
-def test_doctor_runs_every_enabled_manager(monkeypatch, tmp_path):
-    # Every roster manager ships a doctor now (copyroom 0.6+ included) — the
-    # aggregate invokes them all; a green self-check → exit 0.
-    _healthy_repo(tmp_path, monkeypatch, "copy test")
-    ran = []
-
-    def fake_run(manager, args):
-        ran.append(manager.key)
-        return SubResult(manager.key, [manager.command, *args], exit_code=0, available=True)
-
-    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
-    result = runner.invoke(app, ["doctor"])
-    assert "self-check" in result.stdout
-    assert ran == ["copy", "test"]
-    assert result.exit_code == 0
-
-
-def test_doctor_exit_collapses_sub_doctor_exit(monkeypatch, tmp_path):
-    # The conductor's whole reason for existing: a sub-doctor's non-zero exit (1)
-    # must win over a green self-check (0) — proves max() combines both sides.
-    _healthy_repo(tmp_path, monkeypatch, "test")
-    monkeypatch.setattr(
-        "repoman.cli.run_sub",
-        lambda manager, args: SubResult(manager.key, [manager.command, *args], exit_code=1, available=True),
-    )
-    result = runner.invoke(app, ["doctor"])
-    assert "=== test (testee) ===" in result.stdout
-    assert result.exit_code == 1
-
-
-def test_doctor_exit_is_worst_of_self_and_sub(monkeypatch, tmp_path):
-    # self-check FAIL (2) + sub-doctor 1 → exit 2: proves the max() folds the
-    # self side in too, not just the sub-doctors' worst.
-    _healthy_repo(tmp_path, monkeypatch, "test")
-    # installed:test fails → self_code 2, while the mocked sub-doctor returns 1.
-    (tmp_path / ".devenv" / "state" / "venv" / "bin" / "testee").unlink()
-    monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
-    monkeypatch.setattr(
-        "repoman.cli.run_sub",
-        lambda manager, args: SubResult(manager.key, [manager.command, *args], exit_code=1, available=True),
-    )
-    result = runner.invoke(app, ["doctor"])
-    assert "FAIL installed:test" in result.stdout
-    assert result.exit_code == 2
-
-
-def test_doctor_mixed_roster_runs_all_doctors(monkeypatch, tmp_path):
-    # copyroom and testee both run their doctors in one invocation — the roster
-    # has no doctor-less manager anymore.
-    _healthy_repo(tmp_path, monkeypatch, "copy test")
-    ran = []
-
-    def fake_run(manager, args):
-        ran.append(manager.key)
-        return SubResult(manager.key, [manager.command, *args], exit_code=0, available=True)
-
-    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
-    result = runner.invoke(app, ["doctor"])
-    assert "=== copy (copyroom) ===" in result.stdout
-    assert "=== test (testee) ===" in result.stdout
-    assert ran == ["copy", "test"]
-    assert result.exit_code == 0
-
-
-def test_status_exits_worst_of_sub_results(monkeypatch):
-    # git returns 0, test returns 1 → status exits 1 (worst).
-    monkeypatch.setenv("REPOMAN_MANAGERS", "git test")
-
-    def fake_run(manager, args):
-        code = 1 if manager.key == "test" else 0
-        return SubResult(manager.key, [manager.command, *args], exit_code=code, available=True)
-
-    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
-    result = runner.invoke(app, ["status"])
-    assert "=== git (gitman) ===" in result.stdout
-    assert "=== test (testee) ===" in result.stdout
-    assert result.exit_code == 1
-
-
-def test_status_skips_managers_without_status(monkeypatch):
-    # doc has status=None → skipped entirely: no run_sub call, no echo, exit 0.
-    monkeypatch.setenv("REPOMAN_MANAGERS", "copy doc")
-    called = []
-
-    def fake_run(manager, args):
-        called.append(manager.key)
-        return SubResult(manager.key, [manager.command, *args], exit_code=0, available=True)
-
-    monkeypatch.setattr("repoman.cli.run_sub", fake_run)
-    result = runner.invoke(app, ["status"])
-    assert called == ["copy"]
-    assert "docman" not in result.stdout
-    assert result.exit_code == 0
-
-
-def test_doctor_self_only_skips_manager_doctors(monkeypatch, tmp_path):
-    _healthy_repo(tmp_path, monkeypatch, "copy test")
-    result = runner.invoke(app, ["doctor", "--self-only"])
-    assert "self-check" in result.stdout
-    assert "=== test (testee) ===" not in result.stdout  # sub-doctors not run
-    assert result.exit_code == 0
-
-
 def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
     # test selected but NOT declared in pyproject.toml (uv-declared manager, project 12)
-    # → uv:test FAIL, exit 2. The toolchain venv itself is healthy.
+    # → uv:test FAIL, exit 2. The store closure itself is healthy.
     venv = tmp_path / "toolchain"
     (venv / "bin").mkdir(parents=True)
     (venv / "bin" / "repoman").write_text("")
@@ -234,7 +89,7 @@ def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
-    result = runner.invoke(app, ["doctor", "--self-only"])
+    result = runner.invoke(app, ["doctor"])
     assert "FAIL uv:test" in result.stdout
     assert result.exit_code == 2
 
@@ -244,7 +99,7 @@ def test_doctor_warns_when_approach_b_input_missing(monkeypatch, tmp_path):
     # non-fatal (exit 0).
     _healthy_repo(tmp_path, monkeypatch, "doc")
     monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
-    result = runner.invoke(app, ["doctor", "--self-only"])
+    result = runner.invoke(app, ["doctor"])
     assert "WARN provisioned:doc" in result.stdout
     assert result.exit_code == 0
 
@@ -264,7 +119,7 @@ def test_install_skills_writes_entrypoint_only(monkeypatch, tmp_path):
 
 def test_doctor_reports_skill_ownership(monkeypatch, tmp_path):
     _healthy_repo(tmp_path, monkeypatch, "copy test")
-    result = runner.invoke(app, ["doctor", "--self-only"])
+    result = runner.invoke(app, ["doctor"])
     # Nothing installed in the tmp repo → warn, but warn is non-fatal (exit stays 0).
     assert "WARN skill:tool-shipped" in result.stdout
     assert result.exit_code == 0
@@ -273,13 +128,13 @@ def test_doctor_reports_skill_ownership(monkeypatch, tmp_path):
 def test_doctor_ownership_ok_when_expected_skills_present(monkeypatch, tmp_path):
     _healthy_repo(tmp_path, monkeypatch, "copy test")
     skills = tmp_path / ".agents/skills"
-    from repoman.devman.check import EXPECTED_SKILLS
+    from repoman.devman.check import expected_skills
 
-    for name in EXPECTED_SKILLS:
+    for name in expected_skills(["copy", "test"]):
         skill = skills / name
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
-    result = runner.invoke(app, ["doctor", "--self-only"])
+    result = runner.invoke(app, ["doctor"])
     assert "skill:tool-shipped — expected pool links present" in result.stdout
     assert result.exit_code == 0
 
@@ -304,17 +159,13 @@ def test_unset_roster_falls_back_to_the_core_default(monkeypatch):
         assert command in result.stdout
 
 
-def test_duplicate_roster_entries_are_collapsed(monkeypatch, tmp_path):
-    # "git git" must not run gitman's doctor twice.
-    _healthy_repo(tmp_path, monkeypatch, "git git test")
-    ran = []
-    monkeypatch.setattr(
-        "repoman.cli.run_sub",
-        lambda manager, args: (ran.append(manager.key), SubResult(manager.key, [manager.command, *args], 0, True))[1],
-    )
-    result = runner.invoke(app, ["doctor"])
-    assert ran == ["git", "test"]
+def test_duplicate_roster_entries_are_collapsed(monkeypatch):
+    # "git git" must list gitman once.
+    monkeypatch.setenv("REPOMAN_MANAGERS", "git git test")
+    result = runner.invoke(app, ["managers"])
     assert result.exit_code == 0
+    assert result.stdout.count("gitman") == 1
+    assert "testee" in result.stdout
 
 
 # ---------------------------------------------------------------- context preflight (project 13)
@@ -327,16 +178,8 @@ def test_doctor_outside_a_repo_short_circuits(monkeypatch, tmp_path):
     assert result.exit_code == 2
     assert "not inside a repoman-managed repo" in result.stdout
     assert "devenv shell" in result.stdout
-    assert "===" not in result.stdout  # no self-check header, no sub-doctor headers
+    assert "===" not in result.stdout  # no self-check header
     assert "FAIL" not in result.stdout and "skill:" not in result.stdout
-
-
-def test_doctor_self_only_short_circuits_identically(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    result = runner.invoke(app, ["doctor", "--self-only"])
-    assert result.exit_code == 2
-    assert "not inside a repoman-managed repo" in result.stdout
-    assert "===" not in result.stdout
 
 
 def test_doctor_bare_shell_in_a_repo_short_circuits(monkeypatch, tmp_path):
@@ -360,7 +203,7 @@ def test_doctor_in_shell_passes_through_unscathed(monkeypatch, tmp_path):
     # this pins that the preflight doesn't interfere with the in-shell path.)
     _healthy_repo(tmp_path, monkeypatch, "copy test")
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(app, ["doctor", "--self-only"])
+    result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     assert "=== repoman (self-check) ===" in result.stdout
     assert "OK   toolchain:store" in result.stdout
@@ -396,7 +239,7 @@ def test_doctor_json_bare_shell(monkeypatch, tmp_path):
 def test_doctor_json_in_shell(monkeypatch, tmp_path):
     _healthy_repo(tmp_path, monkeypatch, "copy test")
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(app, ["doctor", "--self-only", "--json"])
+    result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["context"]["ok"] is True
@@ -409,37 +252,6 @@ def test_doctor_json_in_shell(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------- reporting
-
-
-def test_unavailable_manager_explains_itself(monkeypatch, tmp_path):
-    # `repoman status` used to print a bare header and exit 2 with no explanation.
-    _healthy_repo(tmp_path, monkeypatch, "git")
-    monkeypatch.setattr(
-        "repoman.cli.run_sub",
-        lambda manager, args: SubResult(
-            manager.key,
-            [manager.command, *args],
-            127,
-            False,
-            reason="gitman is not installed — run `repoman-sync`",
-        ),
-    )
-    result = runner.invoke(app, ["status"])
-    assert result.exit_code == 2
-    assert "gitman is not installed" in result.output
-
-
-def test_manager_without_a_doctor_is_reported_as_skipped(monkeypatch, tmp_path):
-    from repoman.registry import Manager
-
-    _healthy_repo(tmp_path, monkeypatch, "git")
-    doctorless = Manager("git", "gitman", "core", "s", doctor=None)
-    monkeypatch.setattr("repoman.cli._enabled", lambda: [doctorless])
-    called = []
-    monkeypatch.setattr("repoman.cli.run_sub", lambda m, a: called.append(m.key))
-    result = runner.invoke(app, ["doctor"])
-    assert "no doctor, skipped" in result.stdout
-    assert called == []
 
 
 # ---------------------------------------------------------------- version / robustness

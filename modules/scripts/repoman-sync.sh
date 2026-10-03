@@ -39,8 +39,8 @@ if [ ! -x "$toolchain_bin/repoman" ]; then
   exit 2
 fi
 
-# RepoMan itself keeps the machine lock that describes its development inputs.
-# Every consumer must remove that obsolete per-repo provider declaration.
+# A consumer repo must not keep a repoman.lock. The toolchain closure replaced it.
+# RepoMan itself is exempt. Its pyproject.toml names the repoman package.
 if [ -f "$root/repoman.lock" ] \
    && ! grep -q '^[[:space:]]*name[[:space:]]*=[[:space:]]*"repoman"' "$root/pyproject.toml" 2>/dev/null; then
   echo "repoman-sync: $root/repoman.lock is obsolete in a consumer repo." >&2

@@ -1,13 +1,19 @@
 # RepoMan manager wiring: gitman (version control: jujutsu via pyjutsu + colocated git).
 #
 # Imported unconditionally by ../devenv.nix; activates only when "git" is in
-# the project manifest roster. gitman's native dep pyjutsu (jj-lib via PyO3) is normally vended as
-# a prebuilt wheel in Vendomat's shared store closure, so the default path
-# pulls ZERO Rust. The native toolchain (maturin + languages.rust) is an explicit opt-out:
-# set `repoman.nativeBuild = true` in pyjutsu's own repo, or any consumer with no vendomat
-# wheelhouse, to compile pyjutsu from source. When on, this is the proof that the
-# meta-module can provision nix-level system toolchains, not just venv pip installs; and it
-# stays gated on "git", so repos without gitman never pull Rust regardless.
+# the project manifest roster.
+#
+# gitman needs no Rust and no maturin. pyjutsu (jj-lib through PyO3) ships as a
+# prebuilt abi3 wheel from a GitHub release. gitman pins that wheel by URL in its
+# [tool.uv.sources]. uv carries the pin into a consumer's lock. The wheel serves
+# CPython 3.13 and later on x86-64 Linux with glibc 2.39 or newer. So the default
+# path pulls zero Rust.
+#
+# `repoman.nativeBuild` is opt-in: the default is false. When true, it adds maturin and
+# languages.rust. Set it only for a consumer that must build pyjutsu from source. One
+# case is a platform with no prebuilt wheel. The option stays gated on "git", so a repo
+# without gitman never pulls Rust. It also shows the pattern: a manager module may add
+# system packages and language toolchains.
 { pkgs, lib, config, repomanManagers, ... }:
 
 let
@@ -19,10 +25,9 @@ in
     type = lib.types.bool;
     default = false;
     description = ''
-      Provision a Rust toolchain + maturin so pyjutsu's native extension is compiled
-      in-repo. Leave false (default) when pyjutsu installs as a prebuilt wheel via
-      Vendomat's store closure. Set true only in pyjutsu's OWN repo
-      or a consumer with no vendomat wheelhouse, which must compile pyjutsu itself.
+      Provision a Rust toolchain and maturin, so the consumer compiles pyjutsu's native
+      extension in-repo. Opt-in: the default is false. pyjutsu ships as a prebuilt abi3
+      wheel. Set this to true only for a consumer that must build pyjutsu from source.
     '';
   };
 
@@ -40,10 +45,11 @@ in
       };
     }
 
-    # System toolchain for building pyjutsu's native extension — only when explicitly
-    # opted in. Consumers using a vendomat `wheel:` source leave this off and pull zero
-    # Rust. languages.rust matches gitman's own devenv (rolling nixpkgs' stable rustc
-    # satisfies jj-lib 0.38's Rust >= 1.89 / edition 2024).
+    # System toolchain for building pyjutsu's native extension from source. Opt-in only.
+    # A consumer that installs the prebuilt wheel leaves this off and pulls zero Rust.
+    # This matches pyjutsu's own devenv (maturin + languages.rust), not gitman's:
+    # gitman's devenv has no Rust. pyjutsu's Cargo.toml needs Rust 1.89 or newer
+    # (edition 2024) and pins jj-lib 0.44.0. The stable rustc in rolling nixpkgs meets that.
     (lib.mkIf cfg.nativeBuild {
       packages = [ pkgs.maturin ];
       languages.rust.enable = true;

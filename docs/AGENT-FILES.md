@@ -33,9 +33,18 @@ per skill*. Adding a skill to a project is one `ln -s` in the config repository:
 ln -s ../../../../skills/<name> ~/.config/devman/projects/<p>/agents/skills/<name>
 ```
 
-`devman-link reconcile` runs at every shell entry and keeps the filesystem links
-in sync with the central declarations. The expected link set for a managed
-project is:
+`devman-link reconcile` runs at every shell entry. It links only the
+machine-local views into the repo: `.agents`, `.claude/skills`, `.envrc`, `.loci`,
+and `devenv.local.nix`. If a canonical directory is missing, it creates that
+directory empty. It does not create the per-skill links above. A person writes
+each link by hand with `ln -s`, and the config repository tracks it. A brand-new
+repo therefore has an empty skill surface until a person links skills into it.
+
+The shell-entry hook does not check the exit code of `devman-link reconcile`.
+Treat the sync as advisory. `devman doctor` and `devman central-verify` are the
+real checks.
+
+The expected link set for a managed project is:
 
 - the four manager skills the router needs — `copyroom`, `gitman`, `testee`,
   `docman`;
@@ -51,7 +60,9 @@ skills and the generated router.
 Two writers, on disjoint paths:
 
 - **devman** curates the pool, the per-project relative symlinks, and the
-  project-specific skills that stay real content in the same directory.
+  project-specific skills that stay real content in the same directory. This is
+  hand-written content in the config repository. `devman-link reconcile` writes
+  none of it.
 - **repoman** generates the router (`install-skills`) from the runtime manager
   roster.
 

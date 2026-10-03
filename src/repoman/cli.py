@@ -1,22 +1,21 @@
-"""RepoMan — the agentic repo lifecycle conductor (pass-through + aggregate).
+"""RepoMan — the agentic repo lifecycle front door.
 
-RepoMan does not re-implement any manager. It discovers which managers this repo
-wired in (via ``REPOMAN_MANAGERS``, set by the devenv meta-module), then sequences
-and aggregates their own CLIs. Each manager keeps its own report and its own skill.
+RepoMan does not re-implement or wrap any manager. It discovers which managers this
+repo wired in (via ``REPOMAN_MANAGERS``, set by the devenv meta-module), checks its
+own wiring, and writes the router skill. Each manager keeps its own CLI, its own
+doctor, and its own skill. Agents call a manager directly.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 import typer
 
 from . import __version__
-from .aggregate import SubResult, run_sub, worst_exit
 from .checks import (
     Context,
     SelfCheck,
@@ -26,7 +25,6 @@ from .checks import (
     self_check_exit,
 )
 from .devman.check import skill_ownership_checks
-from .devman.migrate import MigrationError, apply_migration, inspect_migration
 from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
 from .skills import SkillsDirError, install_entrypoint
 
@@ -34,11 +32,6 @@ app = typer.Typer(
     help="RepoMan - the single agentic front door to a devenv.sh repo's lifecycle.",
     no_args_is_help=True,
 )
-devman_app = typer.Typer(
-    help="Migrate one repository into the machine Devman contract.",
-    no_args_is_help=True,
-)
-app.add_typer(devman_app, name="devman")
 
 #: Exit code for "the conductor itself is broken" under the shared 0/1/2/3 contract.
 #: Notably NOT 1 — that means "a domain decision is needed", which is what a caller
@@ -80,14 +73,6 @@ def _enabled() -> list[Manager]:
             seen.add(key)
             enabled.append(REGISTRY[key])
     return enabled
-
-
-def _report(result: SubResult) -> SubResult:
-    """Echo why a manager produced no report, so the failure isn't a silent header."""
-
-    if not result.available and result.reason:
-        typer.echo(f"repoman: {result.reason}", err=True)
-    return result
 
 
 def _context_hint(context: Context) -> str:
@@ -142,8 +127,7 @@ def context_json(context: Context, checks: list[SelfCheck], exit_code: int) -> s
     ``checks`` serializes ``{"name", "ok", "detail", "warn_only"}`` — ``ok`` for
     an ``ok`` row, ``warn_only`` for a ``warn`` row, both false for a ``fail``.
     ``exit`` repeats the code the process exits with, so a caller can read the
-    verdict without parsing ``$?``. Sub-manager reports are not composed here —
-    they stream plain and own their own format (noted follow-up).
+    verdict without parsing ``$?``.
     """
 
     verdict: dict[str, object] = {"ok": context.kind == "managed-repo-shell", "kind": context.kind}
@@ -187,36 +171,6 @@ def _main(
     """RepoMan - the single agentic front door to a devenv.sh repo's lifecycle."""
 
 
-def _passthrough(binary: str, subcommand: str, args: list[str]) -> int:
-    """Exec ``binary subcommand *args`` and return its exit code, verbatim.
-
-    RepoMan re-implements nothing: birth (``new``) and adoption (``adopt``) are
-    copyroom's own commands. This just spares the caller from having to know
-    that copyroom, not RepoMan, owns scaffolding — RepoMan is the front door.
-    """
-
-    try:
-        completed = subprocess.run([binary, subcommand, *args])
-    except FileNotFoundError as exc:
-        typer.echo(f"repoman: `{binary}` not found on PATH — is the toolchain venv active?", err=True)
-        raise typer.Exit(code=_INFRA) from exc
-    return completed.returncode
-
-
-@app.command("new", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
-def new(ctx: typer.Context) -> None:
-    """Birth a new repo from the genome — a transparent pass-through to `copyroom new`."""
-
-    raise typer.Exit(code=_passthrough("copyroom", "new", ctx.args))
-
-
-@app.command("adopt", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
-def adopt(ctx: typer.Context) -> None:
-    """Link an existing repo to a template — a transparent pass-through to `copyroom adopt`."""
-
-    raise typer.Exit(code=_passthrough("copyroom", "adopt", ctx.args))
-
-
 @app.command()
 def managers() -> None:
     """List the managers wired into this repo."""
@@ -227,24 +181,20 @@ def managers() -> None:
 
 @app.command()
 def doctor(
-    self_only: bool = typer.Option(
-        False, "--self-only", help="Run only the RepoMan preflight; skip the manager doctors."
-    ),
     json_out: bool = typer.Option(
         False, "--json", help="Emit the context verdict + self-check rows as one JSON document."
     ),
 ) -> None:
-    """Self-check the RepoMan wiring, then run every enabled manager's doctor.
+    """Self-check the RepoMan wiring.
 
     Context preflight: doctor only runs its rows inside a managed repo's devenv
     shell (``REPOMAN_MANAGERS`` set). From a bare shell in a managed repo, or
     from a non-repo directory, it short-circuits with one context message and
     exit 2 (infra/config) instead of a pile of misleading per-row failures.
 
-    Exit = worst of the self-check contribution and the sub-doctors' worst exit
-    code, under the shared 0/1/2/3 contract. With ``--json``, the context verdict
-    and self-check rows are emitted as one JSON document whose ``exit`` repeats
-    the process's exit code; sub-manager reports still stream plain.
+    Doctor does not run the manager doctors. Run each manager's own doctor
+    for its report. With ``--json``, the output is one JSON document whose
+    ``exit`` repeats the process's exit code.
     """
 
     context = detect_context(os.getcwd())
@@ -258,48 +208,15 @@ def doctor(
     enabled = _enabled()
 
     self_checks = run_self_check(enabled, _repo_root(), _skills_dir())
-    self_checks += skill_ownership_checks(_repo_root(), _skills_dir())
-    self_code = self_check_exit(self_checks)
+    self_checks += skill_ownership_checks(_repo_root(), _skills_dir(), [m.key for m in enabled])
+    exit_code = self_check_exit(self_checks)
 
-    if self_only:
-        if json_out:
-            typer.echo(context_json(context, self_checks, self_code))
-        else:
-            typer.echo("=== repoman (self-check) ===")
-            typer.echo(format_self_check(self_checks))
-        raise typer.Exit(code=self_code)
-
-    if not json_out:
+    if json_out:
+        typer.echo(context_json(context, self_checks, exit_code))
+    else:
         typer.echo("=== repoman (self-check) ===")
         typer.echo(format_self_check(self_checks))
-
-    results = []
-    for manager in enabled:
-        if manager.doctor is None:
-            typer.echo(f"\n=== {manager.key} ({manager.command}) — no doctor, skipped ===")
-            continue
-        typer.echo(f"\n=== {manager.key} ({manager.command}) ===")
-        results.append(_report(run_sub(manager, manager.doctor)))
-
-    exit_code = max(self_code, worst_exit(results))
-    if json_out:
-        # JSON last: `exit` is the TRUE final code (self + sub-doctors composed),
-        # so the document never lies about the verdict an agent would get from $?.
-        typer.echo(context_json(context, self_checks, exit_code))
     raise typer.Exit(code=exit_code)
-
-
-@app.command()
-def status() -> None:
-    """Show each manager's status side by side; exit = worst sub-exit."""
-
-    results = []
-    for manager in _enabled():
-        if manager.status is None:
-            continue
-        typer.echo(f"\n=== {manager.key} ({manager.command}) ===")
-        results.append(_report(run_sub(manager, manager.status)))
-    raise typer.Exit(code=worst_exit(results))
 
 
 @app.command("install-skills")
@@ -317,48 +234,6 @@ def install_skills() -> None:
         typer.echo(f"repoman: {exc}", err=True)
         raise typer.Exit(code=3) from exc  # 3 = invalid usage
     typer.echo(f"repoman: wrote entrypoint skill → {dest}")
-
-
-@devman_app.command("status")
-def devman_status(repo_root: str | None = typer.Option(None, "--repo-root", help="repository to inspect")) -> None:
-    """Report whether this repository has the stable Devman manifest."""
-
-    try:
-        result = inspect_migration(Path(repo_root or _repo_root()))
-    except MigrationError as exc:
-        typer.echo(f"repoman devman status: {exc}", err=True)
-        raise typer.Exit(code=_INFRA) from exc
-    typer.echo(f"repoman devman: {result.state} — {result.path}")
-    typer.echo(result.content, nl=False)
-    if result.state == "needed":
-        raise typer.Exit(code=1)
-
-
-@devman_app.command("migrate")
-def devman_migrate(
-    repo_root: str | None = typer.Option(None, "--repo-root", help="repository to migrate"),
-    apply: bool = typer.Option(
-        False,
-        "--apply",
-        help="Write the manifest; the caller reviews and commits it separately.",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="Replace a different existing manifest after reviewing the proposal.",
-    ),
-) -> None:
-    """Propose or apply a reviewable manifest migration for this repository."""
-
-    try:
-        root = Path(repo_root or _repo_root())
-        result = apply_migration(root, force=force) if apply else inspect_migration(root)
-    except MigrationError as exc:
-        typer.echo(f"repoman devman migrate: {exc}", err=True)
-        raise typer.Exit(code=_INFRA) from exc
-    action = result.state if apply else f"proposal ({result.state})"
-    typer.echo(f"repoman devman migrate: {action} — {result.path}")
-    typer.echo(result.content, nl=False)
 
 
 def main() -> None:

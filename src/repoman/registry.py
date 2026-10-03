@@ -16,7 +16,9 @@ class Manager:
     """One entry in the roster.
 
     Attributes:
-        key: Short key used in `.repoman/project.toml` (e.g. ``"test"`).
+        key: Short manager key (e.g. ``"test"``). The nix module reads these keys from
+            `.repoman/project.toml`. The Python CLI never reads that file: it gets
+            the roster from ``REPOMAN_MANAGERS``, which the nix module exports.
         command: Console script name on PATH (e.g. ``"testee"``).
         tier: ``"core"`` | ``"publish"`` | ``"situational"``.
         doctor: Args for this manager's doctor (every manager has one).
@@ -55,16 +57,23 @@ class Manager:
             raise ValueError(f"{self.key}: unknown install model {self.install!r}")
 
 
-# Canonical lifecycle spine: ordered (label, manager-key | None). The entrypoint
-# skill renders only the steps whose manager is enabled; "change" (key None) is the
-# human/agent edit step and always appears.
-SPINE: list[tuple[str, str | None]] = [
-    ("scaffold", "copy"),
+# The lifecycle spine: three ordered phases, as (label, manager-key | None). The
+# entrypoint skill renders a phase only when its manager is enabled. "change" (key
+# None) is the human/agent edit phase and always appears.
+#
+# Two laws are the whole policy: verify before you integrate, and never integrate on red.
+SPINE: tuple[tuple[str, str | None], ...] = (
     ("change", None),
     ("verify", "test"),
-    ("save", "git"),
+    ("integrate", "git"),
+)
+
+# Activities have no order. They run on their own cadence, outside the spine.
+# Each renders only when its manager is enabled.
+ACTIVITIES: tuple[tuple[str, str | None], ...] = (
+    ("birth / converge", "copy"),
     ("docs", "doc"),
-]
+)
 
 
 REGISTRY: dict[str, Manager] = {
@@ -73,7 +82,7 @@ REGISTRY: dict[str, Manager] = {
         "copyroom",
         "core",
         "Templating / scaffolding / convergence (Copier)",
-        doctor=["doctor"],  # copyroom 0.6+ ships `doctor` (env + agent-files checks)
+        doctor=["doctor"],  # copyroom 0.6+ ships `doctor` (rows: copier, git, cache, template-source)
         status=["status"],
         route_when="scaffold a repo, pull template updates, or check template drift",
     ),
@@ -83,7 +92,7 @@ REGISTRY: dict[str, Manager] = {
         "core",
         "Version control (jujutsu + colocated git)",
         status=["status"],
-        route_when="commit, branch, land, undo, or release",
+        route_when="start, describe, sync, publish, land, push, undo, repair, or release a change",
     ),
     "test": Manager(
         "test",
@@ -93,7 +102,7 @@ REGISTRY: dict[str, Manager] = {
         status=["list-runs"],
         route_when="verify code health, fix lint/format, or rerun failures",
         # testee's TOOLS (pytest/ruff/ty) import the consumer's code, so testee is a per-repo
-        # uv dev dependency, not a shared-toolchain package. See CONCEPT.md §3 (project 12).
+        # uv dev dependency, not a shared-toolchain package. See CONCEPT.md §6 (project 12).
         install="uv",
     ),
     "doc": Manager(

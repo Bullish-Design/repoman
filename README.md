@@ -2,9 +2,9 @@
 
 **The agentic repo lifecycle conductor for [devenv.sh](https://devenv.sh) repos — one import that composes the `*man` manager family.**
 
-RepoMan is the *conductor*. It re-implements nothing: it discovers which managers a
-repo wired in, sequences their own CLIs, and collapses their reports into one exit
-code and one agent-facing front door.
+RepoMan is the *conductor*. It re-implements nothing and aggregates nothing at runtime.
+It discovers which managers a repo wired in and wires their tasks. It generates one file,
+the router skill. The router states the lifecycle order: `change`, `verify`, `integrate`.
 
 | Manager | Key | Owns |
 |---|---|---|
@@ -18,13 +18,11 @@ code and one agent-facing front door.
 ## Bootstrapping a brand-new repo
 
 ```bash
-repoman new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
+copyroom new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
 ```
 
-`repoman new` is a transparent pass-through to `copyroom new`: RepoMan does not
-re-implement scaffolding, it just spares you from having to know that copyroom,
-not RepoMan, owns it. It generates the `devenv.yaml` input block and `devenv.nix`
-toggle below for you.
+copyroom owns birth. RepoMan does not wrap it. The genome template (`template-py`
+above), not copyroom, renders the `devenv.yaml` input block and `devenv.nix` toggle below.
 
 ```bash
 cd /path/to/new-repo && devenv shell && repoman-sync
@@ -35,17 +33,17 @@ That's the whole adoption step.
 ## Adopting an existing repo
 
 Already have a repo and want RepoMan's lifecycle wiring instead of starting
-over? `repoman adopt` is the same kind of pass-through, to `copyroom adopt`:
+over? Run `copyroom adopt` directly:
 
 ```bash
-cd /path/to/existing-repo && repoman adopt gh:Bullish-Design/template-py --ref v1.2.3 --answers answers.yaml --write
+cd /path/to/existing-repo && copyroom adopt gh:Bullish-Design/template-py --ref v1.2.3 --answers answers.yaml --write
 ```
 
 `adopt` is report-only unless you pass `--write`: without it, you get a
 reviewable drift patch under `.copyroom/adopt/` and nothing else. `--write`
 additionally records the link (`.copier-answers.yml`) but still does not place
 the template's files — that's a separate step, `copyroom layer add` (not
-wrapped by RepoMan; run it directly once the drift report looks right). See
+wrapped by RepoMan either; run it directly once the drift report looks right). See
 copyroom's own `copyroom-adopt` skill for the full adopt / layer add /
 templatize decision tree.
 
@@ -57,18 +55,23 @@ devenv shell && repoman-sync
 
 `repoman doctor` confirms the wiring landed.
 
-## What `repoman new` / `repoman adopt` generate
+## What `copyroom new` generates
 
-Both commands write the same two blocks. Pin a published tag, and fetch it
-with `git+https://` rather than the `github:` shorthand: the shorthand uses
-nix's builtin fetcher, which needs `access-tokens` and fails on a private
-repo, while the git fetcher uses your git credential helper.
+Only `copyroom new` renders these two blocks, and the genome template does it.
+`copyroom adopt` writes at most `.copier-answers.yml` and a patch under
+`.copyroom/adopt/`. It never places template files. After `copyroom adopt`, the blocks
+arrive only through `copyroom layer add` or your own edit.
+
+Pin a published tag, and fetch it with `git+https://` rather than the `github:`
+shorthand: the shorthand uses nix's builtin fetcher, which needs `access-tokens`
+and fails on a private repo, while the git fetcher uses your git credential
+helper.
 
 ```yaml
 # devenv.yaml
 inputs:
   repoman:
-    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.7.1"
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.9.2"
     flake: false
 imports:
   - repoman
@@ -124,8 +127,7 @@ inputs:
     flake: false
 ```
 
-This is the same split as `repoman.lock` / `repoman.local.lock`: the committed
-file says **what**, the local overlay says **where**.
+The committed file says **what**. The local overlay says **where**.
 
 One sharp edge. devenv rewrites `devenv.lock` in place, so a shell taken with the
 overlay active re-locks those inputs at the local paths. Re-lock without it before
@@ -135,9 +137,14 @@ you commit:
 mv devenv.local.yaml /tmp/ && devenv update && mv /tmp/devenv.local.yaml .
 ```
 
-`tests/test_fleet_shape.py` fails if a local path reaches `devenv.yaml` or the
-inputs this repo declares in `devenv.lock`, so verify catches the leak before a
-land does.
+In this repo, run `relock` instead. It runs the same steps and restores the overlay
+on any exit.
+
+`tests/test_fleet_shape.py` fails if a local path reaches `devenv.yaml`. It does not
+check `devenv.lock`, because devenv rewrites that file on every shell entry. A
+pre-push hook guards the lock. `.pyjutsu-hooks.toml` runs
+`scripts/check-fleet-lock.py` on `gitman push`, and the push stops if any lock node
+names a local path.
 
 RepoMan's own `repoman` input is `path:./modules`, not a git url. A git input
 copies **tracked** files only, so a brand-new `modules/*.nix` would be invisible
@@ -163,48 +170,77 @@ does not select or install the shared closure.
 ## Commands
 
 ```bash
-repoman new              # birth a new repo from the genome — pass-through to `copyroom new`
-repoman adopt            # link an existing repo to a template — pass-through to `copyroom adopt`
 repoman managers        # what's wired into this repo
-repoman doctor          # preflight + every enabled manager's doctor
-repoman doctor --self-only   # just RepoMan's own wiring
-repoman doctor --json   # context verdict + self-check rows as JSON (exit repeats the exit code)
-repoman status          # each manager's status side by side
-repoman install-skills  # regenerate the entrypoint (router) skill
-repoman devman status   # inspect the repository's Devman manifest migration
-repoman devman migrate  # propose a reviewable manifest migration
-repoman devman migrate --apply  # write only .devman/project.toml
+repoman doctor          # self-check of RepoMan's own wiring
+repoman doctor --json   # the same check as one JSON document (exit repeats the exit code)
+repoman install-skills  # regenerate the router skill
 repoman --version
 ```
 
-`repoman devman migrate` belongs to RepoMan because it changes one repository.
-It derives `project` and ordered `groups` from that repository's tracked
-`devenv.nix`. The default is a proposal. `--apply` writes only the new
-`.devman/project.toml`; it never updates the machine plane, edits `devenv.nix`,
-or commits the result. Review and commit the file through the repository's
-normal GitMan lane.
+RepoMan runs no manager. Call each manager's own CLI:
 
-No further step registers the repo with devman: devman has no `register`
-command by design and auto-discovers `.devman/project.toml` lazily, wherever
-it next resolves this repo's identity.
+- **Birth and adoption:** `copyroom new` and `copyroom adopt`.
+- **Health:** each manager's own `doctor`. The managers use different exit-code dialects,
+  so RepoMan merges none of them. The router skill is where the knowledge joins.
+- **Test verdict:** `testee verify` (the `repoman:test` task).
+
+RepoMan does not write `.devman/project.toml`. Devman writes no manifests by design. A
+person maintains the file by hand, and the template seeds it.
+
+Devman has no `register` command, by design. It also walks no disk to find
+manifests: its guide forbids discovery (`devman/AGENTS_GUIDE.md`, §15.1). Two
+explicit steps connect a repo:
+
+- **Link plane** (the repo's machine-local links). Run
+  `devman-link reconcile --root "$PWD"` once to create the central bootstrap.
+  After that, shell entry reconciles the links by itself.
+- **Workflow plane** (the workflows that Dagu runs). Run
+  `vendomat plane update devman --to <devman-tag> --project-root "$PWD" --policy-root <devman-checkout>`.
+  Later updates carry the project forward.
+
+A hand-written manifest alone adds no workflow to Dagu.
 
 Exit codes follow the family contract: `0` ok · `1` a domain decision is needed ·
-`2` infra/config · `3` invalid usage. `repoman doctor` returns the worst of its own
-preflight and every sub-doctor.
+`2` infra/config · `3` invalid usage. `repoman doctor` exits `2` on a context failure
+or a failed row.
+
+## Reading manager status
+
+RepoMan has no `status` command. Four facts limit the status commands of the managers:
+
+- `copyroom status` reports version lag, not template drift. It exits `0` even when a
+  newer tag exists or the worktree is dirty. For drift, read the `copyroom adopt` report
+  or run `copyroom template-preview`.
+- `copyroom status` exits `1` in a repo with no Copier answers file. RepoMan's own
+  checkout has none.
+- `testee list-runs` always exits `0`, even after a failed run, in a repo never
+  verified, or outside any repo. For a verdict, run `testee verify`.
+- `gitman status` is not read-only. It snapshots the working copy (`@`), mirrors
+  refs into git, and writes `.gitman/markdown`.
 
 ## Reading `repoman doctor`
 
 | Row | Means |
 |---|---|
-| `toolchain:store` | Vendomat's shared command closure exists |
+| `toolchain:store` | Vendomat's shared command closure exists, and its manifest reads |
+| `toolchain:self` | the store manifest lists `repoman` |
+| `pyproject` | `pyproject.toml` parses (a missing file is not a failure) |
 | `lock:<key>` | this manager is present in Vendomat's toolchain manifest |
 | `version:<key>` | the store version for this manager |
 | `uv:<key>` | a uv manager is declared in `pyproject.toml` |
 | `installed:<key>` | the exact binary the nix tasks exec is present (warns if `PATH` would give you a different copy) |
 | `provisioned:<key>` | an approach-B manager's nix module actually imported |
-| `skill:*` | the entrypoint router and skill-ownership lint |
+| `skill:entrypoint` | the router skill exists |
+| `skill:<key>:defers` | an installed manager skill defers to the router (warn only) |
+| `skill:tool-shipped` | every expected skill link exists |
+| `skill:genome-overlay` | skills in the directory that the lint cannot judge |
 
 `warn` never fails the run; `fail` contributes exit `2`.
+
+`doctor` checks RepoMan's own wiring only. To check a manager, run that manager's own
+`doctor`. The skill lint derives its list from the roster. It expects `writing` always,
+each enabled manager's skill, and copyroom's two sub-skills only when `copy` is enabled.
+Skill rows are `ok` or `warn`. They never gate.
 
 ### Running `repoman doctor` outside a repo
 
@@ -212,7 +248,7 @@ preflight and every sub-doctor.
 From a bare shell in a managed repo (no devenv) it says "enter the devenv shell";
 from a non-repo directory it says "not inside a repoman-managed repo" — one clear
 block, exit `2`, and **zero self-check rows**, so the wrong context can't masquerade
-as a pile of per-row failures. The fix is always the same invocation:
+as a pile of per-row failures. With `--json`, the output is one JSON document and nothing else. The fix is always the same invocation:
 
     cd <repo> && devenv shell -- repoman doctor
 
@@ -224,7 +260,6 @@ as a pile of per-row failures. The fix is always the same invocation:
 | `REPOMAN_SKILLS_DIR` | where skills go, repo-relative (default `.agents/skills`) |
 | `REPOMAN_TOOLCHAIN_BIN` | Vendomat's shared command-closure bin directory |
 | `REPOMAN_TOOLCHAIN_MANIFEST` | optional path to Vendomat's provenance manifest |
-| `REPOMAN_SUB_TIMEOUT` | seconds before a sub-manager is killed (default 900; `0` disables) |
 
 ## Developing RepoMan
 
@@ -243,7 +278,7 @@ PATH inside it. That makes this checkout the canonical **host** for bootstrappin
 repo — no need to hop into another repo's shell:
 
 ```bash
-cd <repoman checkout> && devenv shell -- repoman new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
+cd <repoman checkout> && devenv shell -- copyroom new gh:Bullish-Design/template-py /path/to/new-repo --answers answers.yaml --trust
 ```
 
 Design notes live in [`CONCEPT.md`](CONCEPT.md), the skill architecture in

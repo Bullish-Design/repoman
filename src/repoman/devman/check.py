@@ -7,18 +7,28 @@ the project's central directory:
     ~/.config/devman/projects/<p>/agents/skills/<name> -> ../../../../skills/<name>
 
 Real entries are only project-specific skills and the generated router. No repo
-tracks agent skills. Two writers remain, on disjoint paths: devman curates the
-pool links; ``repoman install-skills`` generates ``<p>/SKILL.md``.
+tracks agent skills. Two writers remain, on disjoint paths. A person curates the
+pool links by hand in the central config repository; ``devman-link reconcile``
+creates none of them. ``repoman install-skills`` generates
+``<skills_dir>/repoman/SKILL.md``.
 
 ``repoman doctor`` reads what is present under ``<skills_dir>/`` and classifies
 each entry:
 
 * ``repoman/`` — the generated entrypoint router (Repoman owns it; produced by
   ``repoman install-skills`` at sync time);
-* the expected link set (:data:`EXPECTED_SKILLS`) — the four manager skills the
-  router needs, the copyroom canonical set, and the shared writing guide;
+* the expected link set (:func:`expected_skills`) — RepoMan's own policy,
+  derived from the enabled roster: ``writing`` always, the skill of each enabled
+  manager, and the two copyroom sub-skills when ``copy`` is enabled;
 * anything else — a **project-specific** skill or a repo **overlay** — reported
   as present, never judged (the two can't be distinguished statically).
+
+The expected link set is **RepoMan's own policy**, not a devman publication.
+Devman publishes only one universal skill: ``UNIVERSAL_SKILLS = ("writing",)``
+in ``devman/src/devman/doctor.py``. Its comment refuses to make ``gitman`` and
+``copyroom`` universal. A repo expects a manager skill only when it enables that
+manager, so a ``git``-only repo gets no warning for ``copyroom``, ``testee`` or
+``docman``.
 
 A missing expected link is ``warn``, never ``fail``. The agent surface is
 developer guidance, not an input to evaluating or verifying a clone (§3.2), so it
@@ -29,41 +39,47 @@ and a fatal row would make them fail. ``fail`` stays reserved for broken wiring
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from ..checks import SelfCheck
+from ..registry import REGISTRY
 
-#: The four manager skills the generated router needs. ``skills.py`` emits a
-#: routing row only for a manager whose ``<skills_dir>/<command>/SKILL.md``
-#: resolves, and ``m.skill`` defaults to ``m.command``.
-MANAGER_SKILLS: tuple[str, ...] = ("copyroom", "gitman", "testee", "docman")
+#: Devman's one universal skill. Every repo expects it, whatever the roster.
+UNIVERSAL_SKILLS: tuple[str, ...] = ("writing",)
 
-#: The copyroom canonical set: the tool's entrypoint and its two sub-skills.
-CANONICAL_COPYROOM_SKILLS: tuple[str, ...] = (
-    "copyroom",
-    "copyroom-adopt",
-    "copyroom-template-edit",
-)
-
-#: Shared writing guidance linked from the central skill pool.
-SHARED_GUIDANCE_SKILLS: tuple[str, ...] = ("writing",)
-
-#: The full expected link set for a managed project — the four manager skills
-#: plus the canonical set plus shared guidance (``copyroom`` appears once).
-EXPECTED_SKILLS: tuple[str, ...] = tuple(
-    sorted(set(MANAGER_SKILLS) | set(CANONICAL_COPYROOM_SKILLS) | set(SHARED_GUIDANCE_SKILLS))
-)
+#: Copyroom's canonical sub-skills. A repo expects them only when ``copy`` is enabled.
+COPYROOM_SUB_SKILLS: tuple[str, ...] = ("copyroom-adopt", "copyroom-template-edit")
 
 #: The generated entrypoint skill Repoman itself owns.
 ENTRYPOINT_SKILL = "repoman"
 
 
-def skill_ownership_checks(repo_root: str, skills_dir: str) -> list[SelfCheck]:
+def expected_skills(enabled: Iterable[str]) -> tuple[str, ...]:
+    """Return the sorted skill names a repo with this roster expects.
+
+    ``enabled`` holds manager keys (``copy``, ``git``, ``test``, ``doc``). The
+    skill name of each key comes from :data:`repoman.registry.REGISTRY`. An
+    unknown key adds nothing.
+    """
+    keys = set(enabled)
+    names = set(UNIVERSAL_SKILLS)
+    names.update(m.skill for k, m in REGISTRY.items() if k in keys)
+    if "copy" in keys:
+        names.update(COPYROOM_SUB_SKILLS)
+    return tuple(sorted(names))
+
+
+def skill_ownership_checks(repo_root: Path | str, skills_dir: str, enabled: Sequence[str]) -> list[SelfCheck]:
     """Lint the skill links under ``<repo_root>/<skills_dir>/``.
+
+    ``enabled`` is the roster of manager keys. It decides the expected set (see
+    :func:`expected_skills`). Rows are ``ok`` or ``warn``, never ``fail``: a clone
+    or a CI checkout has no links, and a missing link must not gate.
 
     Returns one ``SelfCheck`` per class:
 
-    - ``skill:tool-shipped`` — every skill in the expected link set resolves
+    - ``skill:tool-shipped`` — every skill in the expected set resolves
       (warn when one is missing → add a relative pool link in the central dir);
     - ``skill:genome-overlay`` — non-expected, non-entrypoint skills present,
       classified as project-specific or overlay (ok, informational).
@@ -94,7 +110,8 @@ def skill_ownership_checks(repo_root: str, skills_dir: str) -> list[SelfCheck]:
         # The lint is a diagnostic; an unreadable skills dir is a finding, not a crash.
         return [SelfCheck("skill:tool-shipped", "warn", f"{skills_dir} unreadable: {exc.strerror or exc}")]
 
-    missing = [n for n in EXPECTED_SKILLS if n not in present]
+    expected = expected_skills(enabled)
+    missing = [n for n in expected if n not in present]
     out.append(
         SelfCheck(
             "skill:tool-shipped",
@@ -106,7 +123,7 @@ def skill_ownership_checks(repo_root: str, skills_dir: str) -> list[SelfCheck]:
         )
     )
 
-    others = sorted(present - {ENTRYPOINT_SKILL} - set(EXPECTED_SKILLS))
+    others = sorted(present - {ENTRYPOINT_SKILL} - set(expected))
     if others:
         out.append(
             SelfCheck(
