@@ -127,7 +127,7 @@ corrects it through `copyroom update`.
 
 ## Phase B — bump vendomat v0.3.7 to v0.3.9 (fixes P2)
 
-**Repos:** `argentic`, `eventic`, `flora-core`, `flora-qc`, `my-ai`, `poddantic`, `pyllij`,
+**Repos:** `argentic`, `eventic`, `flora-core`, `flora-qc`, `poddantic`, `pyllij`,
 `shellij`. Each pins `git+https://github.com/Bullish-Design/vendomat?ref=refs/tags/v0.3.7`.
 
 Do these steps in each repo:
@@ -586,9 +586,9 @@ Resolve `devenv.yaml` conflicts in favor of the genome's vendomat block. For pal
 local comment from Phase A and corrects `.copier-answers.yml` (`repoman_ref: v0.7.6`,
 `vendomat_ref: v0.3.10`). Run the B3/B4 checks, then save, land, and push.
 
-**I2. Repos without copier answers** (`my-ai`, `flora`, and the Phase B/C repos not born from
-template-py): bump the pins by hand to repoman `v0.7.6` and vendomat `v0.3.10`. Run the B3/B4
-checks, then land.
+**I2. Repos without copier answers** (`flora` and the Phase B/C repos not born from
+template-py): bump the pins by hand to repoman `v0.7.6` and vendomat `v0.3.10`. The archived
+personal-layer source is not an active consumer. Run the B3/B4 checks, then land.
 
 **I3. Fleet check:** run Appendix A2. Every row shows `store`, a project-venv `python`, and a store
 `repoman`.

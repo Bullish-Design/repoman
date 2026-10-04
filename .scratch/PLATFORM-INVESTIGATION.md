@@ -329,7 +329,7 @@ repository, not one per skill."*
 | project | `projects/<p>/agents/skills/` holds |
 |---|---|
 | argentic | pool symlinks, e.g. `gitman -> ../../../../skills/gitman` — **correct** |
-| gitman | `copyroom`, `gitman`, `my-ai` as **real directories** — copies that will drift |
+| gitman | `copyroom`, `gitman`, and the retired personal skill as **real directories** — copies that will drift |
 | repoman | `repoman/` only — **no pool links at all** |
 | agentman | seven entries |
 
@@ -685,9 +685,9 @@ removing the line locally and checking `command -v gitman`.
 ⚠️ Changes behaviour for every repo without a manifest.
 
 **A4. Compose repoman's agent surface from the pool.** *(`~/.config/devman`)*
-Add eight relative symlinks under `projects/repoman/agents/skills/`, matching the
+Add seven relative symlinks under `projects/repoman/agents/skills/`, matching the
 shape `projects/argentic/` already has: `copyroom`, `copyroom-adopt`,
-`copyroom-template-edit`, `gitman`, `testee`, `docman`, `my-ai`, `writing`, each
+`copyroom-template-edit`, `gitman`, `testee`, `docman`, `writing`, each
 `-> ../../../../skills/<name>`. Leave the generated `repoman/` entry real.
 No repo change, no devman change, no migration.
 *Proves:* the router skill's routing table renders four rows instead of zero —
@@ -734,7 +734,8 @@ one-time chore.
 
 **C1. Normalize the agent surface fleet-wide** — repeat A4 for every project once it
 has held in repoman, and convert the real-directory copies (e.g.
-`projects/gitman/agents/skills/{copyroom,gitman,my-ai}`) into pool symlinks so each
+`projects/gitman/agents/skills/{copyroom,gitman}` and the retired personal skill)
+into pool symlinks so each
 fleet skill exists once. Add a conformance check so drift reports itself; extend
 `repoman doctor`'s `skill:tool-shipped` (`devman/check.py:75-84`) to the full
 expected link set. Correct each repo's `.gitignore` and `docs/AGENT-FILES.md`, and

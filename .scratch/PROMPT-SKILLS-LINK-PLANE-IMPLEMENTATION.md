@@ -17,7 +17,6 @@ the work.
 Read these files before changing anything:
 
     AGENTS.md
-    .agents/skills/my-ai/SKILL.md
     .agents/skills/repoman/SKILL.md
     .agents/skills/gitman/SKILL.md
     .agents/skills/testee/SKILL.md

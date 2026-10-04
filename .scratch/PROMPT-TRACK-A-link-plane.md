@@ -178,8 +178,8 @@ with one skill and agentman with seven. The detection half-exists:
 canonical set, and would have reported repoman's gap. Nobody acted on it.
 
 Extend it to the full expected link set: the four manager skills the router needs
-(`copyroom`, `gitman`, `testee`, `docman`) plus the canonical set and the personal
-layer (`my-ai`, `writing`). Note `p.is_dir()` at `check.py:70` follows symlinks,
+(`copyroom`, `gitman`, `testee`, `docman`) plus the canonical set and the shared
+writing guide. Note `p.is_dir()` at `check.py:70` follows symlinks,
 so linked skills already register as present — confirm that holds.
 
 Its current remediation message says *"run `copyroom agent-files export`"*, which

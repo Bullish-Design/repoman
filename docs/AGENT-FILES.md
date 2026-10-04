@@ -41,7 +41,7 @@ project is:
   `docman`;
 - the copyroom canonical set — `copyroom` (already listed), `copyroom-adopt`,
   `copyroom-template-edit`;
-- the personal layer — `my-ai`, `writing`.
+- the shared writing guide — `writing`.
 
 Real entries in a project's central skill directory are only project-specific
 skills and the generated router.

@@ -109,8 +109,8 @@ repoman: wrote entrypoint skill → …/loci-core/.claude/skills/repoman/SKILL.m
 repoman: installed devman assets (21 files) → .claude/skills, .agents/devenv
 ```
 
-But the my-ai personal layer — the cross-repo law every one of these repos
-carries — documents a different location:
+But the former personal layer — the cross-repo guidance these repos carried —
+documents a different location:
 
 ```markdown
 | `.agents/skills/<name>/SKILL.md` | skills — imperative, short, domain-bounded |
@@ -127,7 +127,7 @@ they are right:
 - `repoman doctor` reports `OK skill:entrypoint — .claude/skills/repoman/SKILL.md`.
 - A conformance check written against the documented convention reports the
   repoman skill **missing**. I hit exactly this: an automated probe over
-  `.agents/skills/**` flagged `my-ai/SKILL.md`'s pointer to
+  `.agents/skills/**` flagged a personal skill's pointer to
   `.agents/skills/repoman/` as a broken reference, and it is — permanently,
   by design, in every repo repoman touches.
 
@@ -137,9 +137,9 @@ docs at `.agents/devenv/` are correctly untracked, but the skills land outside
 the tracked tree entirely and had to be committed from `.claude/`.
 
 **Fix.** Decide which location is canonical and make all three agree —
-repoman's writer, my-ai's ownership table, and the `.gitignore` stanza. If
-`.claude/skills/` is intentional (platform-specific install), then my-ai's table
-needs a row saying so, and its pointer to `.agents/skills/repoman/` must go.
+RepoMan's writer, the skill ownership table, and the `.gitignore` stanza. If
+`.claude/skills/` is intentional (platform-specific install), the table needs a
+row saying so, and its pointer to `.agents/skills/repoman/` must go.
 
 ---
 
@@ -202,10 +202,11 @@ No such option: --json
 None of the four subcommands accepts it. Output is Rich-formatted with box
 drawing throughout.
 
-**Cause / consequence.** The my-ai law §3 requires "structured plain-text
-reports — simple lines an agent can parse; no rich coloring under `--json`."
-repoman is the front door agents are told to use, and it is the least parseable
-of the three managers. I read its output with `head` and `grep` and had to
+**Cause / consequence.** The cross-repository guidance at the time required
+"structured plain-text reports — simple lines an agent can parse; no rich
+coloring under `--json`." RepoMan is the front door agents are told to use, and
+it is the least parseable of the three managers. I read its output with `head`
+and `grep` and had to
 count `FAIL` strings by eye.
 
 `doctor`'s line format (`FAIL <check> — <detail>`) is already close to the

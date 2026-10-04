@@ -16,7 +16,7 @@ each entry:
 * ``repoman/`` — the generated entrypoint router (Repoman owns it; produced by
   ``repoman install-skills`` at sync time);
 * the expected link set (:data:`EXPECTED_SKILLS`) — the four manager skills the
-  router needs, the copyroom canonical set, and the personal layer;
+  router needs, the copyroom canonical set, and the shared writing guide;
 * anything else — a **project-specific** skill or a repo **overlay** — reported
   as present, never judged (the two can't be distinguished statically).
 
@@ -45,13 +45,13 @@ CANONICAL_COPYROOM_SKILLS: tuple[str, ...] = (
     "copyroom-template-edit",
 )
 
-#: The personal layer the global ``CLAUDE.md`` points at.
-PERSONAL_LAYER_SKILLS: tuple[str, ...] = ("my-ai", "writing")
+#: Shared writing guidance linked from the central skill pool.
+SHARED_GUIDANCE_SKILLS: tuple[str, ...] = ("writing",)
 
 #: The full expected link set for a managed project — the four manager skills
-#: plus the canonical set plus the personal layer (``copyroom`` appears once).
+#: plus the canonical set plus shared guidance (``copyroom`` appears once).
 EXPECTED_SKILLS: tuple[str, ...] = tuple(
-    sorted(set(MANAGER_SKILLS) | set(CANONICAL_COPYROOM_SKILLS) | set(PERSONAL_LAYER_SKILLS))
+    sorted(set(MANAGER_SKILLS) | set(CANONICAL_COPYROOM_SKILLS) | set(SHARED_GUIDANCE_SKILLS))
 )
 
 #: The generated entrypoint skill Repoman itself owns.

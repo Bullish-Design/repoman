@@ -13,7 +13,7 @@ from repoman.devman.check import (
     CANONICAL_COPYROOM_SKILLS,
     EXPECTED_SKILLS,
     MANAGER_SKILLS,
-    PERSONAL_LAYER_SKILLS,
+    SHARED_GUIDANCE_SKILLS,
     skill_ownership_checks,
 )
 
@@ -51,10 +51,10 @@ def _real_skill(skills, name):
     (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
 
 
-def test_expected_set_covers_managers_canonical_and_personal():
+def test_expected_set_covers_managers_canonical_and_shared_guidance():
     assert set(MANAGER_SKILLS) <= set(EXPECTED_SKILLS)
     assert set(CANONICAL_COPYROOM_SKILLS) <= set(EXPECTED_SKILLS)
-    assert set(PERSONAL_LAYER_SKILLS) <= set(EXPECTED_SKILLS)
+    assert set(SHARED_GUIDANCE_SKILLS) <= set(EXPECTED_SKILLS)
     assert len(EXPECTED_SKILLS) == len(set(EXPECTED_SKILLS))
 
 

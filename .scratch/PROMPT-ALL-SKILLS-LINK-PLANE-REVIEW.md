@@ -23,7 +23,7 @@ resolves them on paper. A later, separate session implements the result.
   vs linked content, scope), ask. Do not invent intent.
 - **Route version control through `gitman`.** Never raw `jj`/`git` for mutation.
   (This session should not need mutation at all.)
-- **STE writing style** (`my-ai` SKILL.md, `writing` SKILL.md): short sentences,
+- **STE writing style** (`writing` skill): short sentences,
   active voice, one word per meaning.
 
 Read first:
@@ -34,7 +34,7 @@ Read first:
 - `.scratch/PROMPT-FLEET-LINK-PLANE-COMPLETE.md` — the arc that just finished.
   Its "Contradictions and deviations" section is this session's input.
 - `.agents/skills/gitman/SKILL.md`, `.agents/skills/repoman/SKILL.md`,
-  `.agents/skills/my-ai/SKILL.md`.
+  `.agents/skills/writing/SKILL.md`.
 - `~/.config/devman/.gitignore` and `~/.config/devman/projects/repoman/devenv.local.nix`.
 - The `devman-link` source for the tool's real contract:
   `/nix/store/1k3v49wsb948r1jwxw3yz8sjdd9r95ny-devman-0.6.0/lib/python3.14/site-packages/devman_link/`
@@ -98,7 +98,7 @@ Still open, with the exact current numbers:
 Count check at 2026-09-19: `~/Documents/Projects` holds **72** directories, **70** of which
 hold a `.git`. **51** of those 70 have a central project dir under the same name.
 **54** central project dirs exist; 3 name repos with no directory (`foreman`,
-`my-ai`, `siteman`; `my-ai` is delivered as a copyroom layer).
+the retired personal-layer repository, `siteman`).
 
 ---
 
@@ -140,7 +140,7 @@ works, do you want docman to use it? What breaks in docman's deploy/check path i
 ### B2 — 11 repos with a real `.agents/` and no central project dir
 
 **Evidence.** F2. Their `.agents/skills/` holds pool skills (`copyroom`,
-`copyroom-adopt`, `copyroom-template-edit`, `my-ai`, `gitman`, `devenv-*`,
+`copyroom-adopt`, `copyroom-template-edit`, `writing`, `gitman`, `devenv-*`,
 `repoman`) and, in `allium-env` and `fsdantic`, project-own skills
 (`allium*`, `distill`, `elicit`, `propagate`, `tend`, `weed`, `SKILL-AGENTFS.md`).
 `allium-env` and `PyGentic` already have a linked `.envrc`. `inferference` already

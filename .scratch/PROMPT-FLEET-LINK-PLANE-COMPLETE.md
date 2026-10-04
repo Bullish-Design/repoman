@@ -20,8 +20,8 @@ fine, but remember `git HEAD` lags jj: **`gitman status` is authoritative**; a
 `git diff` against `HEAD` can report hundreds of phantom files. When gitman says
 `refs lag jj`, run `gitman repair`.
 
-This repo's own AGENTS.md, `.agents/skills/my-ai/SKILL.md`, and
-`.agents/skills/gitman/SKILL.md` still bind. Read them.
+This repo's own `AGENTS.md`, `.agents/skills/gitman/SKILL.md`, and
+`.agents/skills/writing/SKILL.md` still bind. Read them.
 
 ---
 
@@ -50,7 +50,7 @@ No repo tracks agent skills.
 The expected link set for a managed project (repoman's `doctor` checks it):
 
 `copyroom`, `gitman`, `testee`, `docman`, `copyroom-adopt`,
-`copyroom-template-edit`, `my-ai`, `writing`.
+`copyroom-template-edit`, `writing`.
 
 **No backwards-compatibility shims.** Migrate every repo; delete the plane module,
 copyroom's export, and the dead docs. Do not leave a fallback path that keeps the
@@ -360,8 +360,8 @@ Use background subagents. The rules that keep it safe:
   them.
 - **Exit-code contract:** `0` ok · `1` a decision is needed · `2` infra/config · `3`
   invalid usage. Keep it consistent across managers.
-- **STE writing style** (`my-ai` SKILL.md): short sentences, active voice, one word
-  per meaning — docs, commit messages, code comments, replies.
+- **STE writing style** (`writing` skill): short sentences, active voice, one
+  word per meaning — docs, commit messages, code comments, replies.
 
 ---
 

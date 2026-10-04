@@ -85,7 +85,7 @@ Do them in this order. Each has a stated proof — verify it before moving on.
 ### Task 0 — populate repoman's agent surface (highest signal, do first)
 
 `~/.config/devman/projects/repoman/agents/skills/` currently holds only
-`repoman/`. Add eight relative symlinks, matching `projects/argentic/`'s shape:
+`repoman/`. Add seven relative symlinks, matching `projects/argentic/`'s shape:
 
 ```
 copyroom               -> ../../../../skills/copyroom
@@ -94,7 +94,6 @@ copyroom-template-edit -> ../../../../skills/copyroom-template-edit
 gitman                 -> ../../../../skills/gitman
 testee                 -> ../../../../skills/testee
 docman                 -> ../../../../skills/docman
-my-ai                  -> ../../../../skills/my-ai
 writing                -> ../../../../skills/writing
 ```
 
@@ -103,8 +102,7 @@ Leave `repoman/SKILL.md` as a real file — it is generated.
 `copyroom`, `gitman`, `testee`, `docman` are what make the router table render:
 `skills.py:75` emits a row only for a manager whose `<skills_dir>/<command>/SKILL.md`
 exists, and `m.skill` defaults to `m.command` (`registry.py:51-52`). The other
-four cover `repoman doctor`'s `skill:tool-shipped` canonical set and the personal
-layer the global `CLAUDE.md` points at.
+three cover the two additional copyroom skills and the shared writing guide.
 
 **Proof:** invoke the `repoman` skill from the repoman repo. Its routing table
 must render **four rows** instead of an empty body. Confirm the pool targets
@@ -113,7 +111,8 @@ resolve (`ls -L`) and that no link dangles.
 ### Task 1 — normalize the real-directory copies
 
 Some projects hold **real directories** where pool symlinks belong, so those
-copies will drift. Confirmed: `projects/gitman/agents/skills/{copyroom,gitman,my-ai}`.
+copies will drift. Confirmed: `projects/gitman/agents/skills/` held real copies
+of `copyroom`, `gitman`, and the retired personal skill.
 
 Audit **all 52** projects under `~/.config/devman/projects/`, classify every
 entry in each `agents/skills/` as (a) pool symlink, (b) real dir duplicating a
