@@ -15,7 +15,8 @@ OK   skill:entrypoint — /home/andrew/Documents/Projects/talkee/.agents/skills/
 OK   skill:copy:defers
 OK   skill:git:defers
 OK   skill:tool-shipped — canonical copyroom skills present
-OK   skill:genome-overlay — genome or overlay: devenv-authoring, devenv-inputs, devenv-lock, devenv-module-edits, devenv-processes, devenv-python-venv, devenv-run-commands, devenv-troubleshoot, gitman, my-ai
+OK   skill:genome-overlay — genome or overlay: devenv-authoring, devenv-inputs, devenv-lock, devenv-module-edits, devenv-processes, devenv-python-venv, devenv-run-commands, devenv-troubleshoot, gitman, retired personal skill (name removed 2026-10-03)
+NOTE 2026-10-03: The final entry denotes a retired personal overlay skill. Its old name is omitted; the captured check results are unchanged.
 
 === copy (copyroom) ===
 OK  copier — 9.17.1
