@@ -221,6 +221,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mancore"
+version = "0.1.0"
+source = { git = "https://github.com/Bullish-Design/mancore?tag=v0.1.0#af557e167af0a799bd9dd00472b9023c3a50dc0f" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "typer" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -529,7 +538,7 @@ provides-extras = ["dev"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest-cov", specifier = ">=5" },
-    { name = "testee", git = "https://github.com/Bullish-Design/testee?tag=v0.3.0" },
+    { name = "testee", git = "https://github.com/Bullish-Design/testee?tag=v0.4.0" },
 ]
 
 [[package]]
@@ -582,11 +591,12 @@ wheels = [
 
 [[package]]
 name = "testee"
-version = "0.3.0"
-source = { git = "https://github.com/Bullish-Design/testee?tag=v0.3.0#60b70f542d7039688e627dddbb17e9aca1b46476" }
+version = "0.4.0"
+source = { git = "https://github.com/Bullish-Design/testee?tag=v0.4.0#b8638ae8efb32e50e749283394d234886cdeada5" }
 dependencies = [
     { name = "import-linter" },
     { name = "jinja2" },
+    { name = "mancore" },
     { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-json-report" },
