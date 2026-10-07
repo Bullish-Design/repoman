@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — retire the lock files, realign the docs
+## 0.10.0 — drop the aggregating CLI, retire the lock files, realign the docs
 
 This repo removes the two lock files of the retired virtual environment (venv) toolchain.
 The fleet also retired the `my-ai` personal layer, so the doctor stops expecting its

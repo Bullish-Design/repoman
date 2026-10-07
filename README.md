@@ -71,7 +71,7 @@ helper.
 # devenv.yaml
 inputs:
   repoman:
-    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.9.2"
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.10.0"
     flake: false
 imports:
   - repoman
