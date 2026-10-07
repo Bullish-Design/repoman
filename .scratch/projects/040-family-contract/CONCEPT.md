@@ -2,7 +2,8 @@
 
 > **Status:** design, 2026-10-06. Approved in concept; the API below is the
 > proposal, not yet built. This document is fleet-wide. It will move into the
-> new library's own repository once that repository exists.
+> new library's own repository once that repository exists. The six open
+> questions in §9 were resolved 2026-10-07; see that section.
 
 ## 1. The problem
 
@@ -113,9 +114,9 @@ Three moves.
 
 ## 4. The library
 
-Proposed repository `man-core`, package `mancore`, after the `loci-core`
-precedent. **The name is open** — it is cheap to change now and expensive
-later.
+Repository `man-core`, package `mancore`, after the `loci-core` precedent.
+**Decided** (see §9) — confirm the repository slug and the PyPI package name
+are free before the first commit.
 
 The model is linkman. It already has Pydantic result models, a
 `schema_version`, `--json` on every command and golden tests. This library
@@ -565,28 +566,52 @@ the V4 rewrite, not before.
   boundary is reported by `doctor` and enforced nowhere. Adopting
   `require_devenv()` from the library is a behaviour change for every verb.
 
-## 9. Open questions
+## 9. Decisions (resolved 2026-10-07)
 
-- **The library's name.** `man-core` / `mancore` is a placeholder.
-- **Where a capability is published.** The closure manifest plus a `capability`
-  subcommand is the proposal. Vendomat's V4 Q-SURFACE decision may change where
-  the manifest lives.
-- **Does `.repoman/project.toml` become the composition record** V4-OWN-013
-  refers to? It holds a roster today, not a composition. If composition stays
-  with RepoMan, RepoMan must say what that record is.
-- **Does a non-blocking "gap"** — V4's term for a reported finding that does not
-  block — need a code, or is it a `warn` row with exit `0`? The proposal says
-  the latter. Under `0/1/2` this is now a clean fit: `warn` is a row the caller
-  may read and the exit code ignores, which is exactly what "reported but not
-  blocking" means.
-- **Should a query report findings?** `testee list-runs` exits `0` even when the
-  last run failed, and `repoman status` inherited that blindness. Under the
-  convention, "the last run failed" is a finding, so `list-runs` arguably owes a
-  `1`. Counter-argument: a listing command reports what exists, and the verdict
-  belongs to `verify`. Unresolved; it decides whether a `status`-shaped command
-  can ever carry a verdict.
-- **Where do findings and faults coexist?** A `verify` run where one tool failed
-  (finding) and another was missing (fault) must pick one code. Proposal: the
-  fault wins, because the report is incomplete and the caller cannot trust the
-  finding set. testee's `overall_status` already resolves it this way —
-  `infra_error` beats `failed`.
+Six questions were open. All six are now decided. Each entry states the
+decision first, then the rationale.
+
+- **The library's name is `man-core`** (repository) **/ `mancore`** (package).
+  Final, not a placeholder. The name carries no semantic weight for the
+  migration mechanics, and the cost of changing it only grows once seven tools
+  import it. Before the first commit, confirm the repository slug and the
+  PyPI package name are both free.
+
+- **A capability is published through both channels: the closure manifest,
+  preferred, with a per-manager subprocess call as fallback.** This was
+  already the proposal in §4.6; it is now the decision, not a default. Build
+  order matters: ship RepoMan's discovery against the subprocess path first,
+  because it works today and does not depend on Vendomat. Add the
+  manifest-preferred path as a thin optimization once Vendomat's V4 Q-SURFACE
+  work bakes capabilities into the closure — do not block on Vendomat to start
+  migrating tools.
+
+- **`.repoman/project.toml` does not become the composition record.** No new
+  record is persisted. The capability/doctor report, computed at request
+  time, is the composition record V4-OWN-013 refers to. `.repoman/project.toml`
+  stays a pure roster (`schema`, `managers`, legacy `cliProvider`) and its
+  schema does not grow. This is a **default position, not a cross-repo
+  decision** — V4-OWN-013 belongs to Vendomat. It does not block any step in
+  §7's migration order, since none of them touch this file. If Vendomat's V4
+  work requires a persisted record instead, that side owns overriding this
+  default.
+
+- **A non-blocking "gap" is a `warn` row at exit `0`. No fourth level.** This
+  needed no new mechanism — §4.4's `Level = Literal["ok","warn","fail"]` and
+  §4.5's "a `warn` never gates" already specify it. The proposal in the
+  original open question is now final.
+
+- **A query command may carry a verdict only when it renders current state;
+  it may not when it only enumerates a history of already-judged past
+  events.** `status`-shaped commands keep the verdict §4.2's table already
+  gives them (drift, an off-canonical repo, an update available). `list-runs`-
+  shaped commands stay verdict-free: "the last run failed" remains visible in
+  the row data, but does not set exit `1`, because that judgment already
+  happened when the `verify` run that produced the row completed.
+
+- **Where a finding and a fault coexist in one report, the fault wins.**
+  Lift testee's existing `overall_status` rule (`infra_error` beats `failed`)
+  into the shared library's `exit_for`/`doctor.py` unchanged — this is
+  reused, not designed. A report that is missing a tool cannot be trusted to
+  be complete, so the finding set it does contain is not trustworthy either,
+  and the exit code must say so.
