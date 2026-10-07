@@ -1,4 +1,5 @@
 import re
+import tomllib
 from pathlib import Path
 
 MODULES = Path(__file__).resolve().parents[1] / "modules"
@@ -85,9 +86,17 @@ def test_repoman_dev_shell_does_not_shadow_repoman_sync():
 
 
 def test_repoman_dev_shell_declares_testee():
+    """testee is in the dev group, whatever else the group carries.
+
+    Asserted by parsing the group, not by pinning the literal line: the group
+    legitimately grows (pytest-cov is required by `addopts`), and a literal match
+    turns any addition into a failure that says nothing about testee.
+    """
+
     root = Path(__file__).resolve().parents[1]
     pyproject = (root / "pyproject.toml").read_text()
-    assert 'dev = ["testee"]' in pyproject
+    groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
+    assert any(spec == "testee" or spec.startswith("testee") for spec in groups)
     source = re.search(r"^testee = \{(.*)\}$", pyproject, re.MULTILINE)
     assert source is not None and "git =" in source.group(1)
     assert 'requires-python = ">=3.13"' in pyproject

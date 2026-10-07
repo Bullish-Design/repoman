@@ -509,6 +509,7 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest-cov" },
     { name = "testee" },
 ]
 
@@ -526,7 +527,10 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "testee", git = "https://github.com/Bullish-Design/testee?tag=v0.3.0" }]
+dev = [
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "testee", git = "https://github.com/Bullish-Design/testee?tag=v0.3.0" },
+]
 
 [[package]]
 name = "rich"

@@ -35,7 +35,10 @@ dev = [
 # console script.
 # testee needs Python >=3.13, which is why requires-python and the dev venv moved to
 # 3.13 (matching the rest of the family and the machine toolchain venv).
-dev = ["testee"]
+# pytest-cov: `[tool.pytest.ini_options] addopts` passes --cov, so pytest cannot start
+# without it. Undeclared, it made `testee verify --mode ci` report pytest=infra_error —
+# and the publish gate passed anyway, so a release could be tagged with no tests run.
+dev = ["testee", "pytest-cov>=5"]
 
 [tool.uv.sources]
 # A git tag, not `path = "../testee"`. testee is not on PyPI, so uv needs a source, and a
