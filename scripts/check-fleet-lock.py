@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Refuse to publish a devenv.lock that names one machine's working trees.
 
-This runs as a pyjutsu `pre-push` hook, NOT as a unit test. The distinction is
+This runs from the `gate` script, before `jj git push`, NOT as a unit test. Native
+`jj git push` runs no git hook, so the gate is a step the author runs. The distinction is
 deliberate. `devenv shell` rewrites devenv.lock in place, so a shell taken with
 devenv.local.yaml active re-locks every overlaid input at its local path. That is
 normal and harmless while you work — the overlay exists so an edit in a sibling
@@ -10,7 +11,7 @@ this machine, because `file:///home/<user>/...` exists on exactly one of them.
 
 A unit test put the gate in the wrong place: it turned red from ordinary work and
 told you to re-lock before you had anything to publish. The push is the boundary
-that matters, so the check lives there. Run `relock` to fix a finding.
+that matters, so the check lives in the gate that precedes it. Run `relock` to fix a finding.
 
 Exit 0 = clean, 1 = a local path would reach the remote, 2 = cannot tell.
 """

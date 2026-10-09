@@ -5,7 +5,7 @@ import pytest
 
 import repoman.checks as checks
 from repoman.checks import run_self_check, self_check_exit
-from repoman.registry import GITMAN_V2, REGISTRY
+from repoman.registry import REGISTRY
 
 
 def _names(result):
@@ -75,7 +75,7 @@ def test_missing_toolchain_store_fails(tmp_path, monkeypatch):
     store = _names(result)["toolchain:store"]
     assert store.level == "fail"
     assert "REPOMAN_TOOLCHAIN_BIN" in store.detail
-    assert self_check_exit(result) == 2
+    assert self_check_exit(result) == 1
 
 
 def test_store_manifest_is_required(toolchain):
@@ -145,32 +145,26 @@ def test_store_and_consumer_binary_resolution(toolchain, consumer_venv, tmp_path
     assert checks.manager_binary(REGISTRY["test"]) == consumer_venv / "testee"
 
 
-def test_gitman_v2_checks_the_consumer_binary_and_jj(toolchain, consumer_venv, tmp_path, monkeypatch):
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "gitman"\nversion = "2.0.0"\n')
-    gitman = consumer_venv / "gitman"
+def test_gitman_interface_check_needs_the_work_only_binary_and_jj_0_46(toolchain, tmp_path, monkeypatch):
+    gitman = toolchain.bin / "gitman"
     gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {work} ...\\n"\n')
     gitman.chmod(0o755)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    jj = bin_dir / "jj"
+    jj = tmp_path / "jj-bin" / "jj"
+    jj.parent.mkdir()
     jj.write_text('#!/bin/sh\nprintf "jj 0.46.0\\n"\n')
     jj.chmod(0o755)
-    monkeypatch.setenv("PATH", f"{bin_dir}:{consumer_venv}:{toolchain.bin}")
-    monkeypatch.setattr(checks.shutil, "which", lambda command: str(gitman) if command == "gitman" else None)
+    monkeypatch.setenv("PATH", f"{jj.parent}:{toolchain.bin}")
 
-    names = _names(run_self_check([GITMAN_V2], str(tmp_path), ".claude/skills"))
-    assert names["uv:git"].level == "ok"
-    assert names["installed:git"].level == "ok"
+    names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
     assert names["interface:git"].level == "ok"
-    assert "lock:git" not in names
 
     gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {start,status} ...\\n"\n')
-    names = _names(run_self_check([GITMAN_V2], str(tmp_path), ".claude/skills"))
+    names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
     assert names["interface:git"].level == "fail"
 
     gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {work} ...\\n"\n')
     jj.write_text('#!/bin/sh\nprintf "jj 0.45.0\\n"\n')
-    names = _names(run_self_check([GITMAN_V2], str(tmp_path), ".claude/skills"))
+    names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
     assert names["interface:git"].level == "fail"
 
 
@@ -211,7 +205,8 @@ def test_detect_context_precedence(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOMAN_MANAGERS", "")
     assert checks.detect_context(str(tmp_path)).kind == "managed-repo-shell"
     monkeypatch.delenv("REPOMAN_MANAGERS")
-    (tmp_path / ".gitman").mkdir()
+    (tmp_path / ".repoman").mkdir()
+    (tmp_path / ".repoman" / "project.toml").write_text("")
     assert checks.detect_context(str(tmp_path)).kind == "managed-repo-bare-shell"
 
 

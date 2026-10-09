@@ -1,4 +1,4 @@
-from repoman.registry import GITMAN_V2, REGISTRY
+from repoman.registry import REGISTRY
 from repoman.skills import build_activities, build_spine, install_entrypoint, render_entrypoint
 
 
@@ -46,32 +46,13 @@ def test_activities_section_is_absent_without_activity_managers(tmp_path):
     assert "## Activities" not in out
 
 
-def test_laws_name_land_and_never_save():
+def test_laws_name_integrate_and_never_save():
     out = render_entrypoint([REGISTRY["test"]], ".agents/skills", "/nonexistent")
     laws = out.split("## Laws")[1]
     assert "Verify before you integrate" in laws
     assert "Never integrate on red" in laws
-    assert "land" in laws
+    assert "land" not in laws  # gitman 0.12 has no `land`
     assert "save" not in out
-
-
-def test_gitman_v2_router_uses_native_jj_without_v1_verbs(tmp_path):
-    skill = tmp_path / ".agents/skills/gitman-v2/SKILL.md"
-    skill.parent.mkdir(parents=True)
-    skill.write_text("---\nname: gitman-v2\n---\n")
-    out = render_entrypoint([REGISTRY["test"], GITMAN_V2], ".agents/skills", str(tmp_path))
-    assert "| git | `gitman-v2` | `gitman` |" in out
-    assert "gitman work" in out and "jj workspace remove NAME" in out
-    assert "native jj" in out
-    assert "land" not in out and "gitman status" not in out
-    assert "Gitman v2 uses `2` for invalid usage" in out
-
-
-def test_gitman_v2_router_without_test_manager_names_repository_checks(tmp_path):
-    out = render_entrypoint([GITMAN_V2], ".agents/skills", str(tmp_path))
-    assert "Run the repository's checks" in out
-    assert "Gitman v2 has no `doctor` command" in out
-    assert "Run `verify`" not in out
 
 
 def test_render_has_no_doubled_blank_lines(tmp_path):

@@ -9,7 +9,7 @@ Project 12: the manager family splits by install model. Pure-CLI managers
 (`install == "toolchain"`) come from Vendomat's one shared Nix store closure,
 found through `REPOMAN_TOOLCHAIN_BIN` and validated against the provenance
 manifest Vendomat ships beside it. uv-declared managers (`install == "uv"`,
-testee and opted-in Gitman v2) live in the consumer's uv graph, validated against
+today: testee) live in the consumer's uv graph, validated against
 `pyproject.toml`.
 
 Two disciplines this module holds to, because it is the *diagnostic* layer:
@@ -37,8 +37,8 @@ from pathlib import Path
 from .registry import Manager
 
 # A self-check level maps to an exit-code contribution. "warn" is non-fatal (0);
-# "fail" is broken wiring → 2 (infra/config), merged with the sub-doctors' worst.
-_LEVELS = {"ok": 0, "warn": 0, "fail": 2}
+# "fail" is a finding the caller must act on → 1 (the shared 0/1/2 contract).
+_LEVELS = {"ok": 0, "warn": 0, "fail": 1}
 
 
 @dataclass
@@ -57,7 +57,7 @@ class Context:
     * ``managed-repo-shell`` — inside a managed repo's devenv shell
       (``REPOMAN_MANAGERS`` exported by the meta-module's ``config.env``).
     * ``managed-repo-bare-shell`` — inside a managed repo, but with no shell
-      environment (``gitman.toml`` / ``.gitman`` markers present).
+      environment (``.repoman/project.toml`` present).
     * ``not-a-repo`` — neither.
 
     ``repo_root`` is ``DEVENV_ROOT`` when in-shell, else the detected repo root
@@ -80,11 +80,11 @@ def detect_context(start: str) -> Context:
        ``config.env``, so it is present in both ``devenv shell`` and ``devenv
        tasks run``, and nowhere else. Empty = "wire nothing" is still a managed
        repo, mirroring ``_enabled()``'s unset-vs-empty distinction.
-    2. ``gitman.toml`` or ``.gitman/`` in ``start`` or any ancestor means a
-       managed repo in a **bare shell**. gitman init/seed creates these, so every
-       real consumer has one. Absence does not prove not-a-repo (a freshly
-       rendered, not-yet-inited repo has none) — accepted limitation; the message
-       still names the right invocation.
+    2. ``.repoman/project.toml`` in ``start`` or any ancestor means a managed
+       repo in a **bare shell**. It is the roster manifest, so every real consumer
+       has one. gitman 0.12 writes no marker file. Absence does not prove
+       not-a-repo (a repo that has not written its manifest yet has none) —
+       accepted limitation; the message still names the right invocation.
     3. Neither → ``not-a-repo``.
 
     Explicitly NOT signals: ``DEVENV_ROOT`` / ``DEVENV_STATE`` /
@@ -100,7 +100,7 @@ def detect_context(start: str) -> Context:
         return Context("managed-repo-shell", root, "inside a RepoMan-managed devenv shell")
     current = Path(start).resolve()
     for candidate in (current, *current.parents):
-        if (candidate / "gitman.toml").exists() or (candidate / ".gitman").is_dir():
+        if (candidate / ".repoman" / "project.toml").is_file():
             return Context(
                 "managed-repo-bare-shell",
                 str(candidate),
@@ -252,36 +252,37 @@ def _installed_check(manager: Manager) -> SelfCheck:
         except OSError:
             shadowed = False
         if shadowed:
-            if manager.skill == "gitman-v2":
-                detail = f"PATH resolves {manager.command} to {on_path}, not the v2 binary {expected}"
-            else:
-                detail = (
-                    f"{expected} is what the tasks run, but PATH resolves {manager.command}"
-                    f" to {on_path} — the two can disagree"
-                )
             return SelfCheck(
                 f"installed:{manager.key}",
-                "fail" if manager.skill == "gitman-v2" else "warn",
-                detail,
+                "warn",
+                f"{expected} is what the tasks run, but PATH resolves {manager.command}"
+                f" to {on_path} — the two can disagree",
             )
     return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
 
 
-def _gitman_v2_interface_check(manager: Manager) -> SelfCheck:
-    """Check the exact v2 binary and jj version used by a consumer."""
+def _gitman_interface_check(manager: Manager) -> SelfCheck:
+    """Check that ``gitman`` is the work-only tool and that ``jj`` is new enough.
+
+    gitman 0.12 has one command, ``work``, and ``work`` needs ``jj workspace add
+    --colocate`` (jj 0.46.0 or later). An older gitman answers ``status`` and
+    ``land`` with a usage error, so the router would send the agent to commands
+    that fail.
+    """
+
     binary = manager_binary(manager)
     if binary is None or not binary.exists():
-        return SelfCheck("interface:git", "fail", "Gitman v2 is missing from the consumer venv")
+        return SelfCheck("interface:git", "fail", f"{manager.command} is missing")
     try:
         help_result = subprocess.run([str(binary), "--help"], capture_output=True, text=True, timeout=5, check=False)
         jj_result = subprocess.run(["jj", "version"], capture_output=True, text=True, timeout=5, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return SelfCheck("interface:git", "fail", f"cannot check Gitman v2 and jj: {exc}")
+        return SelfCheck("interface:git", "fail", f"cannot check gitman and jj: {exc}")
     if help_result.returncode != 0 or not re.search(r"^usage: gitman .*\{work\}", help_result.stdout, re.M):
-        return SelfCheck("interface:git", "fail", f"{binary} does not offer the work-only Gitman v2 interface")
+        return SelfCheck("interface:git", "fail", f"{binary} is not the work-only gitman (0.12 or later)")
     version = re.search(r"\bjj (\d+)\.(\d+)\.(\d+)", jj_result.stdout)
     if jj_result.returncode != 0 or version is None or tuple(map(int, version.groups())) < (0, 46, 0):
-        return SelfCheck("interface:git", "fail", "Gitman v2 needs jj 0.46.0 or later")
+        return SelfCheck("interface:git", "fail", "gitman work needs jj 0.46.0 or later")
     return SelfCheck("interface:git", "ok", f"{binary}; {version.group(0)}")
 
 
@@ -329,10 +330,6 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     for m in managers:
         if m.install == "uv":
             where = uv_declared_in(pyproject, m.package) if pyproject else None
-            if m.skill == "gitman-v2" and pyproject:
-                project_name = (pyproject.get("project") or {}).get("name", "")
-                if isinstance(project_name, str) and _normalize(project_name) == "gitman":
-                    where = "[project] self"
             out.append(
                 SelfCheck(
                     f"uv:{m.key}",
@@ -361,8 +358,8 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     # --- installed:<key> (the exact binary the tasks exec) ----------------------
     for m in managers:
         out.append(_installed_check(m))
-        if m.skill == "gitman-v2":
-            out.append(_gitman_v2_interface_check(m))
+        if m.key == "git":
+            out.append(_gitman_interface_check(m))
 
     # Nix-layer provisioning: an approach-B manager's nix module lives in the
     # manager's own repo and is pulled in by a presence-gated import that only
@@ -422,7 +419,7 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
 def self_check_exit(checks: list[SelfCheck]) -> int:
     """Worst exit contribution across the self-checks (0 if none)."""
 
-    return max((_LEVELS.get(c.level, 2) for c in checks), default=0)
+    return max((_LEVELS.get(c.level, 1) for c in checks), default=0)
 
 
 def format_self_check(checks: list[SelfCheck]) -> str:

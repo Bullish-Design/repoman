@@ -27,8 +27,8 @@ Every step is `devenv shell -- …` for the same reason agents must use it local
 
 ## Exit codes are the CI signal
 
-Route work through the managers / `repoman` and let the `0/1/2/3` contract decide pass/fail:
-`0` green; `1` a finding/decision; `2` infra/config broken; `3` usage error. Don't swallow non-zero
+Route work through the managers / `repoman` and let the `0/1/2` contract decide pass/fail:
+`0` green; `1` a finding; `2` the tool could not run. Don't swallow non-zero
 exits — they're the point. (`scripts-tasks-processes.md`.)
 
 ## Background / long steps

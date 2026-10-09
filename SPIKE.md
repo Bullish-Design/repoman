@@ -38,7 +38,7 @@ tests/consumer-example/
    `config = lib.mkIf cfg.enable {...}`. The spike declared
    `options.repoman.{enable, managers, template, installSkills, skillsDir}`. Project 039
    and release 0.9.1 removed all but `enable`. Today `options.repoman` holds `enable` and
-   `toolchainBin`. `modules/managers/gitman.nix` adds `nativeBuild`.
+   `toolchainBin`.
 3. **Conditional managers without conditional imports** — `imports` can't depend on
    `config`. So the meta-module imports *every* manager module statically, and each one
    self-gates on membership in the roster. This is the standard module idiom;
@@ -191,8 +191,6 @@ This output is from the spike, with copyroom 0.4. Findings:
   > because `uv pip install` ignores gitman's `[tool.uv.sources]`. RepoMan retired that
   > entry. gitman now pins a prebuilt pyjutsu wheel by URL in its own
   > `[tool.uv.sources]`, and uv carries that pin into a consumer's lock. So gitman needs
-  > no Rust, and neither does a consumer on x86-64 Linux with glibc 2.39 or newer. The
-  > Rust toolchain is opt-in: `repoman.nativeBuild = true` adds `maturin` and
-  > `languages.rust.enable`. It is for pyjutsu's own repo, and for a platform the wheel
-  > does not cover, where uv builds pyjutsu from its source distribution. The flake
-  > check `gitman-rust-gate` guards the default.
+  > no Rust, and neither does a consumer on x86-64 Linux with glibc 2.39 or newer. gitman
+  > 0.12 later dropped pyjutsu, and RepoMan removed the `repoman.nativeBuild` option. The
+  > flake check `gitman-adds-git-only` guards the module.

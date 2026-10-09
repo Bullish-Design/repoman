@@ -11,7 +11,8 @@ def test_only_testee_uses_the_consumer_venv():
 
 
 def test_shared_managers_resolve_through_the_toolchain_bin():
-    for name in ("gitman.nix", "copyroom.nix", "docman.nix"):
+    # gitman.nix runs no task: gitman 0.12 has one command, `work`.
+    for name in ("copyroom.nix", "docman.nix"):
         assert "cfg.toolchainBin" in (MODULES / "managers" / name).read_text()
 
 
@@ -35,7 +36,7 @@ def test_store_path_wins_over_consumer_venv():
 
 def test_manifest_is_the_only_roster_configuration():
     text = (MODULES / "devenv.nix").read_text()
-    assert 'manifestKnownFields = [ "schema" "managers" "cliProvider" "gitmanVersion" ];' in text
+    assert 'manifestKnownFields = [ "schema" "managers" "cliProvider" ];' in text
     assert "managers = lib.mkOption" not in text
     assert "REPOMAN_CLI_PROVIDER" not in text
 

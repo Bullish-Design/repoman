@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased — align with work-only gitman 0.12.0, adopt the `0/1/2` exit contract
+
+gitman 0.12.0 has one command, `gitman work`. Native `jj` and `gh` replace the other
+verbs. RepoMan stops describing `integrate` as gitman verbs.
+
+### Changed (breaking)
+
+- **Exit codes follow the shared `0/1/2` contract.** A failed `doctor` row exits `1`
+  (was `2`). A bad `install-skills` target exits `2` (was `3`). A wrong context still
+  exits `2`. Exit `3` is retired.
+- **The `git` manager is work-only.** `registry.py` drops its `doctor` and `status`
+  commands. Its route names `gitman work`, native `jj` and `gh`.
+- **`integrate` means native jj.** It is `jj describe`, a bookmark, `jj git push`, then
+  a `gh` pull request. The router laws no longer name `land` or `push`.
+- **Bare-shell detection reads `.repoman/project.toml`.** It no longer reads
+  `gitman.toml` or `.gitman/`. gitman 0.12 writes neither.
+- **`gitman.nix` adds `git` and nothing else.** It removes `repoman:vc:status`, which ran
+  `gitman status`. It also removes the `repoman.nativeBuild` option, which provisioned
+  Rust and maturin to build pyjutsu. gitman 0.12 does not use pyjutsu, and a fleet search
+  found no repo that set the option. The flake check `gitman-rust-gate` becomes
+  `gitman-adds-git-only`.
+- **One gitman mode, no `gitmanVersion`.** The unreleased opt-in (`gitmanVersion` in
+  `.repoman/project.toml`, `REPOMAN_GITMAN_VERSION`, `manager_for`, a `gitman-v2` skill)
+  is removed before any release. The fleet cuts over to work-only gitman 0.12 in one step.
+- **`repoman doctor` adds `interface:git`.** It fails when `gitman` is not the work-only
+  tool or when `jj` is older than 0.46.0, which `gitman work` needs.
+- **A `gate` script replaces the v1 push and release gate.** `gitman.toml`
+  `[publish].verify` and the pyjutsu pre-push hook (`.pyjutsu-hooks.toml`) no longer run,
+  because native `jj git push` fires no hook. Both files are deleted. Run `gate` before
+  you push or tag. It runs `scripts/check-fleet-lock.py`, then `testee verify --mode ci`.
+- **Fixture articles use the `0/1/2` contract.**
+
 ## 0.10.0 — drop the aggregating CLI, retire the lock files, realign the docs
 
 This repo removes the two lock files of the retired virtual environment (venv) toolchain.

@@ -21,16 +21,6 @@ def test_managers_lists_doc(monkeypatch):
     assert result.exit_code == 0 and "docman" in result.stdout
 
 
-def test_gitman_v2_roster_is_opt_in(monkeypatch):
-    monkeypatch.setenv("REPOMAN_MANAGERS", "git")
-    legacy = runner.invoke(app, ["managers"])
-    assert "Version control (jujutsu + colocated git)" in legacy.stdout
-    monkeypatch.setenv("REPOMAN_GITMAN_VERSION", "2")
-    current = runner.invoke(app, ["managers"])
-    assert current.exit_code == 0
-    assert "Workspace paths (Gitman v2; native jj for version control)" in current.stdout
-
-
 def test_enabled_drops_unknown_manager_keys(monkeypatch):
     # Garbage REPOMAN_MANAGERS entries are dropped, not KeyError: the registry is
     # the trusted filter, so a stale/hand-edited env can't crash the CLI.
@@ -101,7 +91,7 @@ def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
     result = runner.invoke(app, ["doctor"])
     assert "FAIL uv:test" in result.stdout
-    assert result.exit_code == 2
+    assert result.exit_code == 1
 
 
 def test_doctor_warns_when_approach_b_input_missing(monkeypatch, tmp_path):
@@ -174,7 +164,7 @@ def test_duplicate_roster_entries_are_collapsed(monkeypatch):
     monkeypatch.setenv("REPOMAN_MANAGERS", "git git test")
     result = runner.invoke(app, ["managers"])
     assert result.exit_code == 0
-    assert result.stdout.count("gitman") == 1
+    assert result.stdout.count("Version control") == 1
     assert "testee" in result.stdout
 
 
@@ -197,8 +187,8 @@ def test_doctor_bare_shell_in_a_repo_short_circuits(monkeypatch, tmp_path):
     # message (acceptance criterion 3 distinguishes the two contexts).
     repo = tmp_path / "managed-repo"
     repo.mkdir()
-    (repo / "gitman.toml").write_text("")
-    (repo / ".gitman").mkdir()
+    (repo / ".repoman").mkdir()
+    (repo / ".repoman" / "project.toml").write_text("")
     monkeypatch.chdir(repo)
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 2
@@ -234,7 +224,8 @@ def test_doctor_json_context_error(monkeypatch, tmp_path):
 def test_doctor_json_bare_shell(monkeypatch, tmp_path):
     repo = tmp_path / "managed-repo"
     repo.mkdir()
-    (repo / "gitman.toml").write_text("")
+    (repo / ".repoman").mkdir()
+    (repo / ".repoman" / "project.toml").write_text("")
     monkeypatch.chdir(repo)
     result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code == 2
@@ -283,7 +274,7 @@ def test_absolute_skills_dir_is_rejected(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_SKILLS_DIR", str(outside))
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path / "repo"))
     result = runner.invoke(app, ["install-skills"])
-    assert result.exit_code == 3  # invalid usage
+    assert result.exit_code == 2  # the tool could not run
     assert not outside.exists()
 
 
@@ -292,7 +283,7 @@ def test_parent_traversal_skills_dir_is_rejected(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_SKILLS_DIR", "../escape/skills")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path / "repo"))
     result = runner.invoke(app, ["install-skills"])
-    assert result.exit_code == 3
+    assert result.exit_code == 2
     assert not (tmp_path / "escape").exists()
 
 

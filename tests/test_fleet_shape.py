@@ -7,7 +7,7 @@
 # taken with the overlay active re-locks the overlaid inputs at their local paths —
 # ordinary work would turn this suite red and tell you to re-lock before you had
 # anything to publish. That gate belongs at the boundary that matters, so it is a
-# pyjutsu pre-push hook (.pyjutsu-hooks.toml -> scripts/check-fleet-lock.py) and
+# step of the `gate` script (devenv.nix -> scripts/check-fleet-lock.py) and
 # `relock` is the fix. What IS checked here is that the gate stays wired.
 #
 # devenv.yaml and .gitignore are hand-edited and never rewritten, so they stay tests.
@@ -42,19 +42,24 @@ def test_the_self_input_is_a_path_not_a_git_url():
     assert 'url: "path:./modules"' in text
 
 
-def test_the_lock_gate_is_wired_into_pre_push():
-    # gitman pushes through pyjutsu, which never invokes git's hooks, and
-    # `gitman.toml [publish].verify` gates publish/release but NOT push — which is how
-    # trunk reaches origin. A pyjutsu pre-push hook is the one place that covers push,
-    # so this checks the wiring rather than re-implementing the check. The hook does not
-    # fire on `gitman release`, which pushes only a tag.
-    hooks = (ROOT / ".pyjutsu-hooks.toml").read_text()
-    assert "[hooks.pre-push]" in hooks
-    assert "scripts/check-fleet-lock.py" in hooks
+def test_the_lock_gate_is_wired_into_the_gate_script():
+    # Native `jj git push` runs no git hook, and gitman 0.12 gates nothing. The `gate`
+    # script is the one place that covers push and release, so this checks the wiring
+    # rather than re-implementing the check. The author runs `gate` before pushing.
+    nix = (ROOT / "devenv.nix").read_text()
+    assert "scripts.gate = {" in nix
+    assert "scripts/check-fleet-lock.py" in nix
+    assert "testee verify --mode ci" in nix
     assert (ROOT / "scripts" / "check-fleet-lock.py").exists()
 
 
-def test_the_relock_script_exists_and_is_what_the_hook_names():
+def test_no_gitman_v1_gate_files_remain():
+    # gitman 0.12 reads neither file; a stale copy would claim a gate that never runs.
+    assert not (ROOT / "gitman.toml").exists()
+    assert not (ROOT / ".pyjutsu-hooks.toml").exists()
+
+
+def test_the_relock_script_exists_and_is_what_the_gate_names():
     # A gate that names a fix the repo does not ship is worse than no gate.
     nix = (ROOT / "devenv.nix").read_text()
     assert "scripts.relock = {" in nix

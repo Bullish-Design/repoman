@@ -9,7 +9,7 @@ the router skill. The router states the lifecycle order: `change`, `verify`, `in
 | Manager | Key | Owns |
 |---|---|---|
 | [copyroom](https://github.com/Bullish-Design/copyroom) | `copy` | templating / scaffolding / convergence (Copier) |
-| [gitman](https://github.com/Bullish-Design/gitman) | `git` | v1 version control, or v2 workspace paths with native jj |
+| [gitman](https://github.com/Bullish-Design/gitman) | `git` | version control (native jj and `gh`; gitman opens workspaces) |
 | [testee](https://github.com/Bullish-Design/testee) | `test` | verification (pytest / ruff / ty) |
 | [docman](https://github.com/Bullish-Design/docman) | `doc` | docs build/lint/check (zensical) |
 
@@ -95,28 +95,6 @@ RepoMan also accepts the legacy `cliProvider` key for shared manifests. It does
 not use that key to select manager binaries; Vendomat's `toolchain.enable`
 setting controls the shared command closure.
 
-### Gitman v2 projects
-
-RepoMan uses Gitman v1 unless the manifest selects v2. A v2 project adds this
-field to `.repoman/project.toml`:
-
-```toml
-schema = 1
-managers = ["git", "test"]
-gitmanVersion = 2
-```
-
-Install Gitman v2 in the consumer's Python environment and provide jj 0.46.0
-or later in devenv. Gitman v2 only opens workspaces. The v2 router uses the
-`gitman-v2` skill and native jj for revisions, bookmarks, and workspace
-removal. `repoman:vc:status` runs `jj status`. `repoman doctor` checks the
-consumer's Gitman CLI and jj version. Link `gitman-v2` from the shared Devman
-skill pool for that project. Keep the `gitman` skill link in v1 projects.
-
-The default `gitmanVersion = 1` keeps the existing toolchain binary, lane
-commands, skill route, and status task. Changing a v1 project to v2 requires
-its own migration. Selecting v2 in RepoMan does not convert its repository.
-
 See "Where the local paths go" below for developing against a local `*man`
 checkout instead of a published tag.
 
@@ -164,9 +142,16 @@ on any exit.
 
 `tests/test_fleet_shape.py` fails if a local path reaches `devenv.yaml`. It does not
 check `devenv.lock`, because devenv rewrites that file on every shell entry. A
-pre-push hook guards the lock. `.pyjutsu-hooks.toml` runs
-`scripts/check-fleet-lock.py` on `gitman push`, and the push stops if any lock node
-names a local path.
+release gate guards the lock. The `gate` script runs `scripts/check-fleet-lock.py`,
+which fails if any lock node names a local path, and then runs `testee verify --mode ci`.
+Native `jj git push` runs no hook, so run `gate` before you push or tag:
+
+```bash
+gate                                   # lock check, then the full Testee gate
+jj bookmark create NAME -r @-
+jj git push --bookmark NAME
+gh release create vX.Y.Z               # for a release
+```
 
 RepoMan's own `repoman` input is `path:./modules`, not a git url. A git input
 copies **tracked** files only, so a brand-new `modules/*.nix` would be invisible
@@ -178,13 +163,13 @@ forgot to stage". A path input reads the directory literally.
 The manager family deliberately splits in two, and knowing which is which explains
 most of what `repoman doctor` tells you:
 
-- **Toolchain managers** (`copyroom`, Gitman v1, `docman`, plus `repoman` itself) are
+- **Toolchain managers** (`copyroom`, `gitman`, `docman`, plus `repoman` itself) are
   pure CLIs. Vendomat supplies them from one pinned Nix closure and exports its
   bin directory as `$REPOMAN_TOOLCHAIN_BIN`. A consumer repo has no toolchain
   lock or provider option.
-- **uv managers** include `testee` and opted-in Gitman v2. Declare them as
-  per-repo development dependencies in `pyproject.toml` and install with
-  `uv sync`. Gitman v2's own source checkout installs itself in editable mode.
+- **uv managers** (today only `testee`) run *inside* your code — its tools import your
+  package — so it is a normal per-repo dev dependency declared in your
+  `pyproject.toml` under `[dependency-groups] dev` and installed by `uv sync`.
 
 `.repoman/project.toml` selects what is wired (tasks, skills, and routing). It
 does not select or install the shared closure.
@@ -222,9 +207,9 @@ explicit steps connect a repo:
 
 A hand-written manifest alone adds no workflow to Dagu.
 
-Exit codes follow the family contract: `0` ok · `1` a domain decision is needed ·
-`2` infra/config · `3` invalid usage. `repoman doctor` exits `2` on a context failure
-or a failed row.
+Exit codes follow the family contract: `0` clean · `1` act on findings ·
+`2` the tool could not run. `repoman doctor` exits `2` on a context failure
+and `1` on a failed row.
 
 ## Reading manager status
 
@@ -237,9 +222,7 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
   checkout has none.
 - `testee list-runs` always exits `0`, even after a failed run, in a repo never
   verified, or outside any repo. For a verdict, run `testee verify`.
-- In v1 projects, `gitman status` is not read-only. It snapshots the working copy (`@`), mirrors
-  refs into git, and writes `.gitman/markdown`.
-- In v2 projects, `jj status` is the native status command. Gitman only opens workspaces.
+- `jj status` is not read-only. It snapshots the working copy (`@`).
 
 ## Reading `repoman doctor`
 
@@ -250,8 +233,7 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
 | `pyproject` | `pyproject.toml` parses (a missing file is not a failure) |
 | `lock:<key>` | this manager is present in Vendomat's toolchain manifest |
 | `version:<key>` | the store version for this manager |
-| `uv:<key>` | a uv manager is declared in `pyproject.toml`, or Gitman v2 is the project itself |
-| `interface:git` | a v2 project has the work-only Gitman CLI and jj 0.46.0 or later |
+| `uv:<key>` | a uv manager is declared in `pyproject.toml` |
 | `installed:<key>` | the exact binary the nix tasks exec is present (warns if `PATH` would give you a different copy) |
 | `provisioned:<key>` | an approach-B manager's nix module actually imported |
 | `skill:entrypoint` | the router skill exists |
@@ -259,7 +241,7 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
 | `skill:tool-shipped` | every expected skill link exists |
 | `skill:genome-overlay` | skills in the directory that the lint cannot judge |
 
-`warn` never fails the run; `fail` contributes exit `2`.
+`warn` never fails the run; `fail` contributes exit `1`.
 
 `doctor` checks RepoMan's own wiring only. To check a manager, run that manager's own
 `doctor`. The skill lint derives its list from the roster. It expects `writing` always,
@@ -281,7 +263,6 @@ as a pile of per-row failures. With `--json`, the output is one JSON document an
 | Variable | Effect |
 |---|---|
 | `REPOMAN_MANAGERS` | roster (set by the nix module). Unset → core default; **empty → wire nothing** |
-| `REPOMAN_GITMAN_VERSION` | Gitman interface from the manifest; `1` by default, `2` for work-only Gitman |
 | `REPOMAN_SKILLS_DIR` | where skills go, repo-relative (default `.agents/skills`) |
 | `REPOMAN_TOOLCHAIN_BIN` | Vendomat's shared command-closure bin directory |
 | `REPOMAN_TOOLCHAIN_MANIFEST` | optional path to Vendomat's provenance manifest |

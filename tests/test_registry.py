@@ -1,4 +1,4 @@
-from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, GITMAN_V2, REGISTRY, SPINE, Manager, manager_for
+from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, REGISTRY, SPINE, Manager
 
 
 def test_keys_match_their_entry():
@@ -43,22 +43,13 @@ def test_spine_has_no_save_or_scaffold_phase():
     assert not labels & {"save", "scaffold"}
 
 
-def test_git_route_names_the_real_gitman_verbs():
-    when = REGISTRY["git"].route_when
-    for verb in ("start", "describe", "sync", "publish", "land", "push", "undo", "repair", "release"):
-        assert verb in when
-    assert "commit" not in when
-    assert "save" not in when
-
-
-def test_gitman_v2_is_explicit_and_keeps_the_v1_default():
-    assert manager_for("git") is REGISTRY["git"]
-    assert manager_for("git", 1) is REGISTRY["git"]
-    assert manager_for("git", 2) is GITMAN_V2
-    assert GITMAN_V2.skill == "gitman-v2"
-    assert GITMAN_V2.install == "uv"
-    assert GITMAN_V2.doctor is None and GITMAN_V2.status is None
-    assert "land" not in GITMAN_V2.route_when
+def test_git_route_names_the_work_only_gitman():
+    git = REGISTRY["git"]
+    assert "gitman work" in git.route_when
+    assert "jj" in git.route_when and "gh" in git.route_when
+    assert git.doctor is None and git.status is None  # gitman 0.12 has only `work`
+    for retired in ("land", "sync", "repair", "release", "undo"):
+        assert retired not in git.route_when
 
 
 def test_core_managers_present():

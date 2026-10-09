@@ -42,7 +42,7 @@ doctor asks about it.
 ## 3. Expose verbs through scripts/tasks, honoring the exit contract
 
 Surface the manager's actions as `scripts` (plain) or `tasks` (ordered) — see
-`scripts-tasks-processes.md` — and honor `0/1/2/3` so the conductor can aggregate exit codes
+`scripts-tasks-processes.md` — and honor `0/1/2` so a caller can read the exit code
 (`devenv-authoring` skill).
 
 ## 4. Export what the conductor reads

@@ -90,15 +90,14 @@
           };
         };
 
-      # Hermetic eval test: gitman.nix must contribute languages.rust ONLY when
-      # repoman.nativeBuild = true. Evaluate the module under stub options twice and
-      # assert the gate. `nix build .#checks.<system>.gitman-rust-gate` (or `nix flake
-      # check`) fails if the opt-in ever regresses to provisioning Rust by default.
+      # Hermetic eval test: gitman.nix must add `git` and nothing else. gitman 0.12
+      # runs no task and needs no Rust. `nix build .#checks.<system>.gitman-adds-git-only`
+      # (or `nix flake check`) fails if the module grows a task or a language toolchain.
       checks = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
           lib = pkgs.lib;
-          rustEnabled = nativeBuild: (lib.evalModules {
+          gitmanConfig = (lib.evalModules {
             specialArgs = { inherit pkgs; repomanManagers = [ "git" ]; };
             modules = [
               ({ lib, ... }: {
@@ -109,9 +108,9 @@
                 options.repoman.enable = lib.mkEnableOption "repoman";
               })
               ./modules/managers/gitman.nix
-              { repoman = { enable = true; inherit nativeBuild; }; }
+              { repoman.enable = true; }
             ];
-          }).config.languages.rust.enable;
+          }).config;
 
           # Project 039 Phase 1/2: the module resolves for a fixture consumer with no
           # `.repoman/project.toml` and picks the default roster. Modelled on
@@ -146,10 +145,11 @@
           manifestConsumer = consumerAt (self + "/tests/fixtures/manifest-venv");
         in
         {
-          gitman-rust-gate =
-            assert rustEnabled false == false;
-            assert rustEnabled true == true;
-            pkgs.runCommand "gitman-rust-gate-ok" { } "touch $out";
+          gitman-adds-git-only =
+            assert builtins.length gitmanConfig.packages == 1;
+            assert gitmanConfig.tasks == { };
+            assert gitmanConfig.languages.rust.enable == false;
+            pkgs.runCommand "gitman-adds-git-only-ok" { } "touch $out";
 
           repoman-consumer-module =
             let

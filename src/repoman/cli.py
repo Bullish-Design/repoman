@@ -25,7 +25,7 @@ from .checks import (
     self_check_exit,
 )
 from .devman.check import skill_ownership_checks
-from .registry import DEFAULT_MANAGERS, REGISTRY, Manager, manager_for
+from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
 from .skills import SkillsDirError, install_entrypoint
 
 app = typer.Typer(
@@ -33,8 +33,8 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-#: Exit code for "the conductor itself is broken" under the shared 0/1/2/3 contract.
-#: Notably NOT 1 — that means "a domain decision is needed", which is what a caller
+#: Exit code for "the tool could not run" under the shared 0/1/2 contract.
+#: Notably NOT 1 — that means "act on the findings", which is what a caller
 #: would otherwise read out of an unhandled traceback.
 _INFRA = 2
 
@@ -50,13 +50,6 @@ def _skills_dir() -> str:
 
 def _repo_root() -> str:
     return os.environ.get("DEVENV_ROOT", os.getcwd())
-
-
-def _gitman_version() -> int:
-    version = os.environ.get("REPOMAN_GITMAN_VERSION", "1")
-    if version not in ("1", "2"):
-        raise ValueError(f"REPOMAN_GITMAN_VERSION must be 1 or 2, got {version!r}")
-    return int(version)
 
 
 def _enabled() -> list[Manager]:
@@ -78,7 +71,7 @@ def _enabled() -> list[Manager]:
     for key in keys:
         if key in REGISTRY and key not in seen:
             seen.add(key)
-            enabled.append(manager_for(key, _gitman_version()))
+            enabled.append(REGISTRY[key])
     return enabled
 
 
@@ -103,7 +96,7 @@ def format_context_failure(context: Context) -> str:
         lines = [
             "repoman: not inside a repoman-managed repo",
             "",
-            "There is no managed repo here (no gitman.toml/.gitman and no REPOMAN_* shell",
+            "There is no managed repo here (no .repoman/project.toml and no REPOMAN_* shell",
             "environment). `repoman doctor` checks a repo's RepoMan wiring; run it from",
             "inside a managed repo's devenv shell:",
             "",
@@ -117,7 +110,7 @@ def format_context_failure(context: Context) -> str:
         [
             "repoman: managed repo found, but not inside its devenv shell",
             "",
-            "This looks like a RepoMan-managed repo (gitman.toml/.gitman present), but the",
+            "This looks like a RepoMan-managed repo (.repoman/project.toml present), but the",
             "REPOMAN_* shell environment is missing — the manager toolchain is only wired",
             "onto PATH inside the repo's devenv shell.",
             "",
@@ -215,9 +208,7 @@ def doctor(
     enabled = _enabled()
 
     self_checks = run_self_check(enabled, _repo_root(), _skills_dir())
-    self_checks += skill_ownership_checks(
-        _repo_root(), _skills_dir(), [m.key for m in enabled], gitman_version=_gitman_version()
-    )
+    self_checks += skill_ownership_checks(_repo_root(), _skills_dir(), [m.key for m in enabled])
     exit_code = self_check_exit(self_checks)
 
     if json_out:
@@ -241,16 +232,16 @@ def install_skills() -> None:
         dest = install_entrypoint(_enabled(), _skills_dir(), _repo_root())
     except SkillsDirError as exc:
         typer.echo(f"repoman: {exc}", err=True)
-        raise typer.Exit(code=3) from exc  # 3 = invalid usage
+        raise typer.Exit(code=_INFRA) from exc
     typer.echo(f"repoman: wrote entrypoint skill → {dest}")
 
 
 def main() -> None:
     """Entry point for the repoman CLI.
 
-    Anything unexpected exits ``2`` (infra/config), never the ``1`` that a bare
-    traceback would produce — under the shared contract ``1`` means "a domain
-    decision is needed", so a crashed conductor must not masquerade as one.
+    Anything unexpected exits ``2`` (the tool could not run), never the ``1`` that a bare
+    traceback would produce — under the shared contract ``1`` means "act on the
+    findings", so a crashed conductor must not masquerade as one.
     """
 
     try:

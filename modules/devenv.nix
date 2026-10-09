@@ -39,7 +39,7 @@ let
   # select RepoMan's manager binaries. Absent file means the default roster, so
   # 15 of 23 known consumers need no file at all.
   manifestPath = "${config.devenv.root}/.repoman/project.toml";
-  manifestKnownFields = [ "schema" "managers" "cliProvider" "gitmanVersion" ];
+  manifestKnownFields = [ "schema" "managers" "cliProvider" ];
   rawManifest =
     if builtins.pathExists manifestPath then
       builtins.fromTOML (builtins.readFile manifestPath)
@@ -65,13 +65,10 @@ let
     else if rawManifest ? cliProvider && !(builtins.elem rawManifest.cliProvider [ "store" "venv" ]) then
       throw ("repoman: " + manifestPath + " field 'cliProvider' has unsupported value "
         + toString rawManifest.cliProvider + "; supported values are store and venv")
-    else if rawManifest ? gitmanVersion && !(builtins.elem rawManifest.gitmanVersion [ 1 2 ]) then
-      throw ("repoman: " + manifestPath + " field 'gitmanVersion' must be 1 or 2")
     else
       rawManifest;
 
   managerRoster = if manifest ? managers then manifest.managers else [ "copy" "git" "test" ];
-  gitmanVersion = if manifest ? gitmanVersion then manifest.gitmanVersion else 1;
 
   # Face D seam. The commands are a Nix closure and Vendomat exports its
   # bin dir; there is no path to guess, so an unset variable must FAIL the task rather
@@ -88,8 +85,7 @@ in
   imports = [
     ./managers/testee.nix
     ./managers/copyroom.nix
-    ./managers/gitman.nix   # activates when "git" is selected; contributes Rust/maturin only
-                            # when repoman.nativeBuild is true (opt-in, default false)
+    ./managers/gitman.nix   # activates when "git" is selected; contributes git only
     ./managers/docman.nix   # activates when "doc" is selected (pure-Python; toolchain in docman's module)
   ]
   # shellij is NOT a roster manager: no roster entry, no repoman.session.*
@@ -124,16 +120,8 @@ in
       description = "RepoMan: the agentic repo lifecycle conductor.";
     };
 
-    gitmanVersion = lib.mkOption {
-      type = lib.types.enum [ 1 2 ];
-      default = gitmanVersion;
-      readOnly = true;
-      internal = true;
-      description = "Gitman interface selected by .repoman/project.toml.";
-    };
-
     # D1: shell expression for the store closure's bin dir. Manager modules
-    # interpolate it into task execs: "''${cfg.toolchainBin}"/gitman status.
+    # interpolate it into task execs: "''${cfg.toolchainBin}"/copyroom status.
     toolchainBin = lib.mkOption {
       type = lib.types.str;
       internal = true;
@@ -141,7 +129,7 @@ in
       description = ''
         Shell expression (NOT a nix path) for the bin dir holding the shared manager
         commands. Manager modules interpolate it into task execs:
-        "''${cfg.toolchainBin}"/gitman status.
+        "''${cfg.toolchainBin}"/copyroom status.
 
         It is $REPOMAN_TOOLCHAIN_BIN, and an unset value fails the task.
       '';
@@ -156,7 +144,6 @@ in
     # Tell the `repoman` CLI which managers are wired in (it reads this to build
     # the router skill and to pick the expected skill set) and where skills go.
     env.REPOMAN_MANAGERS = lib.concatStringsSep " " managerRoster;
-    env.REPOMAN_GITMAN_VERSION = toString gitmanVersion;
     # Project 039: `skillsDir` and `installSkills` were dead option surface — the
     # 2026-09-15 measurement found zero of twenty-three importing repositories set
     # either. The path itself stays the family's agent-files convention.
@@ -187,10 +174,6 @@ in
         fi
       else
         echo "RepoMan: REPOMAN_TOOLCHAIN_BIN is unset; import vendomat's toolchain module." >&2
-      fi
-      # Gitman v2 lives in the consumer venv. Keep it ahead of the shared v1 binary.
-      if [ "${toString gitmanVersion}" = "2" ]; then
-        export PATH="${config.devenv.state}/venv/bin:$PATH"
       fi
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " managerRoster}"

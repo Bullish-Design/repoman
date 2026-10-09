@@ -34,7 +34,7 @@ A missing expected link is ``warn``, never ``fail``. The agent surface is
 developer guidance, not an input to evaluating or verifying a clone (§3.2), so it
 must not fail a gate: a fresh clone and a CI runner legitimately have no links,
 and a fatal row would make them fail. ``fail`` stays reserved for broken wiring
-(exit 2 in the ``0/1/2/3`` contract in :mod:`repoman.checks`).
+(exit 1 in the ``0/1/2`` contract in :mod:`repoman.checks`).
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from ..checks import SelfCheck
-from ..registry import REGISTRY, manager_for
+from ..registry import REGISTRY
 
 #: Devman's one universal skill. Every repo expects it, whatever the roster.
 UNIVERSAL_SKILLS: tuple[str, ...] = ("writing",)
@@ -55,7 +55,7 @@ COPYROOM_SUB_SKILLS: tuple[str, ...] = ("copyroom-adopt", "copyroom-template-edi
 ENTRYPOINT_SKILL = "repoman"
 
 
-def expected_skills(enabled: Iterable[str], *, gitman_version: int = 1) -> tuple[str, ...]:
+def expected_skills(enabled: Iterable[str]) -> tuple[str, ...]:
     """Return the sorted skill names a repo with this roster expects.
 
     ``enabled`` holds manager keys (``copy``, ``git``, ``test``, ``doc``). The
@@ -64,15 +64,13 @@ def expected_skills(enabled: Iterable[str], *, gitman_version: int = 1) -> tuple
     """
     keys = set(enabled)
     names = set(UNIVERSAL_SKILLS)
-    names.update(manager_for(k, gitman_version).skill for k in REGISTRY if k in keys)
+    names.update(m.skill for k, m in REGISTRY.items() if k in keys)
     if "copy" in keys:
         names.update(COPYROOM_SUB_SKILLS)
     return tuple(sorted(names))
 
 
-def skill_ownership_checks(
-    repo_root: Path | str, skills_dir: str, enabled: Sequence[str], *, gitman_version: int = 1
-) -> list[SelfCheck]:
+def skill_ownership_checks(repo_root: Path | str, skills_dir: str, enabled: Sequence[str]) -> list[SelfCheck]:
     """Lint the skill links under ``<repo_root>/<skills_dir>/``.
 
     ``enabled`` is the roster of manager keys. It decides the expected set (see
@@ -112,7 +110,7 @@ def skill_ownership_checks(
         # The lint is a diagnostic; an unreadable skills dir is a finding, not a crash.
         return [SelfCheck("skill:tool-shipped", "warn", f"{skills_dir} unreadable: {exc.strerror or exc}")]
 
-    expected = expected_skills(enabled, gitman_version=gitman_version)
+    expected = expected_skills(enabled)
     missing = [n for n in expected if n not in present]
     out.append(
         SelfCheck(

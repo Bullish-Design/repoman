@@ -22,7 +22,7 @@ RepoMan does not invent a new architecture. It composes an existing one. Every
 | Manager | Roster key | Domain it owns | Wraps |
 | --- | --- | --- | --- |
 | **copyroom** | `copy` | templating / scaffolding / project lifecycle / convergence | Copier |
-| **gitman** | `git` | version control | jujutsu + colocated git |
+| **gitman** | `git` | version control | native jj and `gh`; gitman opens workspaces |
 | **testee** | `test` | verification (test / lint / typecheck / format) | pytest, ruff, ty |
 | **docman** | `doc` | docs (build / lint / check) | zensical |
 
@@ -40,7 +40,7 @@ The managers share a contract:
 - **Pydantic-normalized output** → a compact, structured, actionable report.
 - **Typer command-line interface (CLI)** with a `doctor` command.
 - **Runs inside `devenv shell`** as its execution boundary.
-- **A `0/1/2/3` exit-code contract**: ok / domain-decision-needed / infra-config / invalid-usage.
+- **A `0/1/2` exit-code contract**: clean / act-on-findings / tool-could-not-run.
 - **Distributed as a devenv module** that a repo imports.
 
 The four lifecycle managers share the family pattern. RepoMan is the conductor.
@@ -108,18 +108,14 @@ imports that module next to RepoMan's.
 ## 4. Module options and the roster manifest
 
 ```nix
-repoman.enable      = true;    # default; importing the module is the enable signal
-repoman.nativeBuild = false;   # default; true adds Rust and maturin (gitman.nix)
+repoman.enable = true;    # default; importing the module is the enable signal
 ```
 
-`repoman.nativeBuild` is opt-in, and `modules/managers/gitman.nix` declares it. When
-`true`, it adds `maturin` and `languages.rust.enable` so a consumer can build pyjutsu from
-source. pyjutsu ships as a prebuilt abi3 wheel for x86-64 Linux with glibc 2.39 or newer.
-Other platforms build it from its source distribution, which needs Rust. So the option
-exists only for a consumer that must build pyjutsu. A fleet search on 2026-10-06 found no
-repo that sets it to `true`.
+The former `repoman.nativeBuild` option is removed. It added `maturin` and Rust so a
+consumer could build pyjutsu from source. gitman 0.12 does not use pyjutsu, and a fleet
+search on 2026-10-06 found no repo that set the option to `true`.
 
-A third option, `repoman.toolchainBin`, is internal and read-only. It holds the shell
+A second option, `repoman.toolchainBin`, is internal and read-only. It holds the shell
 expression for `$REPOMAN_TOOLCHAIN_BIN`. Manager modules interpolate it into task
 commands. A repo can set `repoman.enable = false` to keep the import and run no RepoMan.
 The skills directory is not an option: the module sets `REPOMAN_SKILLS_DIR` to
@@ -187,8 +183,8 @@ requires exactly one universal skill, `writing`, and refuses to universalise `gi
 `copyroom`. The rows are `ok` or `warn`. They never gate.
 
 **The lifecycle spine.** The router states the order. It has three ordered phases:
-`change → verify → integrate`. `integrate` is gitman's `describe`, then `land`, then
-`push`. Two activities have no order: `birth / converge` (copyroom) and `docs` (docman).
+`change → verify → integrate`. `integrate` is native jj: `jj describe`, a bookmark, `jj git push`, then a `gh`
+pull request. Two activities have no order: `birth / converge` (copyroom) and `docs` (docman).
 Two laws apply: verify before you integrate, and never integrate on red.
 
 To check a manager, run that manager's own `doctor` and read its report. To birth or
@@ -303,9 +299,7 @@ tracks skills, and copyroom does not write them. RepoMan writes no other file. S
 may add system `packages` and language toolchains (`languages.*`) to the consumer devenv.
 It does so only when the manager is in the roster.
 
-`modules/managers/gitman.nix` adds `git`. The opt-in `repoman.nativeBuild = true` also adds
-`maturin` and `languages.rust.enable`, to build pyjutsu from source (see §4). The default
-pulls no Rust. `copyroom.nix` adds `git` and `gnupatch`. `docman.nix` imports docman's own
+`modules/managers/gitman.nix` adds `git` and nothing else. `copyroom.nix` adds `git` and `gnupatch`. `docman.nix` imports docman's own
 devenv module when the repo declares a `docman` input.
 
 > **Superseded by gitman's project 32 (the pyjutsu wheel pin).** Project 01 first showed
@@ -313,11 +307,9 @@ devenv module when the repo declares a `docman` input.
 > plain `uv pip install` could not satisfy pyjutsu, so the spike built it from a sibling
 > checkout. Every repo that selected `git` then pulled `maturin` and Rust.
 >
-> That need has ended. pyjutsu now ships as a prebuilt `cp313-abi3-manylinux_2_39_x86_64`
-> wheel on a GitHub release. gitman pins the wheel by URL in its `[tool.uv.sources]`, and
-> uv carries the pin into a consumer's lock. So gitman needs no Rust, and neither does a
-> consumer on a platform that the wheel serves (see §4). Only pyjutsu's own repo needs Rust
-> in its dev shell, and it does not import RepoMan's module.
+> That need has ended. gitman 0.12 is work-only and standard-library only. It needs no
+> Rust and no pyjutsu, so the `repoman.nativeBuild` option is removed. Only pyjutsu's own
+> repo needs Rust in its dev shell, and it does not import RepoMan's module.
 
 **De-risking note.** The original open question was whether devenv supports transitive
 Nix *inputs* from an imported remote module. It does not. The manager commands arrive in
@@ -405,8 +397,7 @@ Each item shows its status: **done**, **abandoned**, or **open**.
 - ~~**gitman & native toolchains**~~ — **done** (project 01, guide 1).
   `modules/managers/gitman.nix` proved that the meta-module can provision nix-level
   toolchains, not only commands. The proof used gitman's Rust need, which has since ended
-  (see §6). The fleet-path follow-up is also **done**. pyjutsu ships as a prebuilt wheel
-  that gitman pins by URL, so no `path:` checkout is needed. The Rust toolchain is opt-in
-  (`repoman.nativeBuild`). See §4, §6, and `SPIKE.md`.
+  (see §6). gitman 0.12 needs no Rust, and `repoman.nativeBuild` is removed. See §4, §6,
+  and `SPIKE.md`.
 - ~~**Lifecycle verbs**~~ (`repoman verify`, `save`, `release`) — **abandoned.** The
   router states the order instead (see §5).
