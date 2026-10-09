@@ -21,6 +21,16 @@ def test_managers_lists_doc(monkeypatch):
     assert result.exit_code == 0 and "docman" in result.stdout
 
 
+def test_gitman_v2_roster_is_opt_in(monkeypatch):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "git")
+    legacy = runner.invoke(app, ["managers"])
+    assert "Version control (jujutsu + colocated git)" in legacy.stdout
+    monkeypatch.setenv("REPOMAN_GITMAN_VERSION", "2")
+    current = runner.invoke(app, ["managers"])
+    assert current.exit_code == 0
+    assert "Workspace paths (Gitman v2; native jj for version control)" in current.stdout
+
+
 def test_enabled_drops_unknown_manager_keys(monkeypatch):
     # Garbage REPOMAN_MANAGERS entries are dropped, not KeyError: the registry is
     # the trusted filter, so a stale/hand-edited env can't crash the CLI.

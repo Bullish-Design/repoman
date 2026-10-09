@@ -2,15 +2,26 @@
 name: repoman
 description: Start here for any work in this repo. Routes to the right manager and owns the lifecycle order (verify before you integrate, never integrate on red).
 auto_trigger:
+{% if gitman_v2 %}
+  keywords: ["this repo", "lifecycle", "verify and push", "ship it", "release", "what's the state of the repo"]
+{% else %}
   keywords: ["this repo", "lifecycle", "verify and land", "ship it", "release", "what's the state of the repo"]
+{% endif %}
 ---
 
 # RepoMan — repo front door
 
 This repo is managed by **RepoMan**. Managers wired in: **{{ managers }}**.
 
-Run everything inside `devenv shell`. Exit codes: `0` ok · `1` decision · `2` infra/config · `3` usage.
+Run project commands inside `devenv shell`.
+{% if gitman_v2 %}
+RepoMan uses exit codes `0` ok · `1` decision · `2` infra/config · `3` usage.
+Gitman v2 uses `2` for invalid usage. Use `gitman work` to open a workspace.
+Use native jj for revisions, bookmarks, remotes, and workspace removal.
+{% else %}
+Exit codes: `0` ok · `1` decision · `2` infra/config · `3` usage.
 Never invoke pytest / ruff / git / copier directly. Go through the manager (or `repoman`).
+{% endif %}
 
 ## The loop
 
@@ -44,7 +55,23 @@ For domain detail, open that manager's own skill under `{{ skills_dir }}/`.
 {% endif %}
 ## Laws
 
+{% if gitman_v2 %}
+{% if has_test %}
+- **Verify before you integrate.** Run `verify` before moving a bookmark or pushing with jj.
+- **Never integrate on red.** Do not push while `verify` fails.
+{% else %}
+- **Verify before you integrate.** Run the repository's checks before moving a bookmark or pushing with jj.
+- **Never integrate on red.** Do not push when those checks fail.
+{% endif %}
+- **Use native jj.** Inspect a workspace before `jj workspace remove NAME`; Gitman does not scan its files.
+{% else %}
 - **Verify before you integrate.** Run `verify` first. Then run `land`.
 - **Never integrate on red.** Never run `land` or `push` while `verify` fails.
+{% endif %}
+{% if gitman_v2 %}
+- **One front door.** Use this router for lifecycle order. Gitman opens workspaces; native jj handles version control.
+- **Health is per manager.** `repoman doctor` checks wiring. Gitman v2 has no `doctor` command.
+{% else %}
 - **One front door.** Route domain work through the manager. Cross-phase ordering lives here.
 - **Health is per manager.** `repoman doctor` checks RepoMan's own wiring only. To check a manager, run that manager's own `doctor`. `repoman managers` lists what is wired.
+{% endif %}

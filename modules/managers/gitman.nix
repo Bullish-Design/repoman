@@ -1,9 +1,9 @@
-# RepoMan manager wiring: gitman (version control: jujutsu via pyjutsu + colocated git).
+# RepoMan manager wiring: Gitman v1 or work-only Gitman v2.
 #
 # Imported unconditionally by ../devenv.nix; activates only when "git" is in
 # the project manifest roster.
 #
-# gitman needs no Rust and no maturin. pyjutsu (jj-lib through PyO3) ships as a
+# Gitman v1 needs no Rust and no maturin. pyjutsu (jj-lib through PyO3) ships as a
 # prebuilt abi3 wheel from a GitHub release. gitman pins that wheel by URL in its
 # [tool.uv.sources]. uv carries the pin into a consumer's lock. The wheel serves
 # CPython 3.13 and later on x86-64 Linux with glibc 2.39 or newer. So the default
@@ -33,7 +33,7 @@ in
 
   config = lib.mkIf enabled (lib.mkMerge [
     {
-      # git is needed whenever the manager is active (colocated git alongside jj).
+      # Git remains available for the colocated repository and v1 workflows.
       packages = [ pkgs.git ];
 
       tasks = {
@@ -41,7 +41,10 @@ in
         # Not a bare `gitman`: the task exec must not depend on PATH state, so it uses the
         # toolchain bin shell expression directly (D1 — devenv tasks may not inherit the
         # shell's PATH prepend).
-        "repoman:vc:status".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/gitman status'';
+        "repoman:vc:status".exec =
+          if cfg.gitmanVersion == 2
+          then ''cd "$DEVENV_ROOT" && jj status''
+          else ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/gitman status'';
       };
     }
 
@@ -50,7 +53,7 @@ in
     # This matches pyjutsu's own devenv (maturin + languages.rust), not gitman's:
     # gitman's devenv has no Rust. pyjutsu's Cargo.toml needs Rust 1.89 or newer
     # (edition 2024) and pins jj-lib 0.44.0. The stable rustc in rolling nixpkgs meets that.
-    (lib.mkIf cfg.nativeBuild {
+    (lib.mkIf (cfg.nativeBuild && cfg.gitmanVersion == 1) {
       packages = [ pkgs.maturin ];
       languages.rust.enable = true;
     })

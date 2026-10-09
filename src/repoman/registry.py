@@ -21,7 +21,7 @@ class Manager:
             the roster from ``REPOMAN_MANAGERS``, which the nix module exports.
         command: Console script name on PATH (e.g. ``"testee"``).
         tier: ``"core"`` | ``"publish"`` | ``"situational"``.
-        doctor: Args for this manager's doctor (every manager has one).
+        doctor: Args for this manager's doctor, or `None` if it has none.
         status: Args for a status-like read, or ``None`` if it has none.
         summary: One-line description for ``repoman managers``.
         nix_input: For an approach-B manager, the ``devenv.yaml`` input its nix
@@ -114,5 +114,27 @@ REGISTRY: dict[str, Manager] = {
         nix_input="docman",
     ),
 }
+
+# Gitman v2 supplies workspace creation only. Keep v1 as the default for the
+# existing fleet. A project selects v2 in .repoman/project.toml.
+GITMAN_V2 = Manager(
+    "git",
+    "gitman",
+    "core",
+    "Workspace paths (Gitman v2; native jj for version control)",
+    doctor=None,
+    status=None,
+    skill="gitman-v2",
+    route_when="open a jj workspace at a stable path",
+    install="uv",
+)
+
+
+def manager_for(key: str, gitman_version: int = 1) -> Manager:
+    """Select the versioned Gitman contract without changing the four manager keys."""
+    if gitman_version not in (1, 2):
+        raise ValueError(f"unsupported Gitman version {gitman_version}")
+    return GITMAN_V2 if key == "git" and gitman_version == 2 else REGISTRY[key]
+
 
 DEFAULT_MANAGERS: list[str] = ["copy", "git", "test"]

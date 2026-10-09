@@ -92,6 +92,8 @@ def render_entrypoint(
         managers=" ".join(m.key for m in ordered),
         spine=build_spine(enabled),
         activities=build_activities(enabled),
+        gitman_v2=any(m.key == "git" and m.skill == "gitman-v2" for m in ordered),
+        has_test="test" in enabled,
         rows=[{"key": m.key, "command": m.command, "skill": m.skill, "when": m.route_when} for m in present],
         skills_dir=skills_dir,
     )

@@ -43,7 +43,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from ..checks import SelfCheck
-from ..registry import REGISTRY
+from ..registry import REGISTRY, manager_for
 
 #: Devman's one universal skill. Every repo expects it, whatever the roster.
 UNIVERSAL_SKILLS: tuple[str, ...] = ("writing",)
@@ -55,7 +55,7 @@ COPYROOM_SUB_SKILLS: tuple[str, ...] = ("copyroom-adopt", "copyroom-template-edi
 ENTRYPOINT_SKILL = "repoman"
 
 
-def expected_skills(enabled: Iterable[str]) -> tuple[str, ...]:
+def expected_skills(enabled: Iterable[str], *, gitman_version: int = 1) -> tuple[str, ...]:
     """Return the sorted skill names a repo with this roster expects.
 
     ``enabled`` holds manager keys (``copy``, ``git``, ``test``, ``doc``). The
@@ -64,13 +64,15 @@ def expected_skills(enabled: Iterable[str]) -> tuple[str, ...]:
     """
     keys = set(enabled)
     names = set(UNIVERSAL_SKILLS)
-    names.update(m.skill for k, m in REGISTRY.items() if k in keys)
+    names.update(manager_for(k, gitman_version).skill for k in REGISTRY if k in keys)
     if "copy" in keys:
         names.update(COPYROOM_SUB_SKILLS)
     return tuple(sorted(names))
 
 
-def skill_ownership_checks(repo_root: Path | str, skills_dir: str, enabled: Sequence[str]) -> list[SelfCheck]:
+def skill_ownership_checks(
+    repo_root: Path | str, skills_dir: str, enabled: Sequence[str], *, gitman_version: int = 1
+) -> list[SelfCheck]:
     """Lint the skill links under ``<repo_root>/<skills_dir>/``.
 
     ``enabled`` is the roster of manager keys. It decides the expected set (see
@@ -110,7 +112,7 @@ def skill_ownership_checks(repo_root: Path | str, skills_dir: str, enabled: Sequ
         # The lint is a diagnostic; an unreadable skills dir is a finding, not a crash.
         return [SelfCheck("skill:tool-shipped", "warn", f"{skills_dir} unreadable: {exc.strerror or exc}")]
 
-    expected = expected_skills(enabled)
+    expected = expected_skills(enabled, gitman_version=gitman_version)
     missing = [n for n in expected if n not in present]
     out.append(
         SelfCheck(

@@ -13,7 +13,7 @@ No repo tracks agent skills.
 ## The convention (fixed)
 
 | Path | Role | Owner |
-|------|------|-------|
+| ------ | ------ | ------- |
 | `~/.config/devman/skills/<name>/` | the shared skill pool — one copy of each fleet skill | devman |
 | `~/.config/devman/projects/<p>/agents/skills/<name>` | a **relative symlink** `../../../../skills/<name>` for each fleet skill the project gets | devman |
 | `<p>/agents/skills/<name>/` (real dir) | a project-specific skill | devman |
@@ -46,8 +46,8 @@ real checks.
 
 The expected link set for a managed project is:
 
-- the four manager skills the router needs — `copyroom`, `gitman`, `testee`,
-  `docman`;
+- the four manager skills the router needs — `copyroom`, `testee`, `docman`,
+  and either `gitman` for v1 or `gitman-v2` for an opted-in v2 project;
 - the copyroom canonical set — `copyroom` (already listed), `copyroom-adopt`,
   `copyroom-template-edit`;
 - the shared writing guide — `writing`.

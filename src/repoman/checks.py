@@ -9,7 +9,7 @@ Project 12: the manager family splits by install model. Pure-CLI managers
 (`install == "toolchain"`) come from Vendomat's one shared Nix store closure,
 found through `REPOMAN_TOOLCHAIN_BIN` and validated against the provenance
 manifest Vendomat ships beside it. uv-declared managers (`install == "uv"`,
-today: testee) live in the consumer's uv graph, validated against
+testee and opted-in Gitman v2) live in the consumer's uv graph, validated against
 `pyproject.toml`.
 
 Two disciplines this module holds to, because it is the *diagnostic* layer:
@@ -29,6 +29,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -251,13 +252,37 @@ def _installed_check(manager: Manager) -> SelfCheck:
         except OSError:
             shadowed = False
         if shadowed:
+            if manager.skill == "gitman-v2":
+                detail = f"PATH resolves {manager.command} to {on_path}, not the v2 binary {expected}"
+            else:
+                detail = (
+                    f"{expected} is what the tasks run, but PATH resolves {manager.command}"
+                    f" to {on_path} — the two can disagree"
+                )
             return SelfCheck(
                 f"installed:{manager.key}",
-                "warn",
-                f"{expected} is what the tasks run, but PATH resolves {manager.command}"
-                f" to {on_path} — the two can disagree",
+                "fail" if manager.skill == "gitman-v2" else "warn",
+                detail,
             )
     return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
+
+
+def _gitman_v2_interface_check(manager: Manager) -> SelfCheck:
+    """Check the exact v2 binary and jj version used by a consumer."""
+    binary = manager_binary(manager)
+    if binary is None or not binary.exists():
+        return SelfCheck("interface:git", "fail", "Gitman v2 is missing from the consumer venv")
+    try:
+        help_result = subprocess.run([str(binary), "--help"], capture_output=True, text=True, timeout=5, check=False)
+        jj_result = subprocess.run(["jj", "version"], capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return SelfCheck("interface:git", "fail", f"cannot check Gitman v2 and jj: {exc}")
+    if help_result.returncode != 0 or not re.search(r"^usage: gitman .*\{work\}", help_result.stdout, re.M):
+        return SelfCheck("interface:git", "fail", f"{binary} does not offer the work-only Gitman v2 interface")
+    version = re.search(r"\bjj (\d+)\.(\d+)\.(\d+)", jj_result.stdout)
+    if jj_result.returncode != 0 or version is None or tuple(map(int, version.groups())) < (0, 46, 0):
+        return SelfCheck("interface:git", "fail", "Gitman v2 needs jj 0.46.0 or later")
+    return SelfCheck("interface:git", "ok", f"{binary}; {version.group(0)}")
 
 
 def _skill_defers(path: Path) -> bool | None:
@@ -304,6 +329,10 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     for m in managers:
         if m.install == "uv":
             where = uv_declared_in(pyproject, m.package) if pyproject else None
+            if m.skill == "gitman-v2" and pyproject:
+                project_name = (pyproject.get("project") or {}).get("name", "")
+                if isinstance(project_name, str) and _normalize(project_name) == "gitman":
+                    where = "[project] self"
             out.append(
                 SelfCheck(
                     f"uv:{m.key}",
@@ -332,6 +361,8 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     # --- installed:<key> (the exact binary the tasks exec) ----------------------
     for m in managers:
         out.append(_installed_check(m))
+        if m.skill == "gitman-v2":
+            out.append(_gitman_v2_interface_check(m))
 
     # Nix-layer provisioning: an approach-B manager's nix module lives in the
     # manager's own repo and is pulled in by a presence-gated import that only

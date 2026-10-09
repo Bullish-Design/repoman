@@ -35,7 +35,7 @@ def test_store_path_wins_over_consumer_venv():
 
 def test_manifest_is_the_only_roster_configuration():
     text = (MODULES / "devenv.nix").read_text()
-    assert 'manifestKnownFields = [ "schema" "managers" "cliProvider" ];' in text
+    assert 'manifestKnownFields = [ "schema" "managers" "cliProvider" "gitmanVersion" ];' in text
     assert "managers = lib.mkOption" not in text
     assert "REPOMAN_CLI_PROVIDER" not in text
 

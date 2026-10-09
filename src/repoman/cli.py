@@ -25,7 +25,7 @@ from .checks import (
     self_check_exit,
 )
 from .devman.check import skill_ownership_checks
-from .registry import DEFAULT_MANAGERS, REGISTRY, Manager
+from .registry import DEFAULT_MANAGERS, REGISTRY, Manager, manager_for
 from .skills import SkillsDirError, install_entrypoint
 
 app = typer.Typer(
@@ -52,6 +52,13 @@ def _repo_root() -> str:
     return os.environ.get("DEVENV_ROOT", os.getcwd())
 
 
+def _gitman_version() -> int:
+    version = os.environ.get("REPOMAN_GITMAN_VERSION", "1")
+    if version not in ("1", "2"):
+        raise ValueError(f"REPOMAN_GITMAN_VERSION must be 1 or 2, got {version!r}")
+    return int(version)
+
+
 def _enabled() -> list[Manager]:
     """Managers wired into this repo, from ``REPOMAN_MANAGERS`` or the core default.
 
@@ -71,7 +78,7 @@ def _enabled() -> list[Manager]:
     for key in keys:
         if key in REGISTRY and key not in seen:
             seen.add(key)
-            enabled.append(REGISTRY[key])
+            enabled.append(manager_for(key, _gitman_version()))
     return enabled
 
 
@@ -208,7 +215,9 @@ def doctor(
     enabled = _enabled()
 
     self_checks = run_self_check(enabled, _repo_root(), _skills_dir())
-    self_checks += skill_ownership_checks(_repo_root(), _skills_dir(), [m.key for m in enabled])
+    self_checks += skill_ownership_checks(
+        _repo_root(), _skills_dir(), [m.key for m in enabled], gitman_version=_gitman_version()
+    )
     exit_code = self_check_exit(self_checks)
 
     if json_out:

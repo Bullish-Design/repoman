@@ -70,6 +70,15 @@ def test_expected_set_follows_roster():
     assert expected_skills(["nope"]) == ("writing",)
 
 
+def test_gitman_v2_expects_its_own_skill_only(tmp_path):
+    assert expected_skills(["git"], gitman_version=2) == ("gitman-v2", "writing")
+    repo, skills, pool = _layout(tmp_path)
+    for name in ("gitman-v2", "writing"):
+        _link_pool_skill(pool, skills, name)
+    row = _names(skill_ownership_checks(repo, SKILLS, ["git"], gitman_version=2))["skill:tool-shipped"]
+    assert row.level == "ok"
+
+
 def test_warns_when_skills_dir_missing(tmp_path):
     row = _names(skill_ownership_checks(tmp_path, SKILLS, ALL))["skill:tool-shipped"]
     assert row.level == "warn"

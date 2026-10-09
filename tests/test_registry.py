@@ -1,4 +1,4 @@
-from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, REGISTRY, SPINE, Manager
+from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, GITMAN_V2, REGISTRY, SPINE, Manager, manager_for
 
 
 def test_keys_match_their_entry():
@@ -49,6 +49,16 @@ def test_git_route_names_the_real_gitman_verbs():
         assert verb in when
     assert "commit" not in when
     assert "save" not in when
+
+
+def test_gitman_v2_is_explicit_and_keeps_the_v1_default():
+    assert manager_for("git") is REGISTRY["git"]
+    assert manager_for("git", 1) is REGISTRY["git"]
+    assert manager_for("git", 2) is GITMAN_V2
+    assert GITMAN_V2.skill == "gitman-v2"
+    assert GITMAN_V2.install == "uv"
+    assert GITMAN_V2.doctor is None and GITMAN_V2.status is None
+    assert "land" not in GITMAN_V2.route_when
 
 
 def test_core_managers_present():
