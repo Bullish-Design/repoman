@@ -10,28 +10,23 @@ def test_only_testee_uses_the_consumer_venv():
     assert users == {"testee.nix"}
 
 
-def test_shared_managers_resolve_through_the_toolchain_bin():
+def test_host_managers_run_by_name_from_path():
     # gitman.nix runs no task: gitman 0.12 has one command, `work`.
-    for name in ("copyroom.nix", "docman.nix"):
-        assert "cfg.toolchainBin" in (MODULES / "managers" / name).read_text()
+    for name, command in (("copyroom.nix", "copyroom status"), ("docman.nix", "docman doctor")):
+        text = (MODULES / "managers" / name).read_text()
+        assert f"&& {command}" in text
+        assert "toolchainBin" not in text and "REPOMAN_TOOLCHAIN" not in text
 
 
 def test_meta_module_does_not_eval_getenv():
     assert "builtins.getEnv" not in (MODULES / "devenv.nix").read_text()
 
 
-def test_meta_module_exports_store_bin_and_keeps_consumer_bin():
+def test_meta_module_keeps_the_consumer_venv_on_path_and_reads_no_closure():
     text = (MODULES / "devenv.nix").read_text()
-    assert "REPOMAN_TOOLCHAIN_BIN" in text
-    assert 'export PATH="$REPOMAN_TOOLCHAIN_BIN:$PATH"' in text
     assert 'export PATH="${config.devenv.state}/venv/bin:$PATH"' in text
-
-
-def test_store_path_wins_over_consumer_venv():
-    text = (MODULES / "devenv.nix").read_text()
-    consumer = text.index('export PATH="${config.devenv.state}/venv/bin:$PATH"')
-    store = text.index('export PATH="$REPOMAN_TOOLCHAIN_BIN:$PATH"')
-    assert consumer < store
+    for retired in ("REPOMAN_TOOLCHAIN_BIN", "toolchainBin", "storeBinExpr", "REPOMAN_TOOLCHAIN_MANIFEST"):
+        assert retired not in text
 
 
 def test_manifest_is_the_only_roster_configuration():
@@ -41,30 +36,11 @@ def test_manifest_is_the_only_roster_configuration():
     assert "REPOMAN_CLI_PROVIDER" not in text
 
 
-def test_toolchain_option_is_store_only():
-    text = (MODULES / "devenv.nix").read_text()
-    assert "storeBinExpr" in text
-    assert "default = storeBinExpr;" in text
-    assert "toolchainVenvExpr" not in text
-    assert "cliBinExpr" not in text
-
-
 def test_manager_modules_receive_the_manifest_roster():
     text = (MODULES / "devenv.nix").read_text()
     assert "_module.args.repomanManagers = managerRoster;" in text
     for name in ("gitman.nix", "copyroom.nix", "docman.nix", "testee.nix"):
         assert "repomanManagers" in (MODULES / "managers" / name).read_text()
-
-
-def test_store_task_failure_is_actionable():
-    text = (MODULES / "devenv.nix").read_text()
-    assert "REPOMAN_TOOLCHAIN_BIN:?repoman:" in text
-
-
-def test_store_missing_shell_entry_degrades_without_exit():
-    text = (MODULES / "devenv.nix").read_text()
-    assert 'echo "RepoMan: REPOMAN_TOOLCHAIN_BIN is unset' in text
-    assert "exit 1" not in text
 
 
 def test_repoman_dev_shell_self_imports_the_meta_module():
@@ -101,12 +77,3 @@ def test_repoman_dev_shell_declares_testee():
     source = re.search(r"^testee = \{(.*)\}$", pyproject, re.MULTILINE)
     assert source is not None and "git =" in source.group(1)
     assert 'requires-python = ">=3.13"' in pyproject
-
-
-def test_store_bin_expression_is_shell_safe():
-    text = (MODULES / "devenv.nix").read_text()
-    expr = re.search(r"storeBinExpr = \"(.*)\";", text)
-    assert expr is not None
-    message = expr.group(1).replace('\\"', '"')
-    assert '"' not in message
-    assert "'" not in message

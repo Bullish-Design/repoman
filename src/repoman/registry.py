@@ -27,8 +27,8 @@ class Manager:
         nix_input: For an approach-B manager, the ``devenv.yaml`` input its nix
             module needs (presence-gated import); ``""`` for approach-A /
             pure-Python managers that need no consumer-declared input.
-        install: ``"toolchain"`` (default) — the manager lives in the system-wide
-            Vendomat store closure; ``"uv"`` — the manager is declared as a
+        install: ``"path"`` (default) — the host puts the manager on ``PATH``
+            and RepoMan runs it by name; ``"uv"`` — the manager is declared as a
             dependency in the consumer's ``pyproject.toml`` and installed by
             ``uv sync`` (its ``doctor`` check is ``uv:<key>``, not ``lock:<key>``).
         package: Distribution name on the index; defaults to ``command``. Used to
@@ -44,7 +44,7 @@ class Manager:
     skill: str = ""  # sub-skill name the entrypoint routes to (default: command)
     route_when: str = ""  # "when you want to…" cell in the routing table
     nix_input: str = ""  # devenv.yaml input the manager's approach-B nix module needs; "" = none
-    install: str = "toolchain"  # "toolchain" = Vendomat's shared store closure;
+    install: str = "path"  # "path" = the host puts the command on PATH;
     # "uv" = declared in the consumer's pyproject.toml, installed by uv sync
     package: str = ""  # distribution name; defaults to `command`
 
@@ -53,7 +53,7 @@ class Manager:
             object.__setattr__(self, "skill", self.command)
         if not self.package:
             object.__setattr__(self, "package", self.command)
-        if self.install not in {"toolchain", "uv"}:
+        if self.install not in {"path", "uv"}:
             raise ValueError(f"{self.key}: unknown install model {self.install!r}")
 
 
@@ -102,7 +102,7 @@ REGISTRY: dict[str, Manager] = {
         status=["list-runs"],
         route_when="verify code health, fix lint/format, or rerun failures",
         # testee's TOOLS (pytest/ruff/ty) import the consumer's code, so testee is a per-repo
-        # uv dev dependency, not a shared-toolchain package. See CONCEPT.md §6 (project 12).
+        # uv dev dependency, not a host-installed command. See CONCEPT.md §6 (project 12).
         install="uv",
     ),
     "doc": Manager(

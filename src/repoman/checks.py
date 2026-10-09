@@ -1,31 +1,27 @@
 """RepoMan self-check (preflight) for `repoman doctor`.
 
-Validates the conductor's own wiring before delegating to manager doctors:
-Vendomat's store toolchain, its provenance manifest, installed manager CLIs,
-and skills. This catches the class of problem the spike hit — a manager
-selected but not installed, or a provider mismatch — before sub-doctors run.
+Validates the conductor's own wiring: installed manager commands and skills.
+This catches a manager that is selected but not installed.
 
-Project 12: the manager family splits by install model. Pure-CLI managers
-(`install == "toolchain"`) come from Vendomat's one shared Nix store closure,
-found through `REPOMAN_TOOLCHAIN_BIN` and validated against the provenance
-manifest Vendomat ships beside it. uv-declared managers (`install == "uv"`,
-today: testee) live in the consumer's uv graph, validated against
-`pyproject.toml`.
+The manager family splits by install model. Host managers (`install == "path"`)
+are on `PATH`: the host profile installs them, and RepoMan runs them by name.
+RepoMan reads no Vendomat closure and no manifest. uv-declared managers
+(`install == "uv"`, today: testee) live in the consumer's uv graph, validated
+against `pyproject.toml`.
 
 Two disciplines this module holds to, because it is the *diagnostic* layer:
 
 * **Never crash on the inputs it exists to diagnose.** Every filesystem read is
   guarded (`OSError`, decode errors, malformed TOML). A doctor that raises is
   strictly worse than one that reports ``fail``.
-* **Validate the binary that actually runs.** The nix tasks exec absolute paths
-  (``"$toolchainBin"/gitman``), so ``installed:<key>`` resolves the same absolute
-  path rather than trusting ``PATH`` — and flags the case where ``PATH`` would
-  hand you a *different* copy.
+* **Validate the binary that actually runs.** A uv manager runs from the consumer
+  venv, so ``installed:<key>`` resolves that exact path — and flags the case
+  where ``PATH`` would hand you a *different* copy. A host manager runs from
+  ``PATH``, so the ``PATH`` hit is the binary.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -132,23 +128,16 @@ def consumer_venv_bin() -> Path | None:
     return None
 
 
-def toolchain_bin() -> Path | None:
-    """The Nix store bin dir exported by Vendomat, if the shell provides it."""
-
-    env = os.environ.get("REPOMAN_TOOLCHAIN_BIN")
-    return Path(env) if env else None
-
-
 def manager_binary(manager: Manager) -> Path | None:
-    """The absolute path the nix tasks actually exec for ``manager``, if knowable.
+    """The absolute path ``manager`` runs from, if knowable.
 
-    ``None`` means "no absolute path is derivable here" — the caller falls back to
-    a ``PATH`` lookup.
+    A host manager runs from ``PATH``. A uv manager runs from the consumer venv.
+    ``None`` means no such binary was found or derived.
     """
 
-    if manager.install == "toolchain":
-        bin_dir = toolchain_bin()
-        return bin_dir / manager.command if bin_dir else None
+    if manager.install == "path":
+        found = shutil.which(manager.command)
+        return Path(found) if found else None
     bin_dir = consumer_venv_bin()
     return bin_dir / manager.command if bin_dir else None
 
@@ -163,21 +152,6 @@ def _read_toml(path: Path) -> tuple[dict | None, str | None]:
         return None, f"unparseable: {exc}"
     except OSError as exc:
         return None, f"unreadable: {exc.strerror or exc}"
-
-
-def _load_toolchain_manifest(bin_dir: Path) -> tuple[dict | None, SelfCheck]:
-    """Read Vendomat's provenance manifest for the materialized store closure."""
-
-    configured = os.environ.get("REPOMAN_TOOLCHAIN_MANIFEST")
-    path = Path(configured) if configured else bin_dir.parent / "share" / "vendomat" / "toolchain.json"
-    try:
-        with path.open(encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, json.JSONDecodeError) as exc:
-        return None, SelfCheck("toolchain:store", "fail", f"unreadable store manifest {path}: {exc}")
-    if not isinstance(data, dict) or not isinstance(data.get("tools"), dict):
-        return None, SelfCheck("toolchain:store", "fail", f"invalid store manifest {path}")
-    return data, SelfCheck("toolchain:store", "ok", str(path))
 
 
 def _requirement_name(req: str) -> str:
@@ -220,28 +194,32 @@ def _load_pyproject(repo_root: str) -> tuple[dict | None, str | None]:
 
 
 def _installed_check(manager: Manager) -> SelfCheck:
-    """Validate the exact binary the nix tasks exec, not merely a PATH hit.
+    """Validate the binary a manager runs from.
 
-    The manager tasks run absolute paths (``"$toolchainBin"/gitman``), so a green
-    ``PATH`` lookup can coexist with a task that dies on no-such-file. When both
-    exist but differ, that shadowing IS the finding — report it.
+    A host manager is on ``PATH`` or it is not. A uv manager runs from the consumer
+    venv, so a green ``PATH`` lookup can coexist with a missing venv binary. When
+    both exist but differ, that shadowing IS the finding — report it.
     """
 
-    heal = "run `repoman-sync`" if manager.install == "toolchain" else "run `uv sync`"
-    expected = manager_binary(manager)
     on_path = shutil.which(manager.command)
-
-    if expected is None:
-        # No absolute path is derivable (uv manager outside a devenv shell) — PATH is
-        # the best available signal.
+    if manager.install == "path":
         return SelfCheck(
             f"installed:{manager.key}",
             "ok" if on_path else "fail",
-            on_path or f"{manager.command} not on PATH — {heal}",
+            on_path or f"{manager.command} not on PATH — the host profile must install it",
+        )
+
+    expected = manager_binary(manager)
+    if expected is None:
+        # No venv path is derivable (outside a devenv shell) — PATH is the best signal.
+        return SelfCheck(
+            f"installed:{manager.key}",
+            "ok" if on_path else "fail",
+            on_path or f"{manager.command} not on PATH — run `uv sync`",
         )
 
     if not expected.exists():
-        detail = f"{expected} missing — {heal}"
+        detail = f"{expected} missing — run `uv sync`"
         if on_path:
             detail += f" (a different {manager.command} is on PATH at {on_path})"
         return SelfCheck(f"installed:{manager.key}", "fail", detail)
@@ -301,31 +279,9 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
 
     out: list[SelfCheck] = []
 
-    # --- toolchain: the Vendomat store closure -------------------------------
-    bin_dir = toolchain_bin()
-    have_toolchain = bin_dir is not None and (bin_dir / "repoman").exists()
-    out.append(
-        SelfCheck(
-            "toolchain:store",
-            "ok" if have_toolchain else "fail",
-            str(bin_dir)
-            if have_toolchain
-            else "REPOMAN_TOOLCHAIN_BIN is unset or has no repoman — import Vendomat's consumer module",
-        )
-    )
-
-    data = None
-    if have_toolchain and bin_dir is not None:
-        assert bin_dir is not None
-        data, manifest_check = _load_toolchain_manifest(bin_dir)
-        out.append(manifest_check)
-        if data is not None and "repoman" not in (data.get("tools") or {}):
-            out.append(SelfCheck("toolchain:self", "fail", "store manifest has no repoman entry"))
-
     pyproject, pyproject_error = _load_pyproject(repo_root)
     if pyproject_error is not None:
         out.append(SelfCheck("pyproject", "fail", f"{repo_root}/pyproject.toml {pyproject_error}"))
-    toolchain_tools = (data or {}).get("tools", {})
 
     for m in managers:
         if m.install == "uv":
@@ -341,21 +297,8 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
                 )
             )
             continue
-        if data is None:
-            continue  # toolchain:store/manifest already reports the root failure
-        tool = toolchain_tools.get(m.command)
-        has = isinstance(tool, dict)
-        out.append(
-            SelfCheck(
-                f"lock:{m.key}",
-                "ok" if has else "fail",
-                "" if has else ("selected but absent from Vendomat's store manifest"),
-            )
-        )
-        if has and isinstance(tool.get("version"), str):
-            out.append(SelfCheck(f"version:{m.key}", "ok", f"{m.package} {tool['version']} (Nix store)"))
 
-    # --- installed:<key> (the exact binary the tasks exec) ----------------------
+    # --- installed:<key> (the binary the manager runs from) ---------------------
     for m in managers:
         out.append(_installed_check(m))
         if m.key == "git":

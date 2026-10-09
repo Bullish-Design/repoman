@@ -18,10 +18,10 @@
 # import every manager module statically and let each one decide whether to
 # activate — the standard devenv/NixOS module idiom.
 #
-# The manifest roster selects which manager tasks/skills are WIRED — it no longer
-# gates toolchain installation (project 12): the pure-CLI managers live in a
-# single Vendomat store closure ($REPOMAN_TOOLCHAIN_BIN) regardless of any one
-# repo's roster. testee is the exception: it runs inside the consumer's code, so
+# The manifest roster selects which manager tasks/skills are WIRED. It does not
+# install anything. The host profile puts the pure-CLI managers (copyroom, gitman,
+# docman) on PATH, and RepoMan runs them by name. RepoMan reads no Vendomat closure
+# and no manifest. testee is the exception: it runs inside the consumer's code, so
 # it is a per-repo uv dev dependency declared in pyproject.toml.
 { pkgs, lib, config, inputs ? {}, ... }:
 
@@ -70,16 +70,6 @@ let
 
   managerRoster = if manifest ? managers then manifest.managers else [ "copy" "git" "test" ];
 
-  # Face D seam. The commands are a Nix closure and Vendomat exports its
-  # bin dir; there is no path to guess, so an unset variable must FAIL the task rather
-  # than expand to "" and exec "/gitman" — a confident wrong answer. `:?` says so at the
-  # point of use, which is the only place that knows which command was wanted.
-  # The message is deliberately free of quotes and apostrophes. It is interpolated into a
-  # task exec INSIDE double quotes ("''${cfg.toolchainBin}"/copyroom status), so a `"` ends
-  # that string early and a `'` opens an unterminated one — the generated script then dies
-  # with `unexpected EOF while looking for matching`, naming neither the task nor the cause.
-  # An end-to-end fixture caught this; no grep-level test could.
-  storeBinExpr = "\${REPOMAN_TOOLCHAIN_BIN:?repoman: REPOMAN_TOOLCHAIN_BIN is unset - import the vendomat toolchain module}";
 in
 {
   imports = [
@@ -120,22 +110,6 @@ in
       description = "RepoMan: the agentic repo lifecycle conductor.";
     };
 
-    # D1: shell expression for the store closure's bin dir. Manager modules
-    # interpolate it into task execs: "''${cfg.toolchainBin}"/copyroom status.
-    toolchainBin = lib.mkOption {
-      type = lib.types.str;
-      internal = true;
-      readOnly = true;
-      description = ''
-        Shell expression (NOT a nix path) for the bin dir holding the shared manager
-        commands. Manager modules interpolate it into task execs:
-        "''${cfg.toolchainBin}"/copyroom status.
-
-        It is $REPOMAN_TOOLCHAIN_BIN, and an unset value fails the task.
-      '';
-      default = storeBinExpr;
-    };
-
   };
 
   config = lib.mkMerge [
@@ -149,9 +123,9 @@ in
     # either. The path itself stays the family's agent-files convention.
     env.REPOMAN_SKILLS_DIR = ".agents/skills";
 
-    # Verify the shared toolchain, then generate this repo's lifecycle router skill.
+    # Check that repoman is on PATH, then generate this repo's lifecycle router skill.
     scripts.repoman-sync = {
-      description = "Verify the shared toolchain, then generate this repo's lifecycle router skill.";
+      description = "Generate this repo's lifecycle router skill.";
       exec = ''exec ${pkgs.bash}/bin/bash ${./scripts/repoman-sync.sh} "$@"'';
     };
 
@@ -162,19 +136,6 @@ in
       # Tasks DO run this enterShell block (PROGRESS §0.2), so prepending here is a
       # no-op for the shell and fixes tasks. testee stays a per-repo uv dependency.
       export PATH="${config.devenv.state}/venv/bin:$PATH"
-      # Vendomat exports the store closure. Report a
-      # missing or empty closure, never abort — nothing in the closure may sit on the
-      # shell-entry critical path without a degrade (gitman project 32 / G3: a broken
-      # vendor-status took loci-core's devenv shell down entirely). Tasks still fail
-      # actionably at the point of use, via the `:?` in `repoman.toolchainBin`.
-      if [ -n "''${REPOMAN_TOOLCHAIN_BIN:-}" ]; then
-        export PATH="$REPOMAN_TOOLCHAIN_BIN:$PATH"
-        if [ ! -x "$REPOMAN_TOOLCHAIN_BIN/repoman" ]; then
-          echo "RepoMan: shared command closure has no repoman ($REPOMAN_TOOLCHAIN_BIN)." >&2
-        fi
-      else
-        echo "RepoMan: REPOMAN_TOOLCHAIN_BIN is unset; import vendomat's toolchain module." >&2
-      fi
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " managerRoster}"
       fi

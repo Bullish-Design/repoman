@@ -91,9 +91,8 @@ schema = 1
 managers = ["copy", "git", "test"]
 ```
 
-RepoMan also accepts the legacy `cliProvider` key for shared manifests. It does
-not use that key to select manager binaries; Vendomat's `toolchain.enable`
-setting controls the shared command closure.
+RepoMan also accepts the legacy `cliProvider` key so an old manifest still loads. It
+ignores the key. The host profile puts the manager commands on `PATH`.
 
 See "Where the local paths go" below for developing against a local `*man`
 checkout instead of a published tag.
@@ -106,9 +105,9 @@ Pulled changes to an already-managed repo, or bumped a manager version?
 devenv shell && repoman-sync && repoman doctor
 ```
 
-`repoman-sync` verifies Vendomat's shared command closure and regenerates the
-entrypoint (router) skill from the roster. `repoman doctor` confirms the wiring.
-Vendomat's flake owns toolchain versions and updates.
+`repoman-sync` checks that `repoman` is on `PATH` and regenerates the entrypoint
+(router) skill from the roster. `repoman doctor` confirms the wiring. The host
+profile owns manager versions and updates.
 
 ## Where the local paths go
 
@@ -163,10 +162,9 @@ forgot to stage". A path input reads the directory literally.
 The manager family deliberately splits in two, and knowing which is which explains
 most of what `repoman doctor` tells you:
 
-- **Toolchain managers** (`copyroom`, `gitman`, `docman`, plus `repoman` itself) are
-  pure CLIs. Vendomat supplies them from one pinned Nix closure and exports its
-  bin directory as `$REPOMAN_TOOLCHAIN_BIN`. A consumer repo has no toolchain
-  lock or provider option.
+- **Host managers** (`copyroom`, `gitman`, `docman`, plus `repoman` itself) are
+  pure CLIs. The host profile puts them on `PATH`, and RepoMan runs them by name.
+  A consumer repo has no toolchain lock or provider option.
 - **uv managers** (today only `testee`) run *inside* your code — its tools import your
   package — so it is a normal per-repo dev dependency declared in your
   `pyproject.toml` under `[dependency-groups] dev` and installed by `uv sync`.
@@ -228,13 +226,10 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
 
 | Row | Means |
 |---|---|
-| `toolchain:store` | Vendomat's shared command closure exists, and its manifest reads |
-| `toolchain:self` | the store manifest lists `repoman` |
 | `pyproject` | `pyproject.toml` parses (a missing file is not a failure) |
-| `lock:<key>` | this manager is present in Vendomat's toolchain manifest |
-| `version:<key>` | the store version for this manager |
 | `uv:<key>` | a uv manager is declared in `pyproject.toml` |
-| `installed:<key>` | the exact binary the nix tasks exec is present (warns if `PATH` would give you a different copy) |
+| `installed:<key>` | a host manager is on `PATH`; a uv manager is in the consumer venv (warns if `PATH` would give you a different copy) |
+| `interface:git` | `gitman` is the work-only tool and `jj` is 0.46.0 or later |
 | `provisioned:<key>` | an approach-B manager's nix module actually imported |
 | `skill:entrypoint` | the router skill exists |
 | `skill:<key>:defers` | an installed manager skill defers to the router (warn only) |
@@ -264,8 +259,6 @@ as a pile of per-row failures. With `--json`, the output is one JSON document an
 |---|---|
 | `REPOMAN_MANAGERS` | roster (set by the nix module). Unset → core default; **empty → wire nothing** |
 | `REPOMAN_SKILLS_DIR` | where skills go, repo-relative (default `.agents/skills`) |
-| `REPOMAN_TOOLCHAIN_BIN` | Vendomat's shared command-closure bin directory |
-| `REPOMAN_TOOLCHAIN_MANIFEST` | optional path to Vendomat's provenance manifest |
 
 ## Developing RepoMan
 
@@ -279,7 +272,7 @@ format    # ruff format
 
 Repoman's own dev shell is a first-class managed repo: it imports the meta-module
 (`devenv.yaml` → `imports: [repoman]`) and its tracked manifest selects the full
-roster, so the shared toolchain (`copyroom`, `gitman`, `docman`) is on
+roster, so the host's managers (`copyroom`, `gitman`, `docman`) are on
 PATH inside it. That makes this checkout the canonical **host** for bootstrapping a new
 repo — no need to hop into another repo's shell:
 

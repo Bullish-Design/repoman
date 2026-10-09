@@ -10,18 +10,12 @@
     jq
   ];
 
-  # Project 039: the vendor settings moved to vendomat.toml -- `[vendor] enable`
-  # and `libs` for the pyjutsu wheelhouse bootstrap, and `[toolchain] mode =
-  # "editable"` so a tagged `repoman` never sits ahead of this checkout on PATH.
-  # The vendomat module now reaches this repository from the system profile, so
-  # those options no longer belong to an input declared here. The reasoning for
-  # each setting travelled with it, into the manifest.
-
   # Self-hosting (project 14 seam): this shell is a real managed repo with the full roster
-  # wired — copy/git/test/doc — so the shared toolchain (copyroom, gitman, docman) is on
-  # PATH here and `copyroom new <target> --answers … --trust` can birth new repos from this
-  # checkout's shell (no host-repo trick). The meta-module (devenv.yaml `imports: [repoman]`)
-  # owns the `repoman-sync` script now; Vendomat supplies the shared toolchain closure.
+  # wired — copy/git/test/doc. The host profile puts copyroom, gitman and docman on PATH, so
+  # `copyroom new <target> --answers … --trust` can birth new repos from this checkout's
+  # shell (no host-repo trick). `repoman` itself resolves to this checkout's editable venv
+  # install, so an edit here is never tested against the last release. The meta-module
+  # (devenv.yaml `imports: [repoman]`) owns the `repoman-sync` script.
   repoman = {
     enable = true;
   };
@@ -72,7 +66,7 @@
     echo "  lint   - Lint code with ruff"
     echo ""
     echo "Quick start:"
-    echo "  0. Verify the Vendomat toolchain and install the router: repoman-sync"
+    echo "  0. Install the router skill: repoman-sync"
     echo "  1. Install dependencies: uv sync --all-extras"
     echo "  2. Run tests: test"
     echo ""

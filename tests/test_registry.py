@@ -78,9 +78,9 @@ def test_approach_a_and_pure_python_managers_have_no_nix_input():
 
 
 def test_install_model_split():
-    # project 12: pure-CLI managers are toolchain-installed; testee is uv-declared.
+    # pure-CLI managers are host commands on PATH; testee is uv-declared.
     for key in ("copy", "git", "doc"):
-        assert REGISTRY[key].install == "toolchain"
+        assert REGISTRY[key].install == "path"
     assert REGISTRY["test"].install == "uv"
 
 
@@ -97,7 +97,7 @@ def test_install_model_is_validated():
 
     with pytest.raises(ValueError):
         Manager("x", "xcli", "core", "s", install="bogus")
-    Manager("x", "xcli", "core", "s", install="toolchain")
+    Manager("x", "xcli", "core", "s", install="path")
     Manager("x", "xcli", "core", "s", install="uv")
 
 

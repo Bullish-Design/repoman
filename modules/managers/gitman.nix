@@ -5,7 +5,7 @@
 #
 # gitman 0.12 opens workspaces and runs no other command. It needs no Rust, no maturin,
 # and no pyjutsu. The module adds only `git`, for the colocated repository. jj itself
-# comes from the shared toolchain closure. A manager module may add system packages and
+# comes from the host profile (on PATH). A manager module may add system packages and
 # language toolchains; this one needs only a package.
 { pkgs, lib, config, repomanManagers, ... }:
 

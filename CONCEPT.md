@@ -3,8 +3,8 @@
 > **One devenv import that turns a repo into a managed agentic repo.**
 > Import the module and name your managers in `.repoman/project.toml`. RepoMan wires
 > their tasks, generates one router skill, and checks its own wiring with `repoman doctor`.
-> RepoMan installs no manager commands. Vendomat supplies them, except testee, which the
-> repo declares.
+> RepoMan installs no manager commands. The host profile puts them on `PATH`, except
+> testee, which the repo declares.
 
 RepoMan is the **conductor** for the `*man` family. It is a per-repo lifecycle front
 door. It *composes* the individual managers and does not replace them.
@@ -29,8 +29,8 @@ RepoMan does not invent a new architecture. It composes an existing one. Every
 The lifecycle roster is exactly these four. Three neighbors are not lifecycle managers:
 
 - **devman** is the automation plane. Its central overlay owns `.agents/` in every repo.
-- **Vendomat** is the Nix layer. It builds the store closure that holds the manager
-  commands.
+- **Vendomat** is the Nix layer. It builds and installs the host's tools. RepoMan reads
+  nothing from it.
 - **shellij** is the terminal: durable remote workbenches on Zellij and Yazi. RepoMan
   imports shellij's own devenv module when a repo declares a `shellij` input (see §4).
 
@@ -66,8 +66,8 @@ Brainstorming settled four decisions. The code still follows them.
 
 Later projects settled two more decisions (see §6):
 
-- **RepoMan installs no manager commands.** Vendomat's store closure supplies them for
-  `copy`, `git`, and `doc`. testee is the one per-repo dependency.
+- **RepoMan installs no manager commands.** The host profile puts `copy`, `git`, and
+  `doc` on `PATH`, and RepoMan runs them by name. testee is the one per-repo dependency.
 - **RepoMan writes one file in normal operation.** It is the router skill. devman links
   every other skill.
 
@@ -99,9 +99,8 @@ declares testee under `[dependency-groups] dev`, because `test` is in the defaul
 
 Then run `devenv shell` and `repoman-sync`. The repo now has the roster's manager tasks
 and the router skill under `.agents/skills/repoman/`. The manager commands are on `PATH`,
-from Vendomat's closure. A top-level `repoman doctor` checks RepoMan's own wiring. Each
-manager's own `doctor` checks that manager. Vendomat's consumer module exports the closure's location. A repo
-imports that module next to RepoMan's.
+from the host profile. A top-level `repoman doctor` checks RepoMan's own wiring. Each
+manager's own `doctor` checks that manager.
 
 ---
 
@@ -115,9 +114,9 @@ The former `repoman.nativeBuild` option is removed. It added `maturin` and Rust 
 consumer could build pyjutsu from source. gitman 0.12 does not use pyjutsu, and a fleet
 search on 2026-10-06 found no repo that set the option to `true`.
 
-A second option, `repoman.toolchainBin`, is internal and read-only. It holds the shell
-expression for `$REPOMAN_TOOLCHAIN_BIN`. Manager modules interpolate it into task
-commands. A repo can set `repoman.enable = false` to keep the import and run no RepoMan.
+The former `repoman.toolchainBin` option and the `REPOMAN_TOOLCHAIN_BIN` variable are
+removed. Manager tasks run `copyroom` and `docman` by name from `PATH`. A repo can set
+`repoman.enable = false` to keep the import and run no RepoMan.
 The skills directory is not an option: the module sets `REPOMAN_SKILLS_DIR` to
 `.agents/skills`.
 
@@ -132,8 +131,8 @@ cliProvider = "store"                # legacy; validated, then ignored
 The module parses and validates the file in Nix (`modules/devenv.nix`). It rejects
 unknown fields, a missing `schema`, and any `schema` other than 1. It rejects an unknown
 manager name and a `cliProvider` other than `store` or `venv`. An absent file means the
-default roster. `cliProvider` has no effect. It is a legacy key that Vendomat's consumer
-config owns.
+default roster. `cliProvider` has no effect. It is a legacy key from the retired Vendomat
+V4 consumer config, accepted so an old manifest still loads.
 
 Manager roster, in default tiers:
 
@@ -232,7 +231,7 @@ order instead.
 
 ## 6. How composition works
 
-Three layers cooperate. RepoMan owns the first two. Vendomat owns the third.
+Three layers cooperate. RepoMan owns the first two. The host profile owns the third.
 
 1. **Nix layer (the meta-module).** `modules/devenv.nix` declares `options.repoman.*`
    and reads the roster. It statically imports one thin wiring module per manager from
@@ -242,48 +241,43 @@ Three layers cooperate. RepoMan owns the first two. Vendomat owns the third.
    tasks, and sometimes packages.
 
    The meta-module also exports `REPOMAN_MANAGERS` and `REPOMAN_SKILLS_DIR`. It puts the
-   closure's bin directory first on `PATH` and defines `repoman-sync`.
+   consumer venv's bin directory first on `PATH` and defines `repoman-sync`.
 
 2. **Python/CLI layer (the conductor).** The `repoman` CLI reads `REPOMAN_MANAGERS`.
    It lists the managers, self-checks the wiring, and generates the router. It runs no
    manager. The variable is the only channel. The CLI never reads `.repoman/project.toml`.
    One list feeds the Nix modules, the CLI, and the router skill, so the three cannot drift.
 
-3. **The toolchain (Vendomat's store closure).** Vendomat builds the manager commands
-   once, in one pinned Nix store closure. Vendomat's `flake.lock` is authoritative for
-   their versions. RepoMan finds the closure by environment variable only.
-   `REPOMAN_TOOLCHAIN_BIN` names the bin directory. `REPOMAN_TOOLCHAIN_MANIFEST` names
-   the provenance manifest, which defaults to `share/vendomat/toolchain.json` in the closure.
-   Vendomat exports both, so RepoMan guesses no path.
+3. **The host profile.** The host puts the manager commands on `PATH`. The host's own
+   lock (today `nix-meta`) is authoritative for their versions. RepoMan guesses no path
+   and reads no closure or manifest. It runs `copyroom`, `gitman` and `docman` by name.
 
-A missing closure fails at the point of use: a manager task stops and names
-`REPOMAN_TOOLCHAIN_BIN`. Shell entry only warns, so a broken closure never blocks the shell.
+A missing command fails at the point of use: `repoman doctor` reports `installed:<key>`
+as `fail`, and a manager task stops with "command not found".
 
 **Toolchain versions reach a repo in two ways.** The genome pins published tags in its
-`copier.yml`, and `copyroom update` applies those pins to one repo at a time. Vendomat's
-`flake.lock` pins the closure that supplies the manager commands. copyroom has no
+`copier.yml`, and `copyroom update` applies those pins to one repo at a time. The host
+profile's lock pins the manager commands. copyroom has no
 cross-repo command: it converges the template layers of one repo. A past fleet rollout
 ran from a scratch script that no longer exists.
 
 **Two install models.** The family splits on one question: does the tool import the
 consumer's own code?
 
-- **Toolchain managers** (`copy`, `git`, `doc`): the command comes from Vendomat's
-  closure.
+- **Host managers** (`copy`, `git`, `doc`): the command is on `PATH`, from the host
+  profile.
 - **uv manager** (`test`): the command comes from the repo's own virtual environment
   (venv). `pyproject.toml` declares testee under `[dependency-groups] dev`. testee's
   tools (pytest, ruff, and ty) import the consumer's package, so they must run in that venv.
 
-The toolchain managers live outside the repo's venv, so `uv sync` prunes nothing of
-theirs. `Manager.install` in `src/repoman/registry.py` encodes the split. `repoman doctor`
-checks a toolchain manager against Vendomat's manifest. It checks a uv manager against
-`pyproject.toml`.
+The host managers live outside the repo's venv, so `uv sync` prunes nothing of
+theirs. `Manager.install` in `src/repoman/registry.py` (`"path"` or `"uv"`) encodes the
+split. `repoman doctor` checks a host manager for a hit on `PATH`. It checks a uv manager
+against `pyproject.toml`.
 
-**`repoman-sync` installs nothing.** It checks that the closure exists and holds
-`repoman`. It prints the closure's provenance from `toolchain.json`. Then it runs
-`repoman install-skills`. It exits `2` when the closure is missing or incomplete, and for
-the retired `--machine` flag. It also exits `2` in a consumer repo that still has a
-`repoman.lock`, because that file is obsolete there.
+**`repoman-sync` installs nothing.** It checks that `repoman` is on `PATH`, then runs
+`repoman install-skills`. It exits `2` when `repoman` is missing, and in a consumer repo
+that still has a `repoman.lock`, because that file is obsolete there.
 
 **One generated file.** RepoMan writes `<DEVENV_ROOT>/.agents/skills/repoman/SKILL.md`, the
 router skill. `repoman install-skills` renders it from
@@ -312,8 +306,8 @@ devenv module when the repo declares a `docman` input.
 > repo needs Rust in its dev shell, and it does not import RepoMan's module.
 
 **De-risking note.** The original open question was whether devenv supports transitive
-Nix *inputs* from an imported remote module. It does not. The manager commands arrive in
-Vendomat's closure, so RepoMan needs no extra input for them. docman's and shellij's own
+Nix *inputs* from an imported remote module. It does not. The manager commands arrive on
+the host `PATH`, so RepoMan needs no extra input for them. docman's and shellij's own
 modules need inputs that the repo declares itself. RepoMan imports each one only when the
 input exists, as in `lib.optional (inputs ? docman)`. The spike proved this (see
 `SPIKE.md`).
@@ -329,9 +323,11 @@ input exists, as in `lib.optional (inputs ? docman)`. The spike proved this (see
 >    drew the install-model split that this section still describes.
 >
 > Project 031 adopted Vendomat's store closure. Release 0.9.1 then removed the venv
-> provider, `repoman-sync --machine`, and the lock model. Vendomat's `flake.lock` now
-> carries the goal that the lock files served: one toolchain that moves in lockstep.
-> RepoMan retired these names:
+> provider, `repoman-sync --machine`, and the lock model. Vendomat V5 (ruled 2026-10-09)
+> then retired the closure itself: V4 stays nowhere, and the host profile puts the tools
+> on `PATH`. RepoMan removed `REPOMAN_TOOLCHAIN_BIN`, `REPOMAN_TOOLCHAIN_MANIFEST`,
+> `repoman.toolchainBin`, and the `toolchain:store`, `toolchain:self`, `lock:<key>` and
+> `version:<key>` rows. RepoMan retired these names:
 >
 > - `repoman-sync --machine`
 > - `repoman.lock`, `repoman.local.lock`, and the `[managers.<m>-<dep>]` lock entries
@@ -380,7 +376,7 @@ slim conductor.
 Each item shows its status: **done**, **abandoned**, or **open**.
 
 - ~~**`repoman-sync` resolution**~~ — **abandoned.** The single `repoman.lock` design
-  shipped and worked. Vendomat's store closure replaced it. `repoman-sync` installs
+  shipped and worked. The host profile replaced it. `repoman-sync` installs
   nothing. See §6.
 - ~~**`repoman new`**~~ — **abandoned.** `repoman new` and `repoman adopt` were thin
   pass-throughs. RepoMan removed them. Call `copyroom new` and `copyroom adopt` (see §5).

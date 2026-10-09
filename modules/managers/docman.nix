@@ -43,13 +43,13 @@ in
       env.REPOMAN_PROVISIONED_DOC = "1";
     }))
     # The aggregation tasks wire whenever "doc" is selected — `repoman doctor` calls
-    # the shared-toolchain `docman` CLI (project 12) regardless of provisioning; if the
-    # toolchain is absent its own doctor reports the gap.
+    # the host `docman` command regardless of provisioning; if it is absent the task fails
+    # with "command not found".
     (lib.mkIf enabled {
       tasks = {
-        # docman lives in Vendomat's shared store closure, resolved at runtime.
-        "repoman:docs:doctor".exec = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/docman doctor'';
-        "repoman:docs:build".exec  = ''cd "$DEVENV_ROOT" && "${cfg.toolchainBin}"/docman build'';
+        # docman is a host command on PATH.
+        "repoman:docs:doctor".exec = ''cd "$DEVENV_ROOT" && docman doctor'';
+        "repoman:docs:build".exec  = ''cd "$DEVENV_ROOT" && docman build'';
       };
     })
   ];

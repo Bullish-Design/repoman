@@ -31,28 +31,18 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
     assert "bogus" not in result.stdout
 
 
-#: Commands that live in Vendomat's shared closure (testee is uv-declared, so it does not).
-_TOOLCHAIN_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
+#: Commands the host profile puts on PATH (testee is uv-declared, so it does not).
+_HOST_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
 
 
 def _healthy_repo(tmp_path, monkeypatch, managers):
-    """Create a healthy store-backed repo for the doctor tests."""
+    """Create a healthy repo for the doctor tests: host commands on PATH, testee in the venv."""
 
     selected = managers.split()
-    root = tmp_path / "toolchain"
-    toolchain_bin = root / "bin"
-    manifest_dir = root / "share" / "vendomat"
-    toolchain_bin.mkdir(parents=True)
-    manifest_dir.mkdir(parents=True)
-    for command in _TOOLCHAIN_COMMANDS:
-        (toolchain_bin / command).write_text("")
-    tools = {
-        "repoman": {"version": "0.9.0", "store": "/nix/store/repoman"},
-        "copyroom": {"version": "0.7.7", "store": "/nix/store/copyroom"},
-        "gitman": {"version": "0.6.2", "store": "/nix/store/gitman"},
-        "docman": {"version": "0.4.0", "store": "/nix/store/docman"},
-    }
-    (manifest_dir / "toolchain.json").write_text(json.dumps({"python": "3.13", "roster": "core", "tools": tools}))
+    host_bin = tmp_path / "host-bin"
+    host_bin.mkdir()
+    for command in _HOST_COMMANDS:
+        (host_bin / command).write_text("")
 
     state = tmp_path / ".devenv" / "state"
     consumer_bin = state / "venv" / "bin"
@@ -65,12 +55,11 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
         (consumer_bin / "testee").write_text("")
 
     def which(command):
-        for directory in (toolchain_bin, consumer_bin):
+        for directory in (host_bin, consumer_bin):
             if (directory / command).exists():
                 return str(directory / command)
         return None
 
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(toolchain_bin))
     monkeypatch.setenv("DEVENV_STATE", str(state))
     monkeypatch.setenv("REPOMAN_MANAGERS", managers)
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
@@ -79,13 +68,8 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
 
 def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
     # test selected but NOT declared in pyproject.toml (uv-declared manager, project 12)
-    # → uv:test FAIL, exit 2. The store closure itself is healthy.
-    venv = tmp_path / "toolchain"
-    (venv / "bin").mkdir(parents=True)
-    (venv / "bin" / "repoman").write_text("")
-    (venv / "repoman-toolchain.toml").write_text('[repoman]\npackage="repoman"\nsource="path:/x"\n')
+    # → uv:test FAIL, exit 1.
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\n')
-    monkeypatch.setenv("REPOMAN_TOOLCHAIN_BIN", str(venv / "bin"))
     monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
@@ -206,7 +190,7 @@ def test_doctor_in_shell_passes_through_unscathed(monkeypatch, tmp_path):
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     assert "=== repoman (self-check) ===" in result.stdout
-    assert "OK   toolchain:store" in result.stdout
+    assert "OK   installed:copy" in result.stdout
 
 
 def test_doctor_json_context_error(monkeypatch, tmp_path):

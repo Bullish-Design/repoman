@@ -1,5 +1,5 @@
 # Consumer side of the spike: enable RepoMan with the full roster from
-# `.repoman/project.toml`. The manager CLIs come from Vendomat's store closure.
+# `.repoman/project.toml`. The host profile puts the manager CLIs on PATH.
 { ... }:
 
 {

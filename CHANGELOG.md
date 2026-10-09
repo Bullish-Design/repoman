@@ -7,6 +7,18 @@ verbs. RepoMan stops describing `integrate` as gitman verbs.
 
 ### Changed (breaking)
 
+- **RepoMan runs its managers by name from `PATH`.** The host profile installs `copyroom`,
+  `gitman` and `docman`. RepoMan no longer reads Vendomat's closure or manifest. This is
+  step 3 of Vendomat's V4 removal backlog (V4 is removed; V5 gives no backward
+  compatibility). RepoMan removes:
+  - `REPOMAN_TOOLCHAIN_BIN` and `REPOMAN_TOOLCHAIN_MANIFEST`,
+  - the `repoman.toolchainBin` option, and the `:?` guard it carried,
+  - the `toolchain:store`, `toolchain:self`, `lock:<key>` and `version:<key>` doctor rows,
+  - the closure `PATH` export in `enterShell`, and the manifest read in `repoman-sync`,
+  - `vendomat.toml` in this repository.
+  `Manager.install` is now `"path"` (was `"toolchain"`) or `"uv"`. `installed:<key>` fails
+  for a host manager that is not on `PATH`. The `cliProvider` manifest key is still
+  accepted and ignored.
 - **Exit codes follow the shared `0/1/2` contract.** A failed `doctor` row exits `1`
   (was `2`). A bad `install-skills` target exits `2` (was `3`). A wrong context still
   exits `2`. Exit `3` is retired.

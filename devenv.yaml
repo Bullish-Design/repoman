@@ -13,9 +13,9 @@ inputs:
   # override the url in `devenv.local.yaml` — untracked, same schema, merged over
   # this file by devenv. The committed file says WHAT, the local overlay says WHERE.
 
-  # Vendomat's consumer module arrives from this repository's central devenv.local.nix.
-  # Its shared store closure supplies the pure-CLI managers through
-  # REPOMAN_TOOLCHAIN_BIN; its settings live in vendomat.toml.
+  # The host profile puts the pure-CLI managers (copyroom, gitman, docman) on PATH.
+  # RepoMan runs them by name. This repository declares no Vendomat input and imports
+  # no Vendomat module.
 
   # Self-hosting (project 14 seam): repoman's OWN dev shell is a first-class managed
   # repo. Importing the meta-module from ./modules puts the whole manager suite on

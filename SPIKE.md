@@ -37,8 +37,7 @@ tests/consumer-example/
 2. **Options + gated config** — identical to allium-env's `options.allium.*` +
    `config = lib.mkIf cfg.enable {...}`. The spike declared
    `options.repoman.{enable, managers, template, installSkills, skillsDir}`. Project 039
-   and release 0.9.1 removed all but `enable`. Today `options.repoman` holds `enable` and
-   `toolchainBin`.
+   and release 0.9.1 removed all but `enable`. Today `options.repoman` holds `enable` only.
 3. **Conditional managers without conditional imports** — `imports` can't depend on
    `config`. So the meta-module imports *every* manager module statically, and each one
    self-gates on membership in the roster. This is the standard module idiom;
@@ -61,8 +60,8 @@ its own nix `inputs` transitively. For this family it largely doesn't matter:
 
 > **Superseded by project 12, then by project 031 (how the tools arrive).** The spike
 > delivered the tools as Python packages. `repoman-sync` ran `uv pip install` and put
-> them in the devenv virtual environment (venv). Today Vendomat's store closure delivers
-> copyroom, gitman, and docman. testee is a per-repo uv dev dependency. Both routes keep
+> them in the devenv virtual environment (venv). Today the host profile puts
+> copyroom, gitman, and docman on `PATH`. testee is a per-repo uv dev dependency. Both routes keep
 > the finding true.
 
 So RepoMan stays a single, light input. Inputs still are not transitive. A repo declares
@@ -77,8 +76,8 @@ exists.
 > which matches copyroom's convergence model.
 >
 > Project 12 moved the pure-CLI managers to one machine-wide venv. Project 031 adopted
-> Vendomat's store closure, and release 0.9.1 removed the venv provider. Vendomat's
-> `flake.lock` now carries the lockstep goal. `repoman-sync` installs nothing, and no repo
+> Vendomat's store closure, and release 0.9.1 removed the venv provider. Vendomat V5
+> then retired the closure, and the host profile's lock now carries the lockstep goal. `repoman-sync` installs nothing, and no repo
 > carries a `repoman.lock`. `CONCEPT.md` §6 lists the retired names.
 
 ## The conductor drives real managers — verified
@@ -106,7 +105,7 @@ that uses the machine profile's module sees edits only after the machine rebuild
 new release.
 
 The gotcha once mattered for a planned `repoman-sync` self-update flow. That flow is
-**abandoned**. `repoman-sync` installs nothing, and Vendomat's flake owns toolchain
+**abandoned**. `repoman-sync` installs nothing, and the host profile owns manager
 updates.
 
 ## Result — verified
