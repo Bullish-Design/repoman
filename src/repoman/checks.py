@@ -5,9 +5,9 @@ This catches a manager that is selected but not installed.
 
 The manager family splits by install model. Host managers (`install == "path"`)
 are on `PATH`: the host profile installs them, and RepoMan runs them by name.
-RepoMan reads no Vendomat closure and no manifest. uv-declared managers
-(`install == "uv"`, today: testee) live in the consumer's uv graph, validated
-against `pyproject.toml`.
+The Testee wrapper also runs from the host profile. Its pinned Nix package supplies
+the required version, which this module checks. RepoMan reads no Vendomat closure.
+An optional uv manager (`install == "uv"`) lives in the consumer's uv graph.
 
 Two disciplines this module holds to, because it is the *diagnostic* layer:
 
@@ -15,9 +15,8 @@ Two disciplines this module holds to, because it is the *diagnostic* layer:
   guarded (`OSError`, decode errors, malformed TOML). A doctor that raises is
   strictly worse than one that reports ``fail``.
 * **Validate the binary that actually runs.** A uv manager runs from the consumer
-  venv, so ``installed:<key>`` resolves that exact path — and flags the case
-  where ``PATH`` would hand you a *different* copy. A host manager runs from
-  ``PATH``, so the ``PATH`` hit is the binary.
+  venv. A path manager runs from ``PATH`` or its explicit binary environment
+  variable. The Testee version row checks that binary against the pinned package.
 """
 
 from __future__ import annotations
@@ -112,9 +111,8 @@ def _normalize(name: str) -> str:
 
 
 def consumer_venv_bin() -> Path | None:
-    """The consumer devenv venv's bin dir — where a uv-declared manager lands.
+    """The consumer devenv venv's bin dir for an optional uv-installed manager.
 
-    Mirrors ``modules/managers/testee.nix``, which execs ``${config.devenv.state}/venv/bin/testee``.
     ``DEVENV_STATE`` is exported by devenv; fall back to the conventional layout
     under ``DEVENV_ROOT`` so the check still works outside a devenv shell.
     """
@@ -131,11 +129,14 @@ def consumer_venv_bin() -> Path | None:
 def manager_binary(manager: Manager) -> Path | None:
     """The absolute path ``manager`` runs from, if knowable.
 
-    A host manager runs from ``PATH``. A uv manager runs from the consumer venv.
-    ``None`` means no such binary was found or derived.
+    A path manager runs from its configured environment path or ``PATH``. A uv
+    manager runs from the consumer venv. ``None`` means no binary was found.
     """
 
     if manager.install == "path":
+        configured = os.environ.get(manager.binary_env) if manager.binary_env else None
+        if configured:
+            return Path(configured)
         found = shutil.which(manager.command)
         return Path(found) if found else None
     bin_dir = consumer_venv_bin()
@@ -196,19 +197,40 @@ def _load_pyproject(repo_root: str) -> tuple[dict | None, str | None]:
 def _installed_check(manager: Manager) -> SelfCheck:
     """Validate the binary a manager runs from.
 
-    A host manager is on ``PATH`` or it is not. A uv manager runs from the consumer
-    venv, so a green ``PATH`` lookup can coexist with a missing venv binary. When
-    both exist but differ, that shadowing IS the finding — report it.
+    A path manager must match the binary its task uses. A uv manager runs from the
+    consumer venv, so a green ``PATH`` lookup can coexist with a missing venv binary.
     """
 
-    on_path = shutil.which(manager.command)
     if manager.install == "path":
+        binary = manager_binary(manager)
+        on_path = shutil.which(manager.command)
+        if binary is None or not binary.exists() or not os.access(binary, os.X_OK):
+            detail = f"{binary} missing or not executable" if binary else f"{manager.command} not on PATH"
+            return SelfCheck(f"installed:{manager.key}", "fail", detail)
+        if manager.binary_env and not on_path:
+            return SelfCheck(
+                f"installed:{manager.key}",
+                "fail",
+                f"{manager.command} is missing from PATH; add {binary.parent}",
+            )
+        if on_path:
+            try:
+                shadowed = Path(on_path).resolve() != binary.resolve()
+            except OSError:
+                shadowed = False
+            if shadowed:
+                return SelfCheck(
+                    f"installed:{manager.key}",
+                    "fail",
+                    f"tasks use {binary}, but PATH resolves {manager.command} to {on_path}",
+                )
         return SelfCheck(
             f"installed:{manager.key}",
-            "ok" if on_path else "fail",
-            on_path or f"{manager.command} not on PATH — the host profile must install it",
+            "ok",
+            str(binary),
         )
 
+    on_path = shutil.which(manager.command)
     expected = manager_binary(manager)
     if expected is None:
         # No venv path is derivable (outside a devenv shell) — PATH is the best signal.
@@ -237,6 +259,43 @@ def _installed_check(manager: Manager) -> SelfCheck:
                 f" to {on_path} — the two can disagree",
             )
     return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
+
+
+def _version_check(manager: Manager) -> SelfCheck | None:
+    """Check a manager version against the value exported by its pinned package."""
+
+    if not manager.version_env:
+        return None
+    required = os.environ.get(manager.version_env)
+    if not required:
+        return SelfCheck(
+            f"version:{manager.key}",
+            "fail",
+            f"{manager.version_env} is missing — import the pinned Testee module",
+        )
+    binary = manager_binary(manager)
+    if binary is None or not binary.exists() or not os.access(binary, os.X_OK):
+        return SelfCheck(
+            f"version:{manager.key}", "fail", f"cannot read version; {binary or manager.command} is missing"
+        )
+    try:
+        result = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return SelfCheck(f"version:{manager.key}", "fail", f"cannot read version from {binary}: {exc}")
+    if result.returncode != 0:
+        return SelfCheck(
+            f"version:{manager.key}",
+            "fail",
+            f"{binary} --version exited {result.returncode}: {(result.stderr or result.stdout).strip()}",
+        )
+    output = (result.stdout or result.stderr).strip()
+    match = re.fullmatch(r"testee\s+(\S+)", output)
+    if match is None:
+        return SelfCheck(f"version:{manager.key}", "fail", f"unrecognized version from {binary}: {output!r}")
+    actual = match.group(1)
+    level = "ok" if actual == required else "fail"
+    detail = f"{binary} reports {actual}; pinned package requires {required}"
+    return SelfCheck(f"version:{manager.key}", level, detail)
 
 
 def _gitman_interface_check(manager: Manager) -> SelfCheck:
@@ -301,6 +360,9 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
     # --- installed:<key> (the binary the manager runs from) ---------------------
     for m in managers:
         out.append(_installed_check(m))
+        version_check = _version_check(m)
+        if version_check is not None:
+            out.append(version_check)
         if m.key == "git":
             out.append(_gitman_interface_check(m))
 

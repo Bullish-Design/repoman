@@ -66,8 +66,8 @@ Brainstorming settled four decisions. The code still follows them.
 
 Later projects settled two more decisions (see §6):
 
-- **RepoMan installs no manager commands.** The host profile puts `copy`, `git`, and
-  `doc` on `PATH`, and RepoMan runs them by name. testee is the one per-repo dependency.
+- **RepoMan installs no manager commands.** The host profile puts `copy`, `git`, `doc`,
+  and the Testee wrapper on `PATH`, and RepoMan runs them by name.
 - **RepoMan writes one file in normal operation.** It is the router skill. devman links
   every other skill.
 
@@ -261,19 +261,15 @@ profile's lock pins the manager commands. copyroom has no
 cross-repo command: it converges the template layers of one repo. A past fleet rollout
 ran from a scratch script that no longer exists.
 
-**Two install models.** The family splits on one question: does the tool import the
-consumer's own code?
+**One wrapper install model.** The host profile puts the manager commands on `PATH`.
+Testee's v2 wrapper starts before devenv, reads the manifest, and starts a clean shell.
+The check commands use tools that the project declares, such as pytest, ruff, and ty.
+The Testee Nix module pins the manifest module and wrapper package to one source.
+`repoman doctor` checks that the host wrapper reports the pinned package version.
 
-- **Host managers** (`copy`, `git`, `doc`): the command is on `PATH`, from the host
-  profile.
-- **uv manager** (`test`): the command comes from the repo's own virtual environment
-  (venv). `pyproject.toml` declares testee under `[dependency-groups] dev`. testee's
-  tools (pytest, ruff, and ty) import the consumer's package, so they must run in that venv.
-
-The host managers live outside the repo's venv, so `uv sync` prunes nothing of
-theirs. `Manager.install` in `src/repoman/registry.py` (`"path"` or `"uv"`) encodes the
-split. `repoman doctor` checks a host manager for a hit on `PATH`. It checks a uv manager
-against `pyproject.toml`.
+`Manager.install` in `src/repoman/registry.py` keeps support for uv-installed managers,
+but the current manager roster uses host commands. RepoMan checks those commands on
+`PATH`; it checks Testee's version against the pinned Nix package.
 
 **`repoman-sync` installs nothing.** It checks that `repoman` is on `PATH`, then runs
 `repoman install-skills`. It exits `2` when `repoman` is missing, and in a consumer repo

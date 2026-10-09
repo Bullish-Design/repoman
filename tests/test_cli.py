@@ -31,28 +31,27 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
     assert "bogus" not in result.stdout
 
 
-#: Commands the host profile puts on PATH (testee is uv-declared, so it does not).
-_HOST_COMMANDS = ("repoman", "copyroom", "gitman", "docman")
+# Commands the host profile puts on PATH.
+_HOST_COMMANDS = ("repoman", "copyroom", "gitman", "docman", "testee")
 
 
 def _healthy_repo(tmp_path, monkeypatch, managers):
-    """Create a healthy repo for the doctor tests: host commands on PATH, testee in the venv."""
+    """Create a healthy repo for the doctor tests with host commands on PATH."""
 
-    selected = managers.split()
     host_bin = tmp_path / "host-bin"
     host_bin.mkdir()
     for command in _HOST_COMMANDS:
-        (host_bin / command).write_text("")
+        binary = host_bin / command
+        if command == "testee":
+            binary.write_text('#!/bin/sh\nprintf "testee 0.5.0\\n"\n')
+            binary.chmod(0o755)
+        else:
+            binary.write_text("#!/bin/sh\nexit 0\n")
+            binary.chmod(0o755)
 
     state = tmp_path / ".devenv" / "state"
     consumer_bin = state / "venv" / "bin"
     consumer_bin.mkdir(parents=True)
-    if "test" in selected:
-        (tmp_path / "pyproject.toml").write_text(
-            '[project]\nname = "x"\nversion = "0.0.0"\nrequires-python = ">=3.13"\n'
-            'dependencies = []\n[dependency-groups]\ndev = ["testee"]\n'
-        )
-        (consumer_bin / "testee").write_text("")
 
     def which(command):
         for directory in (host_bin, consumer_bin):
@@ -63,18 +62,28 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
     monkeypatch.setenv("DEVENV_STATE", str(state))
     monkeypatch.setenv("REPOMAN_MANAGERS", managers)
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+    monkeypatch.setenv("REPOMAN_TESTEE_HOST_BIN", str(host_bin / "testee"))
+    monkeypatch.setenv("REPOMAN_TESTEE_VERSION", "0.5.0")
     monkeypatch.setattr("repoman.checks.shutil.which", which)
 
 
-def test_doctor_fails_when_selected_manager_not_declared(monkeypatch, tmp_path):
-    # test selected but NOT declared in pyproject.toml (uv-declared manager, project 12)
-    # → uv:test FAIL, exit 1.
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\n')
+def test_doctor_fails_when_testee_host_binary_is_missing(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+    monkeypatch.setenv("REPOMAN_TESTEE_HOST_BIN", str(tmp_path / "missing-testee"))
+    monkeypatch.setenv("REPOMAN_TESTEE_VERSION", "0.5.0")
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
     result = runner.invoke(app, ["doctor"])
-    assert "FAIL uv:test" in result.stdout
+    assert "FAIL installed:test" in result.stdout
+    assert result.exit_code == 1
+
+
+def test_doctor_fails_when_testee_version_does_not_match(monkeypatch, tmp_path):
+    _healthy_repo(tmp_path, monkeypatch, "test")
+    (tmp_path / "host-bin" / "testee").write_text('#!/bin/sh\nprintf "testee 0.4.0\\n"\n')
+    result = runner.invoke(app, ["doctor"])
+    assert "FAIL version:test" in result.stdout
+    assert "pinned package requires 0.5.0" in result.stdout
     assert result.exit_code == 1
 
 
@@ -191,6 +200,8 @@ def test_doctor_in_shell_passes_through_unscathed(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "=== repoman (self-check) ===" in result.stdout
     assert "OK   installed:copy" in result.stdout
+    assert "OK   version:test" in result.stdout
+    assert "uv:test" not in result.stdout
 
 
 def test_doctor_json_context_error(monkeypatch, tmp_path):

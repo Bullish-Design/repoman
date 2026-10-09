@@ -78,10 +78,16 @@ def test_approach_a_and_pure_python_managers_have_no_nix_input():
 
 
 def test_install_model_split():
-    # pure-CLI managers are host commands on PATH; testee is uv-declared.
-    for key in ("copy", "git", "doc"):
+    # Every current manager uses a host command on PATH.
+    for key in ("copy", "git", "doc", "test"):
         assert REGISTRY[key].install == "path"
-    assert REGISTRY["test"].install == "uv"
+
+
+def test_testee_uses_the_host_binary_and_pinned_version():
+    testee = REGISTRY["test"]
+    assert testee.binary_env == "REPOMAN_TESTEE_HOST_BIN"
+    assert testee.version_env == "REPOMAN_TESTEE_VERSION"
+    assert testee.status == ["report"]
 
 
 def test_package_defaults_to_command():

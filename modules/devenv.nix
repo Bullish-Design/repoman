@@ -19,10 +19,9 @@
 # activate — the standard devenv/NixOS module idiom.
 #
 # The manifest roster selects which manager tasks/skills are WIRED. It does not
-# install anything. The host profile puts the pure-CLI managers (copyroom, gitman,
-# docman) on PATH, and RepoMan runs them by name. RepoMan reads no Vendomat closure
-# and no manifest. testee is the exception: it runs inside the consumer's code, so
-# it is a per-repo uv dev dependency declared in pyproject.toml.
+# install anything. The host profile puts the manager commands (copyroom, gitman,
+# docman, and testee) on PATH, and RepoMan runs them by name. Testee starts outside
+# devenv and opens a clean shell for the checks. RepoMan reads no Vendomat closure.
 { pkgs, lib, config, inputs ? {}, ... }:
 
 let
@@ -130,12 +129,11 @@ in
     };
 
     enterShell = ''
-      # Consumer venv bin. devenv's interactive shell prepends this itself, but
-      # `devenv tasks run` does NOT — its PATH lacks the venv, so a task that shells
-      # out to a venv console script (e.g. testee's `lint-imports` arch test) fails.
-      # Tasks DO run this enterShell block (PROGRESS §0.2), so prepending here is a
-      # no-op for the shell and fixes tasks. testee stays a per-repo uv dependency.
-      export PATH="${config.devenv.state}/venv/bin:$PATH"
+      # Tasks run this enterShell block, but do not prepend the consumer venv.
+      # Keep app tools available, then put the host Testee profile before packages
+      # added by devenv. The doctor and manager task use this same wrapper.
+      export REPOMAN_TESTEE_HOST_BIN="''${REPOMAN_TESTEE_HOST_BIN:-$HOME/.nix-profile/bin/testee}"
+      export PATH="${config.devenv.state}/venv/bin:$(dirname "$REPOMAN_TESTEE_HOST_BIN"):$PATH"
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " managerRoster}"
       fi

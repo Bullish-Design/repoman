@@ -33,6 +33,9 @@ class Manager:
             ``uv sync`` (its ``doctor`` check is ``uv:<key>``, not ``lock:<key>``).
         package: Distribution name on the index; defaults to ``command``. Used to
             find the manager in ``pyproject.toml`` for uv-declared managers.
+        binary_env: Environment variable with the canonical executable path, when
+            PATH lookup could select a different install.
+        version_env: Environment variable with the version the executable must report.
     """
 
     key: str
@@ -47,6 +50,8 @@ class Manager:
     install: str = "path"  # "path" = the host puts the command on PATH;
     # "uv" = declared in the consumer's pyproject.toml, installed by uv sync
     package: str = ""  # distribution name; defaults to `command`
+    binary_env: str = ""  # override PATH with the exact executable the module runs
+    version_env: str = ""  # required version supplied by the pinned Nix package
 
     def __post_init__(self) -> None:
         if not self.skill:
@@ -99,11 +104,12 @@ REGISTRY: dict[str, Manager] = {
         "testee",
         "core",
         "Verification (pytest / ruff / ty)",
-        status=["list-runs"],
-        route_when="verify code health, fix lint/format, or rerun failures",
-        # testee's TOOLS (pytest/ruff/ty) import the consumer's code, so testee is a per-repo
-        # uv dev dependency, not a host-installed command. See CONCEPT.md §6 (project 12).
-        install="uv",
+        status=["report"],
+        route_when="verify code health and review the latest report",
+        # The v2 wrapper starts outside devenv. The project declares the check tools;
+        # this manager invokes the host-profile wrapper pinned by the Testee module.
+        binary_env="REPOMAN_TESTEE_HOST_BIN",
+        version_env="REPOMAN_TESTEE_VERSION",
     ),
     "doc": Manager(
         "doc",

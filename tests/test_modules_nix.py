@@ -1,13 +1,15 @@
-import re
 import tomllib
 from pathlib import Path
 
 MODULES = Path(__file__).resolve().parents[1] / "modules"
 
 
-def test_only_testee_uses_the_consumer_venv():
+def test_manager_tasks_use_the_host_profile():
     users = {p.name for p in (MODULES / "managers").glob("*.nix") if "venvBin" in p.read_text()}
-    assert users == {"testee.nix"}
+    assert users == set()
+    testee = (MODULES / "managers" / "testee.nix").read_text()
+    assert "REPOMAN_TESTEE_HOST_BIN" in testee
+    assert 'lib.removePrefix "testee-" config.testee.package.name' in testee
 
 
 def test_host_managers_run_by_name_from_path():
@@ -24,7 +26,9 @@ def test_meta_module_does_not_eval_getenv():
 
 def test_meta_module_keeps_the_consumer_venv_on_path_and_reads_no_closure():
     text = (MODULES / "devenv.nix").read_text()
-    assert 'export PATH="${config.devenv.state}/venv/bin:$PATH"' in text
+    assert "export REPOMAN_TESTEE_HOST_BIN=" in text
+    assert '$(dirname "$REPOMAN_TESTEE_HOST_BIN")' in text
+    assert '"${config.devenv.state}/venv/bin:' in text
     for retired in ("REPOMAN_TOOLCHAIN_BIN", "toolchainBin", "storeBinExpr", "REPOMAN_TOOLCHAIN_MANIFEST"):
         assert retired not in text
 
@@ -62,18 +66,14 @@ def test_repoman_dev_shell_does_not_shadow_repoman_sync():
     assert "repoman-sync = {" not in (root / "devenv.nix").read_text()
 
 
-def test_repoman_dev_shell_declares_testee():
-    """testee is in the dev group, whatever else the group carries.
-
-    Asserted by parsing the group, not by pinning the literal line: the group
-    legitimately grows (pytest-cov is required by `addopts`), and a literal match
-    turns any addition into a failure that says nothing about testee.
-    """
-
+def test_repoman_dev_shell_pins_testee_in_nix():
     root = Path(__file__).resolve().parents[1]
     pyproject = (root / "pyproject.toml").read_text()
     groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
-    assert any(spec == "testee" or spec.startswith("testee") for spec in groups)
-    source = re.search(r"^testee = \{(.*)\}$", pyproject, re.MULTILINE)
-    assert source is not None and "git =" in source.group(1)
+    assert not any(spec == "testee" or spec.startswith("testee") for spec in groups)
+    assert (
+        'builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0"'
+        in (root / "devenv.nix").read_text()
+    )
+    assert "testee.package = testeeFlake.packages." in (root / "devenv.nix").read_text()
     assert 'requires-python = ">=3.13"' in pyproject

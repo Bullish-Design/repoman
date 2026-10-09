@@ -45,7 +45,7 @@ in
   ];
 
   # Self-hosting (project 14 seam): this shell is a real managed repo with the full roster
-  # wired — copy/git/test/doc. The host profile puts copyroom, gitman and docman on PATH, so
+  # wired — copy/git/test/doc. The host profile puts the manager commands on PATH, so
   # `copyroom new <target> --answers … --trust` can birth new repos from this checkout's
   # shell (no host-repo trick). `repoman` itself resolves to this checkout's editable venv
   # install, so an edit here is never tested against the last release. The meta-module

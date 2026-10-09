@@ -157,17 +157,17 @@ copies **tracked** files only, so a brand-new `modules/*.nix` would be invisible
 to nix until `git add` — and it would surface as an eval error, never as "you
 forgot to stage". A path input reads the directory literally.
 
-## Two install models
+## Manager installation
 
-The manager family deliberately splits in two, and knowing which is which explains
-most of what `repoman doctor` tells you:
+The host profile installs the manager commands and puts them on `PATH`:
+`copyroom`, `gitman`, `docman`, `repoman`, and Testee. RepoMan runs them by name.
+Testee starts before devenv, reads the declared manifest, and opens one clean
+devenv shell for the checks. The project's `testee.checks` entries run the project's
+declared tools, such as pytest, ruff, and ty.
 
-- **Host managers** (`copyroom`, `gitman`, `docman`, plus `repoman` itself) are
-  pure CLIs. The host profile puts them on `PATH`, and RepoMan runs them by name.
-  A consumer repo has no toolchain lock or provider option.
-- **uv managers** (today only `testee`) run *inside* your code — its tools import your
-  package — so it is a normal per-repo dev dependency declared in your
-  `pyproject.toml` under `[dependency-groups] dev` and installed by `uv sync`.
+The Nix module and package use the same pinned Testee source. `repoman doctor`
+checks that the host wrapper matches the package version. Set
+`REPOMAN_TESTEE_HOST_BIN` if the host profile does not use `$HOME/.nix-profile`.
 
 `.repoman/project.toml` selects what is wired (tasks, skills, and routing). It
 does not select or install the shared closure.
@@ -213,8 +213,8 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
   or run `copyroom template-preview`.
 - `copyroom status` exits `1` in a repo with no Copier answers file. RepoMan's own
   checkout has none.
-- `testee list-runs` always exits `0`, even after a failed run, in a repo never
-  verified, or outside any repo. For a verdict, run `testee verify`.
+- `testee report` reads the latest saved report. For a new verdict, run
+  `testee verify`.
 - `jj status` is not read-only. It snapshots the working copy (`@`).
 
 ## Reading `repoman doctor`
@@ -222,8 +222,9 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
 | Row | Means |
 |---|---|
 | `pyproject` | `pyproject.toml` parses (a missing file is not a failure) |
-| `uv:<key>` | a uv manager is declared in `pyproject.toml` |
-| `installed:<key>` | a host manager is on `PATH`; a uv manager is in the consumer venv (warns if `PATH` would give you a different copy) |
+| `uv:<key>` | an optional uv manager is declared in `pyproject.toml` |
+| `installed:<key>` | a manager's task executable exists and matches its `PATH` entry |
+| `version:test` | the host Testee wrapper matches the pinned Testee package version |
 | `interface:git` | `gitman` is the work-only tool and `jj` is 0.46.0 or later |
 | `provisioned:<key>` | an approach-B manager's nix module actually imported |
 | `skill:entrypoint` | the router skill exists |
