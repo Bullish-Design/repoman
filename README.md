@@ -142,8 +142,8 @@ on any exit.
 
 `tests/test_fleet_shape.py` fails if a local path reaches `devenv.yaml`. It does not
 check `devenv.lock`, because devenv rewrites that file on every shell entry. A
-release gate guards the lock. The `gate` script runs `scripts/check-fleet-lock.py`,
-which fails if any lock node names a local path, and then runs `testee verify --mode ci`.
+release gate guards the lock. The `gate` script runs `scripts/check-fleet-lock.py --rev HEAD`,
+which fails if any lock node in the committed `devenv.lock` names a local path, and then runs `testee verify --mode ci`.
 Native `jj git push` runs no hook, so run `gate` before you push or tag:
 
 ```bash

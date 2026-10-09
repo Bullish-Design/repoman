@@ -48,7 +48,7 @@ def test_the_lock_gate_is_wired_into_the_gate_script():
     # rather than re-implementing the check. The author runs `gate` before pushing.
     nix = (ROOT / "devenv.nix").read_text()
     assert "scripts.gate = {" in nix
-    assert "scripts/check-fleet-lock.py" in nix
+    assert "scripts/check-fleet-lock.py --rev HEAD" in nix
     assert "testee verify --mode ci" in nix
     assert (ROOT / "scripts" / "check-fleet-lock.py").exists()
 
@@ -70,3 +70,30 @@ def test_the_relock_stash_is_never_tracked():
     # `relock` parks the overlay in the repo so an interrupted run leaves it findable.
     # Tracked, it would be committed and defeat the split it exists to protect.
     assert ".devenv.local.yaml.relock" in (ROOT / ".gitignore").read_text()
+
+
+def test_the_lock_check_reads_the_committed_lock(tmp_path):
+    # The shell rewrites the working-tree lock on entry, so the gate must judge the
+    # commit. A clean commit passes even when the working tree holds a local path.
+    import subprocess
+    import sys
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "t")
+    clean = '{"nodes": {"root": {}, "x": {"locked": {"url": "git+https://github.com/o/x"}}}}'
+    (tmp_path / "devenv.lock").write_text(clean)
+    git("add", "devenv.lock")
+    git("commit", "-q", "-m", "clean")
+    (tmp_path / "devenv.lock").write_text(clean.replace("https://github.com/o/x", "file:///home/u/x"))
+
+    script = ROOT / "scripts" / "check-fleet-lock.py"
+    source = script.read_text().replace("ROOT = Path(__file__).resolve().parents[1]", f"ROOT = Path({str(tmp_path)!r})")
+    copy = tmp_path / "check.py"
+    copy.write_text(source)
+    run = lambda *a: subprocess.run([sys.executable, str(copy), *a], capture_output=True, text=True)  # noqa: E731
+    assert run("--rev", "HEAD").returncode == 0
+    assert run().returncode == 1

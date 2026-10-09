@@ -131,7 +131,9 @@
     exec = ''
       set -euo pipefail
       cd "''${DEVENV_ROOT:-$PWD}"
-      python3 scripts/check-fleet-lock.py
+      # Check the lock committed at HEAD (the parent of the working copy), not the working
+      # tree: entering this shell rewrote the working-tree lock before this line ran.
+      python3 scripts/check-fleet-lock.py --rev HEAD
       testee verify --mode ci
     '';
   };

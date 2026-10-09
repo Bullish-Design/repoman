@@ -13,6 +13,12 @@ A unit test put the gate in the wrong place: it turned red from ordinary work an
 told you to re-lock before you had anything to publish. The push is the boundary
 that matters, so the check lives in the gate that precedes it. Run `relock` to fix a finding.
 
+By default it reads the working-tree `devenv.lock`. With `--rev REV` it reads the lock
+committed at REV (`git show REV:devenv.lock`). The `gate` script passes `--rev HEAD`.
+In a colocated jj repository HEAD is the parent of the working copy, which is the
+revision `jj git push --bookmark` publishes. A check on the working tree would fail on
+every shell entry, because `devenv shell` rewrites the lock.
+
 Exit 0 = clean, 1 = a local path would reach the remote, 2 = cannot tell.
 """
 
@@ -20,6 +26,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -30,14 +37,30 @@ LOCK = ROOT / "devenv.lock"
 LOCAL_PATH = re.compile(r"(?:file://)?/(?:home|Users)/[A-Za-z0-9._-]+/")
 
 
-def main() -> int:
+def read_lock(rev: str | None) -> str:
+    """The lock text from the working tree, or from the commit REV."""
+
+    if rev is None:
+        return LOCK.read_text()
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{rev}:devenv.lock"], capture_output=True, text=True, check=False
+    )
+    if result.returncode != 0:
+        raise OSError(result.stderr.strip() or f"git show {rev}:devenv.lock failed")
+    return result.stdout
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    rev = args[args.index("--rev") + 1] if "--rev" in args and args.index("--rev") + 1 < len(args) else None
+    where = f"devenv.lock at {rev}" if rev else str(LOCK)
     try:
-        nodes = json.loads(LOCK.read_text())["nodes"]
+        nodes = json.loads(read_lock(rev))["nodes"]
     except OSError as exc:
-        print(f"check-fleet-lock: cannot read {LOCK}: {exc}", file=sys.stderr)
+        print(f"check-fleet-lock: cannot read {where}: {exc}", file=sys.stderr)
         return 2
     except (json.JSONDecodeError, KeyError) as exc:
-        print(f"check-fleet-lock: {LOCK} is not a devenv lock: {exc}", file=sys.stderr)
+        print(f"check-fleet-lock: {where} is not a devenv lock: {exc}", file=sys.stderr)
         return 2
 
     # No transitive exemption: a consumer inherits every node, not only the inputs
@@ -52,7 +75,7 @@ def main() -> int:
     if not bad:
         return 0
 
-    print("check-fleet-lock: devenv.lock names local checkouts, so the push is blocked:", file=sys.stderr)
+    print(f"check-fleet-lock: {where} names local checkouts, so the push is blocked:", file=sys.stderr)
     for name, target in sorted(bad.items()):
         print(f"  {name}: {target}", file=sys.stderr)
     print("", file=sys.stderr)
