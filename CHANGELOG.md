@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — align with work-only gitman 0.12.0, adopt the `0/1/2` exit contract
+## 0.11.0 — 2026-10-09 — align with work-only gitman 0.12.0, host `PATH` managers, the `0/1/2` exit contract
 
 gitman 0.12.0 has one command, `gitman work`. Native `jj` and `gh` replace the other
 verbs. RepoMan stops describing `integrate` as gitman verbs.

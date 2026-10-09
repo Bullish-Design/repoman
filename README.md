@@ -71,7 +71,7 @@ helper.
 # devenv.yaml
 inputs:
   repoman:
-    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.10.0"
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.11.0"
     flake: false
 imports:
   - repoman
@@ -193,17 +193,12 @@ RepoMan does not write `.devman/project.toml`. Devman writes no manifests by des
 person maintains the file by hand, and the template seeds it.
 
 Devman has no `register` command, by design. It also walks no disk to find
-manifests: its guide forbids discovery (`devman/AGENTS_GUIDE.md`, §15.1). Two
-explicit steps connect a repo:
+manifests: its guide forbids discovery (`devman/AGENTS_GUIDE.md`, §15.1). One
+explicit step connects a repo:
 
 - **Link plane** (the repo's machine-local links). Run
   `devman-link reconcile --root "$PWD"` once to create the central bootstrap.
   After that, shell entry reconciles the links by itself.
-- **Workflow plane** (the workflows that Dagu runs). Run
-  `vendomat plane update devman --to <devman-tag> --project-root "$PWD" --policy-root <devman-checkout>`.
-  Later updates carry the project forward.
-
-A hand-written manifest alone adds no workflow to Dagu.
 
 Exit codes follow the family contract: `0` clean · `1` act on findings ·
 `2` the tool could not run. `repoman doctor` exits `2` on a context failure
