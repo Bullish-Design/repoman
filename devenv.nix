@@ -1,5 +1,39 @@
 { pkgs, config, ... }:
+let
+  # Testee v0.5.0, the fleet's private-repo pin form (gh credential route; the
+  # anonymous `github:` shorthand 404s — see the fleet migration guide). One
+  # pinned source supplies BOTH the wrapper package and the manifest module.
+  testeeFlake =
+    builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0";
+in
 {
+  imports = [ testeeFlake.devenvModules.default ];
+
+  # Testee v2 gate; whole-tree checks mirror the v0.4 built-in tool set. The
+  # wrapper package here backs the module; the HOST also runs the same tagged
+  # wrapper from `nix profile` (fleet v2 pattern).
+  testee.package = testeeFlake.packages.${pkgs.stdenv.hostPlatform.system}.testee;
+  testee.checks = {
+    ruff = {
+      argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ruff check . --output-format json" ];
+      profiles = [ "quick" "full" ];
+      structured = { parser = "ruff-json"; file = "ruff.stdout.log"; };
+    };
+    ruff-format = {
+      argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ruff format --check ." ];
+      profiles = [ "quick" "full" ];
+    };
+    ty = {
+      argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ty check ." ];
+      profiles = [ "full" ];
+    };
+    pytest = {
+      argv = [ "${pkgs.bash}/bin/bash" "-c" ''uv run --no-sync pytest -q --junitxml="$TESTEE_RUN_DIR/pytest.junit.xml"'' ];
+      profiles = [ "full" ];
+      structured = { parser = "junit-xml"; file = "pytest.junit.xml"; };
+    };
+  };
+
   env = {
     DEVENV_PROJECT = "repoman";
   };
@@ -121,14 +155,14 @@
   # tag unless the author runs this first. It checks the lock, then runs the full
   # Testee gate. Run `gate` before `jj git push` and before `gh release create`.
   scripts.gate = {
-    description = "Release gate: refuse a local-path lock, then run testee verify --mode ci.";
+    description = "Release gate: refuse a local-path lock, then run testee verify --full.";
     exec = ''
       set -euo pipefail
       cd "''${DEVENV_ROOT:-$PWD}"
       # Check the lock committed at HEAD (the parent of the working copy), not the working
       # tree: entering this shell rewrote the working-tree lock before this line ran.
       python3 scripts/check-fleet-lock.py --rev HEAD
-      testee verify --mode ci
+      testee verify --full
     '';
   };
 
@@ -138,7 +172,7 @@
   # owns each implementation; Dagu owns the composition (§6).
   #
   # `base:test` forwards to `repoman:test` — the repository's own gate, defined
-  # by the testee manager module (`testee verify --mode quick`); duplicating it
+  # by the testee manager module (`testee verify`); duplicating it
   # would be a second implementation (PROPOSAL.md §6 rule 6). `base:check` is
   # the fast one: ruff over the repo's own `src` scope (`uv run --group dev`
   # because the venv bin is not on the task runner's PATH).

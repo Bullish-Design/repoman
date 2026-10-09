@@ -49,7 +49,7 @@ def test_the_lock_gate_is_wired_into_the_gate_script():
     nix = (ROOT / "devenv.nix").read_text()
     assert "scripts.gate = {" in nix
     assert "scripts/check-fleet-lock.py --rev HEAD" in nix
-    assert "testee verify --mode ci" in nix
+    assert "testee verify --full" in nix
     assert (ROOT / "scripts" / "check-fleet-lock.py").exists()
 
 

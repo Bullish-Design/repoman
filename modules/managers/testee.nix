@@ -18,12 +18,12 @@ in
     # the underlying tool agree on the surface. testee owns its own report, and
     # RepoMan does not aggregate it — run `testee doctor` to check testee.
     tasks = {
-      "repoman:test".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/testee verify --mode quick'';
-      "repoman:test:ci".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/testee verify --mode ci'';
+      "repoman:test".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/testee verify'';
+      "repoman:test:ci".exec = ''cd "$DEVENV_ROOT" && ${venvBin}/testee verify --full'';
     };
 
     enterTest = ''
-      cd "$DEVENV_ROOT" && ${venvBin}/testee verify --mode ci
+      cd "$DEVENV_ROOT" && ${venvBin}/testee verify --full
     '';
   };
 }

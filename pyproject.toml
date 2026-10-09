@@ -38,7 +38,12 @@ dev = [
 # pytest-cov: `[tool.pytest.ini_options] addopts` passes --cov, so pytest cannot start
 # without it. Undeclared, it made `testee verify --mode ci` report pytest=infra_error —
 # and the publish gate passed anyway, so a release could be tagged with no tests run.
-dev = ["testee", "pytest-cov>=5"]
+dev = ["testee", "pytest-cov>=5", "ty"]
+
+# testee 0.5.0 note (fleet v2 migration, 2026-10-09): the dev-group testee is the
+# WRAPPER, not the gate tool chest — 0.5 no longer carries ruff/ty/pytest transitively.
+# pytest/ruff stay in the [project.optional-dependencies] dev extra (`uv sync
+# --all-extras`); ty is declared here because its v0.4 transit came from testee.
 
 [tool.uv.sources]
 # A git tag, not `path = "../testee"`. testee is not on PyPI, so uv needs a source, and a
@@ -52,8 +57,9 @@ dev = ["testee", "pytest-cov>=5"]
 #
 #     uv run --with-editable ../testee testee verify
 #
-# Bump the tag when testee releases; nothing enforces that yet.
-testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.4.0" }
+# Bumped to v0.5.0 by the fleet v2 migration (2026-10-09). Nothing enforces the
+# bump yet; repoman doctor gains that job under D1 (see the migration guide).
+testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.5.0" }
 
 [project.scripts]
 repoman = "repoman.cli:main"
