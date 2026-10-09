@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.0 — 2026-10-09 — Testee 0.5.0 host wrapper
+
+Testee 0.5.0 runs checks that the consumer declares in Nix. Its wrapper starts before
+devenv and opens one clean shell. The `test` manager follows that model.
+
+### Changed (breaking)
+
+- **The `test` manager runs the host `testee` wrapper.** `repoman:test` runs
+  `testee verify`. `repoman:test:ci` and `enterTest` run `testee verify --full`. The
+  wrapper path is `REPOMAN_TESTEE_HOST_BIN`, default `$HOME/.nix-profile/bin/testee`.
+  The v0.4 flags (`--mode quick`, `--mode ci`) and the venv-installed `testee` are gone.
+- **RepoMan ships no default checks.** The consumer imports Testee's devenv module, sets
+  `testee.package` and declares `testee.checks`. The module exports
+  `REPOMAN_TESTEE_VERSION` from the pinned package name, so `testee.package` is required
+  when the `test` manager is on the roster.
+- **Testee is no longer a uv dependency of the consumer.** `Manager.install` for `test`
+  is `"path"`. The host profile installs Testee.
+- **`repoman doctor` checks the wrapper.** The rows check that the configured binary
+  exists, that it matches `PATH`, and that its version equals the pinned package.
+- **The consumer fixture** under `tests/consumer-example/` pins the Testee flake and
+  declares its own checks.
+
 ## 0.11.0 — 2026-10-09 — align with work-only gitman 0.12.0, host `PATH` managers, the `0/1/2` exit contract
 
 gitman 0.12.0 has one command, `gitman work`. Native `jj` and `gh` replace the other
