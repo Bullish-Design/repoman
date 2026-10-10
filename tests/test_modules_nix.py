@@ -52,6 +52,13 @@ def test_manager_modules_receive_the_manifest_roster():
         assert "repomanManagers" in (MODULES / "managers" / name).read_text()
 
 
+def test_meta_module_imports_no_module_but_its_own_managers():
+    # RepoMan once presence-imported shellij's devenv module from a consumer input.
+    text = (MODULES / "devenv.nix").read_text()
+    assert "shellij" not in text
+    assert "inputs ?" not in text and "inputs." not in text
+
+
 def test_the_doc_manager_module_is_gone_and_its_key_is_tolerated():
     assert not (MODULES / "managers" / "docman.nix").exists()
     text = (MODULES / "devenv.nix").read_text()

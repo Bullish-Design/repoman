@@ -21,8 +21,9 @@
 #
 # The manifest roster selects which manager skills are WIRED. It does not
 # install anything. The host profile puts the manager commands (copyroom, gitman,
-# and testee) on PATH, and RepoMan runs them by name. RepoMan reads no Vendomat closure.
-{ pkgs, lib, config, inputs ? {}, ... }:
+# and testee) on PATH, and RepoMan runs them by name. Testee starts outside
+# devenv and opens a clean shell for the checks. RepoMan reads no Vendomat closure.
+{ pkgs, lib, config, ... }:
 
 let
   cfg = config.repoman;
@@ -79,23 +80,7 @@ in
   imports = [
     ./managers/copyroom.nix
     ./managers/gitman.nix   # activates when "git" is selected; contributes git only
-  ]
-  # shellij is NOT a roster manager: no roster entry, no repoman.session.*
-  # options, nothing to select. It is installed by default — new-repo templates
-  # (copyroom's canonical template) declare the `shellij` input and RepoMan
-  # presence-imports shellij's own devenv module (packages: shellij/zellij/yazi,
-  # the guarded `shellij open` enterShell hook, and YAZI_CONFIG_HOME pointing at
-  # the packaged Yazi assets), so it is wired and auto-configured for use with
-  # zero repoman config. Inputs aren't transitive across a remote module import,
-  # so a repo that doesn't declare the input simply doesn't get shellij.
-  #
-  # CAVEAT: `imports` cannot depend on `config`, so this import is gated on the
-  # INPUT only — not on `repoman.enable`. A repo that declares the shellij input
-  # but sets `repoman.enable = false` still gets shellij's module (the input
-  # declaration IS the gate — the module itself is unconditional; it has no
-  # `shellij.enable` option). To opt out entirely, drop the input from
-  # devenv.yaml.
-  ++ lib.optional (inputs ? shellij) (inputs.shellij + "/modules/devenv.nix");
+  ];
 
   options.repoman = {
     # Project 039: defaults to true, not `lib.mkEnableOption`'s usual false. Before
@@ -103,9 +88,8 @@ in
     # explicit `repoman.enable = true;` was the real signal and false let a repo
     # opt out without removing the pin. Now the module is only present when a
     # consumer's central devenv.local.nix imports it — that import IS the enable
-    # signal, the same presence-gated pattern shellij already uses.
-    # `repoman.enable = false;` still opts a repo out explicitly if it ever needs
-    # to keep the import (e.g. transitively, for shellij) without running repoman.
+    # signal. `repoman.enable = false;` still opts a repo out explicitly if it ever
+    # needs to keep the import without running repoman.
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;

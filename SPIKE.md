@@ -64,9 +64,8 @@ its own nix `inputs` transitively. For this family it largely doesn't matter:
 > copyroom and gitman on `PATH`. testee is a per-repo uv dev dependency. Both routes keep
 > the finding true.
 
-So RepoMan stays a single, light input. Inputs still are not transitive. A repo declares
-the shellij input itself, and RepoMan imports that module only when the input
-exists.
+So RepoMan stays a single, light input. Inputs still are not transitive, and RepoMan
+needs no further input: the manager commands arrive on the host `PATH`.
 
 ### Decision: `repoman.lock` manifest
 

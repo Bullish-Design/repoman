@@ -12,12 +12,6 @@ inputs:
   # devenv.nix pins languages.python.version = "3.13", which needs this input.
   nixpkgs-python:
     url: github:cachix/nixpkgs-python
-  # shellij is installed by default (not a roster manager): RepoMan presence-imports
-  # shellij's own devenv module (packages + guarded `shellij open` enterShell hook)
-  # when this input is declared — no extra RepoMan option is needed.
-  shellij:
-    url: path:../../../shellij
-    flake: false
 
   # Testee's module only; the host `testee` runs the checks.
   testee:

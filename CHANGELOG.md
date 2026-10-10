@@ -58,6 +58,16 @@ command on `PATH` with a minimum version. **Host Testee 0.6.0 or later is requir
    (see the Testee 0.5 to 0.6 migration notes). Python repos add `testee.prepare`.
 4. Run `repoman-sync` to regenerate the router skill.
 
+## Unreleased — remove the shellij import
+
+### Changed (breaking)
+
+- **RepoMan no longer imports shellij's devenv module.** The meta-module imported
+  `inputs.shellij + "/modules/devenv.nix"` when a repo declared a `shellij` input.
+  That import is gone. A repo that wants shellij imports its module itself. The
+  `shellij` input in `devenv.yaml` has no effect on RepoMan.
+- **The consumer fixture** drops its `shellij` input.
+
 ## 0.13.0 — 2026-10-10 — remove the `doc` manager
 
 No repo uses the `doc` manager any more. RepoMan stops shipping it. The roster has three

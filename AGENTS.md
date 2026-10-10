@@ -7,8 +7,8 @@
 RepoMan is the devenv meta-module and router generator for repositories that use
 the *man family. It wires three managers — `copy`, `git`, and `test` — and
 gives agents one generated front door. The roster stays three: `copy`, `git`,
-and `test`. Devman, vendomat, and shellij belong to the automation plane,
-Nix layer, and terminal respectively; they are not lifecycle managers.
+and `test`. Devman and vendomat belong to the automation plane and the
+Nix layer respectively; they are not lifecycle managers.
 
 The manager keys are not phase names. The lifecycle has three ordered phases:
 `change`, `verify`, and `integrate`. Birth and convergence (copyroom) are an

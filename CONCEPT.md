@@ -27,13 +27,11 @@ RepoMan does not invent a new architecture. It composes an existing one. Every
 > **Removed in 0.13.0.** docman was a fourth manager, with key `doc`. RepoMan 0.13.0
 > removed it from the roster, and docman's repo is archived.
 
-The lifecycle roster is exactly these three. Three neighbors are not lifecycle managers:
+The lifecycle roster is exactly these three. Two neighbors are not lifecycle managers:
 
 - **devman** is the automation plane. Its central overlay owns `.agents/` in every repo.
 - **Vendomat** is the Nix layer. It builds and installs the host's tools. RepoMan reads
   nothing from it.
-- **shellij** is the terminal: durable remote workbenches on Zellij and Yazi. RepoMan
-  imports shellij's own devenv module when a repo declares a `shellij` input (see §4).
 
 The managers share a contract:
 
@@ -54,7 +52,6 @@ Brainstorming settled four decisions. The code still follows them.
 
 - **Scope: per-repo conductor.** RepoMan lives inside one repo and orchestrates the
   `*man` tools for the agent. Fleet and workspace management is out of scope by design.
-  shellij's project registry already covers per-project session discovery.
 - **Primary form: a devenv meta-module.** RepoMan is *mainly* one devenv module. The
   module wires the managers in the repo's roster. The Python side is a thin conductor.
 - **Agent surface: pass-through, one router.** Each manager keeps its own report and
@@ -149,12 +146,9 @@ Empty means wire nothing.
 > sketched a `repoman.<manager>.*` pass-through for component options. No such options
 > exist.
 
-**shellij is not in the roster.** RepoMan has no `repoman.session.*` config and no roster
-entry for it. RepoMan presence-imports shellij's own devenv module with
-`lib.optional (inputs ? shellij)`. A repo that declares the `shellij` input gets the module.
-That module installs shellij, Zellij, and Yazi, adds a guarded `shellij open` hook to
-`enterShell`, and sets `YAZI_CONFIG_HOME`. The gate is the input alone, so
-`repoman.enable = false` does not remove the module. This repo declares no `shellij` input.
+> **Removed after 0.13.0.** RepoMan once presence-imported shellij's devenv module when a
+> repo declared a `shellij` input. RepoMan now imports no module except its own managers.
+> A repo that wants shellij imports shellij's module itself.
 
 ---
 
@@ -300,10 +294,7 @@ It does so only when the manager is in the roster.
 
 **De-risking note.** The original open question was whether devenv supports transitive
 Nix *inputs* from an imported remote module. It does not. The manager commands arrive on
-the host `PATH`, so RepoMan needs no extra input for them. shellij's own
-module needs an input that the repo declares itself. RepoMan imports it only when the
-input exists, as in `lib.optional (inputs ? shellij)`. The spike proved this (see
-`SPIKE.md`).
+the host `PATH`, so RepoMan needs no extra input for them.
 
 > **Superseded by project 12, then by project 031 (how the commands reached a repo).**
 > Two earlier mechanisms installed the manager commands. RepoMan retired both.

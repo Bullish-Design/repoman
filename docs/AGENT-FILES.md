@@ -2,7 +2,7 @@
 
 - **Status:** Accepted 2026-09-19. Supersedes the 2026-08-03 agent-files
   convention (tool-shipped / genome / overlay, tracked `.agents/skills/`).
-- **Deciders:** the `*man` family (copyroom, gitman, testee, shellij,
+- **Deciders:** the `*man` family (copyroom, gitman, testee,
   repoman).
 - **Reference:** `.scratch/PLATFORM-INVESTIGATION.md` §3.2, §3.3, Q1;
   `devman/.scratch/projects/025-the-link-plane/CONCEPT.md` §7.2-7.3.

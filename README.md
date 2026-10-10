@@ -124,8 +124,8 @@ the committed file:
 
 ```yaml
 inputs:
-  shellij:
-    url: "git+file:///home/you/Projects/shellij"
+  repoman:
+    url: "path:/home/you/Projects/repoman/modules"
     flake: false
 ```
 
