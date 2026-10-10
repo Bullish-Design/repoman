@@ -3,13 +3,6 @@
 devenv.lock
 .venv/
 .pre-commit-config.yaml
-# Leftover scaffold from the removed doc manager. The files are generated, not source.
-# Delete them and these entries together.
-.docman/
-docs/
-snippets/
-.markdownlint.jsonc
-.typos.toml
 
 # Agent-files convention: .agents/skills/ + AGENTS.md + CLAUDE.md tracked;
 # the rest of .agents/ (tool runtime state) stays ignored (.agents/ dual-use).
