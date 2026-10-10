@@ -81,7 +81,7 @@ def test_repoman_dev_shell_pins_testee_in_nix():
     groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
     assert not any(spec == "testee" or spec.startswith("testee") for spec in groups)
     assert (
-        'builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0"'
+        'builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1"'
         in (root / "devenv.nix").read_text()
     )
     assert "testee.package = testeeFlake.packages." in (root / "devenv.nix").read_text()

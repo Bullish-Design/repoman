@@ -3,7 +3,7 @@
 { pkgs, ... }:
 
 let
-  testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0";
+  testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1";
 in
 
 {

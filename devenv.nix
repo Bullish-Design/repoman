@@ -1,10 +1,10 @@
 { pkgs, config, ... }:
 let
-  # Testee v0.5.0, the fleet's private-repo pin form (gh credential route; the
+  # Testee v0.5.1, the fleet's private-repo pin form (gh credential route; the
   # anonymous `github:` shorthand 404s — see the fleet migration guide). One
   # pinned source supplies BOTH the wrapper package and the manifest module.
   testeeFlake =
-    builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0";
+    builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1";
 in
 {
   imports = [ testeeFlake.devenvModules.default ];
