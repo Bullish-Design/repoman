@@ -11,7 +11,7 @@ How the pieces fit, and the order to bring them into a repo.
   operate the shell correctly. `copyroom update` converges them; RepoMan does not install them.
 - **RepoMan** — the *conductor*: composes the `*man` doers, owns the lifecycle order, and is the
   single front door (the generated `repoman` entrypoint skill).
-- **The `*man` doers** — copyroom (scaffold), testee (verify), gitman (save), docman (publish) —
+- **The `*man` doers** — copyroom (scaffold), testee (verify), gitman (save) —
   each runs *inside* the shell and owns its domain.
 
 Devman and RepoMan meet at `devenv tasks`: devman owns *when, where, and under which queue* a
@@ -28,7 +28,7 @@ repository's task graph is the implementation.
    its project name and workflow groups. The machine-side Dagu control plane is installed once
    through devman's NixOS module; RepoMan does not install a second devman CLI.
 4. **Bootstrap the machine toolchain (once per machine).** The pure-CLI managers
-   (repoman/gitman/copyroom/docman) live in ONE system-wide venv, populated from the machine
+   (repoman/gitman/copyroom) live in ONE system-wide venv, populated from the machine
    `repoman.lock` at the repoman checkout: `cd <repoman checkout> && devenv shell --
    repoman-sync --machine`. There is no per-repo `repoman.lock` anymore (project 12).
 5. **Declare `testee` in `pyproject.toml`.** testee runs *inside* your code, so it is a per-repo uv

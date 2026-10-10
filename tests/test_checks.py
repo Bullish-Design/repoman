@@ -30,7 +30,7 @@ def host(tmp_path, monkeypatch):
 
     bin_dir = tmp_path / "host-bin"
     bin_dir.mkdir()
-    for command in ("repoman", "copyroom", "gitman", "docman"):
+    for command in ("repoman", "copyroom", "gitman"):
         binary = bin_dir / command
         binary.write_text("#!/bin/sh\nexit 0\n")
         binary.chmod(0o755)
@@ -59,10 +59,10 @@ def consumer_venv(tmp_path, monkeypatch):
 
 
 def test_host_manager_on_path_is_installed(host):
-    names = _names(run_self_check([REGISTRY["git"], REGISTRY["doc"]], ".", ".claude/skills"))
+    names = _names(run_self_check([REGISTRY["git"], REGISTRY["copy"]], ".", ".claude/skills"))
     assert names["installed:git"].level == "ok"
     assert names["installed:git"].detail == str(host.bin / "gitman")
-    assert names["installed:doc"].level == "ok"
+    assert names["installed:copy"].level == "ok"
 
 
 def test_self_check_reads_no_vendomat_closure(host):
@@ -203,11 +203,38 @@ def test_devenv_vars_alone_are_not_a_repo(tmp_path, monkeypatch):
     assert checks.detect_context(str(tmp_path)).kind == "not-a-repo"
 
 
+# No shipped manager uses approach B. This synthetic one keeps the extension seam tested.
+APPROACH_B_MANAGER = Manager("example", "gitman", "situational", "test fixture", nix_input="examplman")
+
+
 def test_approach_b_input_warning_is_nonfatal(host, monkeypatch):
-    monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
-    result = run_self_check([REGISTRY["doc"]], ".", ".claude/skills")
-    assert _names(result)["provisioned:doc"].level == "warn"
+    monkeypatch.delenv("REPOMAN_PROVISIONED_EXAMPLE", raising=False)
+    result = run_self_check([APPROACH_B_MANAGER], ".", ".claude/skills")
+    row = _names(result)["provisioned:example"]
+    assert row.level == "warn"
+    assert "'examplman' input" in row.detail
     assert self_check_exit(result) == 0
+
+
+def test_approach_b_input_signal_clears_the_warning(host, monkeypatch):
+    monkeypatch.setenv("REPOMAN_PROVISIONED_EXAMPLE", "1")
+    result = run_self_check([APPROACH_B_MANAGER], ".", ".claude/skills")
+    assert _names(result)["provisioned:example"].level == "ok"
+
+
+def test_roster_check_is_silent_for_known_keys():
+    assert checks.roster_check(["copy", "git", "test", "git"]) is None
+    assert checks.roster_check([]) is None
+
+
+def test_roster_check_names_removed_and_unknown_keys_once():
+    row = checks.roster_check(["doc", "test", "doc", "bogus"])
+    assert row is not None
+    assert row.name == "roster:unknown-manager" and row.level == "warn"
+    assert row.detail.count("'doc'") == 1
+    assert "'doc' was removed in 0.13.0" in row.detail
+    assert "'bogus' is not a RepoMan manager" in row.detail
+    assert ".repoman/project.toml" in row.detail
 
 
 def test_entrypoint_skill_missing_warns(host, tmp_path):

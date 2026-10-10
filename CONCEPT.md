@@ -9,7 +9,7 @@
 RepoMan is the **conductor** for the `*man` family. It is a per-repo lifecycle front
 door. It *composes* the individual managers and does not replace them.
 
-This document describes RepoMan 0.11.0. Blocks that start with **Superseded** record
+This document describes RepoMan 0.13.0. Blocks that start with **Superseded** record
 design history.
 
 ---
@@ -24,9 +24,11 @@ RepoMan does not invent a new architecture. It composes an existing one. Every
 | **copyroom** | `copy` | templating / scaffolding / project lifecycle / convergence | Copier |
 | **gitman** | `git` | version control | native jj and `gh`; gitman opens workspaces |
 | **testee** | `test` | verification (test / lint / typecheck / format) | pytest, ruff, ty |
-| **docman** | `doc` | docs (build / lint / check) | zensical |
 
-The lifecycle roster is exactly these four. Three neighbors are not lifecycle managers:
+> **Removed in 0.13.0.** docman was a fourth manager, with key `doc`. RepoMan 0.13.0
+> removed it from the roster, and docman's repo is archived.
+
+The lifecycle roster is exactly these three. Three neighbors are not lifecycle managers:
 
 - **devman** is the automation plane. Its central overlay owns `.agents/` in every repo.
 - **Vendomat** is the Nix layer. It builds and installs the host's tools. RepoMan reads
@@ -43,7 +45,7 @@ The managers share a contract:
 - **A `0/1/2` exit-code contract**: clean / act-on-findings / tool-could-not-run.
 - **Distributed as a devenv module** that a repo imports.
 
-The four lifecycle managers share the family pattern. RepoMan is the conductor.
+The three lifecycle managers share the family pattern. RepoMan is the conductor.
 
 ---
 
@@ -66,7 +68,7 @@ Brainstorming settled four decisions. The code still follows them.
 
 Later projects settled two more decisions (see §6):
 
-- **RepoMan installs no manager commands.** The host profile puts `copy`, `git`, `doc`,
+- **RepoMan installs no manager commands.** The host profile puts `copy`, `git`,
   and the Testee wrapper on `PATH`, and RepoMan runs them by name.
 - **RepoMan writes one file in normal operation.** It is the router skill. devman links
   every other skill.
@@ -115,7 +117,7 @@ consumer could build pyjutsu from source. gitman 0.12 does not use pyjutsu, and 
 search on 2026-10-06 found no repo that set the option to `true`.
 
 The former `repoman.toolchainBin` option and the `REPOMAN_TOOLCHAIN_BIN` variable are
-removed. Manager tasks run `copyroom` and `docman` by name from `PATH`. A repo can set
+removed. Manager tasks run `copyroom` by name from `PATH`. A repo can set
 `repoman.enable = false` to keep the import and run no RepoMan.
 The skills directory is not an option: the module sets `REPOMAN_SKILLS_DIR` to
 `.agents/skills`.
@@ -124,7 +126,7 @@ The skills directory is not an option: the module sets `REPOMAN_SKILLS_DIR` to
 
 ```toml
 schema = 1                           # required; the only supported value is 1
-managers = ["copy", "git", "test"]   # optional; any of copy, git, test, doc
+managers = ["copy", "git", "test"]   # optional; any of copy, git, test
 cliProvider = "store"                # legacy; validated, then ignored
 ```
 
@@ -134,10 +136,8 @@ manager name and a `cliProvider` other than `store` or `venv`. An absent file me
 default roster. `cliProvider` has no effect. It is a legacy key from the retired Vendomat
 V4 consumer config, accepted so an old manifest still loads.
 
-Manager roster, in default tiers:
-
-- **Core (default on):** `copy` (copyroom), `git` (gitman), `test` (testee).
-- **Publish:** `doc` (docman). It is never in the default roster.
+Manager roster: all three managers are core and on by default. They are `copy`
+(copyroom), `git` (gitman), and `test` (testee).
 
 The roster leaves Nix by two channels. The module passes it to the manager modules as
 the module argument `repomanManagers`. It exports it to the shell as `REPOMAN_MANAGERS`,
@@ -183,7 +183,7 @@ requires exactly one universal skill, `writing`, and refuses to universalise `gi
 
 **The lifecycle spine.** The router states the order. It has three ordered phases:
 `change → verify → integrate`. `integrate` is native jj: `jj describe`, a bookmark, `jj git push`, then a `gh`
-pull request. Two activities have no order: `birth / converge` (copyroom) and `docs` (docman).
+pull request. One activity has no order: `birth / converge` (copyroom).
 Two laws apply: verify before you integrate, and never integrate on red.
 
 To check a manager, run that manager's own `doctor` and read its report. To birth or
@@ -199,8 +199,9 @@ adopt a repo, run `copyroom new` or `copyroom adopt`.
 > - The sub-doctor loop in `repoman doctor`, and the `--self-only` flag. Doctor now checks
 >   RepoMan's own wiring only, so `doctor --json` is pure JSON. The loop merged six
 >   incompatible exit-code dialects into one number. gitman's doctor returns only `0` or
->   `2`. copyroom returns `1` for infrastructure faults. docman returns `0` or `2`, and `2`
->   for a broken link. linkman uses `10` to `13`. loci-core returns `1` for everything.
+>   `2`. copyroom returns `1` for infrastructure faults. docman (no longer a RepoMan
+>   manager) returned `0` or `2`, and `2` for a broken link. linkman uses `10` to `13`.
+>   loci-core returns `1` for everything.
 >   `worst_exit` mapped any code outside `0` to `3` to `2`, so distinct failure classes
 >   collapsed. The router skill is the aggregation. It aggregates knowledge, which loses
 >   nothing. Exit-code aggregation loses by construction.
@@ -216,7 +217,7 @@ adopt a repo, run `copyroom new` or `copyroom adopt`.
 > `save` was a hidden, deprecated alias for gitman's `describe`. The real sequence is
 > `describe`, then `land`, then `push`. `scaffold` happens before the repository exists,
 > so it cannot be a phase of it. `docs` has no place in the order. The spine is now three
-> phases, and the two activities sit outside it.
+> phases. Two activities sat outside it then. Only `birth / converge` remains.
 
 **Abandoned.** Earlier text proposed three gated lifecycle verbs:
 
@@ -250,7 +251,7 @@ Three layers cooperate. RepoMan owns the first two. The host profile owns the th
 
 3. **The host profile.** The host puts the manager commands on `PATH`. The host's own
    lock (today `nix-meta`) is authoritative for their versions. RepoMan guesses no path
-   and reads no closure or manifest. It runs `copyroom`, `gitman` and `docman` by name.
+   and reads no closure or manifest. It runs `copyroom` and `gitman` by name.
 
 A missing command fails at the point of use: `repoman doctor` reports `installed:<key>`
 as `fail`, and a manager task stops with "command not found".
@@ -289,8 +290,14 @@ tracks skills, and copyroom does not write them. RepoMan writes no other file. S
 may add system `packages` and language toolchains (`languages.*`) to the consumer devenv.
 It does so only when the manager is in the roster.
 
-`modules/managers/gitman.nix` adds `git` and nothing else. `copyroom.nix` adds `git` and `gnupatch`. `docman.nix` imports docman's own
-devenv module when the repo declares a `docman` input.
+`modules/managers/gitman.nix` adds `git` and nothing else. `copyroom.nix` adds `git` and `gnupatch`.
+These are approach A: the manager module wires the tasks and packages itself.
+
+**Approach B** is the extension seam for a manager that ships its own devenv module. The
+RepoMan wiring module imports that module only when the repo declares the manager's input.
+Take a hypothetical manager `examplman` with key `example`. Its wiring module would use
+`lib.optional (inputs ? examplman)`. `Manager.nix_input` names the input. `repoman doctor`
+then reports a `provisioned:example` row. No shipped manager uses approach B today.
 
 > **Superseded by gitman's project 32 (the pyjutsu wheel pin).** Project 01 first showed
 > this pattern with gitman's Rust need. The need was real when project 01 measured it. A
@@ -303,9 +310,9 @@ devenv module when the repo declares a `docman` input.
 
 **De-risking note.** The original open question was whether devenv supports transitive
 Nix *inputs* from an imported remote module. It does not. The manager commands arrive on
-the host `PATH`, so RepoMan needs no extra input for them. docman's and shellij's own
-modules need inputs that the repo declares itself. RepoMan imports each one only when the
-input exists, as in `lib.optional (inputs ? docman)`. The spike proved this (see
+the host `PATH`, so RepoMan needs no extra input for them. shellij's own
+module needs an input that the repo declares itself. RepoMan imports it only when the
+input exists, as in `lib.optional (inputs ? shellij)`. The spike proved this (see
 `SPIKE.md`).
 
 > **Superseded by project 12, then by project 031 (how the commands reached a repo).**
@@ -342,10 +349,10 @@ repoman/
   devenv.yaml          # RepoMan's own dev shell inputs (it imports its own module)
   devenv.nix           # RepoMan's own dev shell (working ON repoman)
   flake.nix            # packages the module for the machine profile
-  .repoman/project.toml  # this repo's roster: copy git test doc
+  .repoman/project.toml  # this repo's roster: copy git test
   modules/
     devenv.nix         # ← THE meta-module consumers import (options + roster + wiring)
-    managers/          # copyroom.nix, gitman.nix, testee.nix, docman.nix
+    managers/          # copyroom.nix, gitman.nix, testee.nix
                        #   per-manager wiring, gated on membership in the roster
     scripts/
       repoman-sync.sh  # verify the closure, then generate the router skill

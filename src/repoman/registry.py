@@ -75,10 +75,7 @@ SPINE: tuple[tuple[str, str | None], ...] = (
 
 # Activities have no order. They run on their own cadence, outside the spine.
 # Each renders only when its manager is enabled.
-ACTIVITIES: tuple[tuple[str, str | None], ...] = (
-    ("birth / converge", "copy"),
-    ("docs", "doc"),
-)
+ACTIVITIES: tuple[tuple[str, str | None], ...] = (("birth / converge", "copy"),)
 
 
 REGISTRY: dict[str, Manager] = {
@@ -111,14 +108,10 @@ REGISTRY: dict[str, Manager] = {
         binary_env="REPOMAN_TESTEE_HOST_BIN",
         version_env="REPOMAN_TESTEE_VERSION",
     ),
-    "doc": Manager(
-        "doc",
-        "docman",
-        "publish",
-        "Docs build/lint/check (zensical)",
-        route_when="build or check the docs",
-        nix_input="docman",
-    ),
 }
 
 DEFAULT_MANAGERS: list[str] = ["copy", "git", "test"]
+
+#: Manager keys that RepoMan once shipped and no longer does, with the release that
+#: removed each one. A roster that still names one gets a doctor warning, not a crash.
+REMOVED_MANAGERS: dict[str, str] = {"doc": "0.13.0"}

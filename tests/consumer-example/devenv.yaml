@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
 #
 # Throwaway consumer for the RepoMan spike. It imports the meta-module by local
-# path and enables the full roster (copy git test doc). This proves the "one
+# path and enables the full roster (copy git test). This proves the "one
 # import" wiring end to end: all manager wrappers come from the host profile.
 inputs:
   nixpkgs:
@@ -9,15 +9,9 @@ inputs:
   repoman:
     url: path:../../modules
     flake: false
-  # Approach-B manager inputs. devenv.yaml inputs are NOT transitive across a remote
-  # module import, so a consumer that selects "doc" must declare docman's repo as an
-  # input (repoman's doc manager module imports it presence-gated). nixpkgs-python is
-  # required because docman's module pins languages.python.version.
+  # devenv.nix pins languages.python.version = "3.13", which needs this input.
   nixpkgs-python:
     url: github:cachix/nixpkgs-python
-  docman:
-    url: path:../../../docman
-    flake: false
   # shellij is installed by default (not a roster manager): RepoMan presence-imports
   # shellij's own devenv module (packages + guarded `shellij open` enterShell hook)
   # when this input is declared — no extra RepoMan option is needed.

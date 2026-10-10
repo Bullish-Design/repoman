@@ -11,7 +11,6 @@ the router skill. The router states the lifecycle order: `change`, `verify`, `in
 | [copyroom](https://github.com/Bullish-Design/copyroom) | `copy` | templating / scaffolding / convergence (Copier) |
 | [gitman](https://github.com/Bullish-Design/gitman) | `git` | version control (native jj and `gh`; gitman opens workspaces) |
 | [testee](https://github.com/Bullish-Design/testee) | `test` | verification (pytest / ruff / ty) |
-| [docman](https://github.com/Bullish-Design/docman) | `doc` | docs build/lint/check (zensical) |
 
 ---
 
@@ -71,7 +70,7 @@ helper.
 # devenv.yaml
 inputs:
   repoman:
-    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.12.1"
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.13.0"
     flake: false
 imports:
   - repoman
@@ -121,8 +120,8 @@ the committed file:
 
 ```yaml
 inputs:
-  docman:
-    url: "git+file:///home/you/Projects/docman"
+  shellij:
+    url: "git+file:///home/you/Projects/shellij"
     flake: false
 ```
 
@@ -160,7 +159,7 @@ forgot to stage". A path input reads the directory literally.
 ## Manager installation
 
 The host profile installs the manager commands and puts them on `PATH`:
-`copyroom`, `gitman`, `docman`, `repoman`, and Testee. RepoMan runs them by name.
+`copyroom`, `gitman`, `repoman`, and Testee. RepoMan runs them by name.
 Testee starts before devenv, reads the declared manifest, and opens one clean
 devenv shell for the checks. The project's `testee.checks` entries run the project's
 declared tools, such as pytest, ruff, and ty.
@@ -223,10 +222,11 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
 |---|---|
 | `pyproject` | `pyproject.toml` parses (a missing file is not a failure) |
 | `uv:<key>` | an optional uv manager is declared in `pyproject.toml` |
+| `roster:unknown-manager` | the roster names a key that is not a manager, such as `doc`, removed in 0.13.0 (warn only) |
 | `installed:<key>` | a manager's task executable exists and matches its `PATH` entry |
 | `version:test` | the host Testee wrapper matches the pinned Testee package version |
 | `interface:git` | `gitman` is the work-only tool and `jj` is 0.46.0 or later |
-| `provisioned:<key>` | an approach-B manager's nix module actually imported |
+| `provisioned:<key>` | an approach-B manager's nix module actually imported (no shipped manager uses approach B today) |
 | `skill:entrypoint` | the router skill exists |
 | `skill:<key>:defers` | an installed manager skill defers to the router (warn only) |
 | `skill:tool-shipped` | every expected skill link exists |
@@ -269,7 +269,7 @@ format    # ruff format
 Repoman's own dev shell is a first-class managed repo: it imports the meta-module
 (`devenv.yaml` → `imports: [repoman]`) and its tracked manifest selects the `copy`,
 `git`, and `test` managers, so the host's managers (`copyroom`, `gitman`) are on
-PATH inside it. This checkout does not select `doc` and declares no docman input. That makes this checkout the canonical **host** for bootstrapping a new
+PATH inside it. That makes this checkout the canonical **host** for bootstrapping a new
 repo — no need to hop into another repo's shell:
 
 ```bash

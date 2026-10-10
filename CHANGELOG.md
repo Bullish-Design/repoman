@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.13.0 — 2026-10-10 — remove the `doc` manager
+
+No repo uses the `doc` manager any more. RepoMan stops shipping it. The roster has three
+managers: `copy`, `git` and `test`.
+
+### Changed (breaking)
+
+- **The `doc` manager is gone.** The registry has no `doc` entry. The `docs` activity
+  and `modules/managers/docman.nix` are removed, and so are the `repoman:docs:doctor`
+  and `repoman:docs:build` tasks. The `docman` devenv input is no longer read.
+- **`repoman doctor` has no `doc` rows.** `installed:doc`, `provisioned:doc` and
+  `skill:doc:defers` are gone.
+- **A roster that lists `doc` still evaluates.** The Nix module accepts the key and
+  ignores it. The CLI drops it. The new `roster:unknown-manager` row (WARN) names the
+  key and says it was removed in 0.13.0. Any other unknown key gets the same row.
+- **The consumer fixture** under `tests/consumer-example/` drops the `docman` input
+  and the `doc` roster entry.
+
+### Removed
+
+- The `doc` entry in `REGISTRY`, the `("docs", "doc")` activity, and the docman
+  dogfood files (`.docman/`, `.markdownlint.jsonc`, `.typos.toml`).
+
+### Kept
+
+- `Manager.nix_input` and the `provisioned:<key>` doctor row stay as the documented
+  extension seam for a manager whose Nix module lives in its own repo. No shipped
+  manager uses them. Tests cover them with a synthetic manager.
+
 ## 0.12.1 — 2026-10-10 — one full gate in `devenv test`
 
 ### Fixed

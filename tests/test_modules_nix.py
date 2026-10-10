@@ -23,10 +23,9 @@ def test_test_manager_sets_no_enter_test():
 
 def test_host_managers_run_by_name_from_path():
     # gitman.nix runs no task: gitman 0.12 has one command, `work`.
-    for name, command in (("copyroom.nix", "copyroom status"), ("docman.nix", "docman doctor")):
-        text = (MODULES / "managers" / name).read_text()
-        assert f"&& {command}" in text
-        assert "toolchainBin" not in text and "REPOMAN_TOOLCHAIN" not in text
+    text = (MODULES / "managers" / "copyroom.nix").read_text()
+    assert "&& copyroom status" in text
+    assert "toolchainBin" not in text and "REPOMAN_TOOLCHAIN" not in text
 
 
 def test_meta_module_does_not_eval_getenv():
@@ -52,8 +51,18 @@ def test_manifest_is_the_only_roster_configuration():
 def test_manager_modules_receive_the_manifest_roster():
     text = (MODULES / "devenv.nix").read_text()
     assert "_module.args.repomanManagers = managerRoster;" in text
-    for name in ("gitman.nix", "copyroom.nix", "docman.nix", "testee.nix"):
+    for name in ("gitman.nix", "copyroom.nix", "testee.nix"):
         assert "repomanManagers" in (MODULES / "managers" / name).read_text()
+
+
+def test_the_doc_manager_module_is_gone_and_its_key_is_tolerated():
+    assert not (MODULES / "managers" / "docman.nix").exists()
+    text = (MODULES / "devenv.nix").read_text()
+    assert "managers/docman.nix" not in text
+    assert 'allManagers = [ "copy" "git" "test" ];' in text
+    # A manifest that still lists `doc` must evaluate; the doctor warns about it.
+    assert 'removedManagers = [ "doc" ];' in text
+    assert "allManagers ++ removedManagers" in text
 
 
 def test_repoman_dev_shell_self_imports_the_meta_module():

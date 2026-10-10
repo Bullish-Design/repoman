@@ -5,15 +5,15 @@
 ## What this project is
 
 RepoMan is the devenv meta-module and router generator for repositories that use
-the *man family. It wires four managers — `copy`, `git`, `test`, and `doc` — and
-gives agents one generated front door. The roster stays four: `copy`, `git`,
-`test`, and `doc`. Devman, vendomat, and shellij belong to the automation plane,
+the *man family. It wires three managers — `copy`, `git`, and `test` — and
+gives agents one generated front door. The roster stays three: `copy`, `git`,
+and `test`. Devman, vendomat, and shellij belong to the automation plane,
 Nix layer, and terminal respectively; they are not lifecycle managers.
 
 The manager keys are not phase names. The lifecycle has three ordered phases:
-`change`, `verify`, and `integrate`. Birth and convergence (copyroom) and docs
-(docman) are unordered activities. Two laws apply: verify before you integrate,
-and never integrate on red.
+`change`, `verify`, and `integrate`. Birth and convergence (copyroom) are an
+unordered activity. Two laws apply: verify before you integrate, and never
+integrate on red.
 
 RepoMan writes exactly one file, the router. Devman's central overlay owns
 `.agents/`. The per-skill pool links are hand-authored, tracked content in
@@ -39,7 +39,7 @@ devenv tasks run -v base:test    # repoman:test
 ## Where things live
 
 - `src/` — the RepoMan Python package: the router generator and the
-  four-manager registry.
+  three-manager registry.
 - `modules/` — the devenv meta-module repositories link in.
 - `tests/` — the test suite `base:test` runs.
 

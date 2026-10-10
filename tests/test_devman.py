@@ -12,7 +12,7 @@ import os
 from repoman.checks import self_check_exit
 from repoman.devman.check import expected_skills, skill_ownership_checks
 
-ALL = ["copy", "git", "test", "doc"]
+ALL = ["copy", "git", "test"]
 SKILLS = ".agents/skills"
 
 
@@ -57,17 +57,17 @@ def test_expected_set_follows_roster():
     assert expected_skills([]) == ("writing",)
     assert expected_skills(["git"]) == ("gitman", "writing")
     assert expected_skills(["copy"]) == ("copyroom", "copyroom-adopt", "copyroom-template-edit", "writing")
-    assert expected_skills(["test", "doc"]) == ("docman", "testee", "writing")
+    assert expected_skills(["test", "git"]) == ("gitman", "testee", "writing")
     assert set(expected_skills(ALL)) == {
         "copyroom",
         "copyroom-adopt",
         "copyroom-template-edit",
-        "docman",
         "gitman",
         "testee",
         "writing",
     }
     assert expected_skills(["nope"]) == ("writing",)
+    assert expected_skills(["doc"]) == ("writing",)  # a removed manager expects no skill
 
 
 def test_warns_when_skills_dir_missing(tmp_path):
@@ -142,7 +142,7 @@ def test_git_only_roster_does_not_warn_about_other_managers(tmp_path):
         _real_skill(skills, name)
     row = _shipped(repo, ["git"])
     assert row.level == "ok"
-    for name in ("copyroom", "testee", "docman"):
+    for name in ("copyroom", "testee"):
         assert name not in row.detail
 
 

@@ -1,6 +1,6 @@
 # Authoring a manager module — the `*man` pattern
 
-The `*man` family (copyroom, testee, gitman, docman) all share one devenv-module shape: an
+The `*man` family (copyroom, testee, gitman) all share one devenv-module shape: an
 options block, a gated `config` block, and a CLI put on PATH. This is the pattern to copy when
 building a new manager.
 
@@ -26,8 +26,8 @@ activate. (RepoMan's `modules/devenv.nix` imports its managers exactly this way.
 
 Two install classes (project 12), picked by the `Manager.install` field in `repoman/registry.py`:
 
-- **`"toolchain"` — the system-wide shared venv.** A pure-CLI manager (repoman/gitman/copyroom/
-  docman) that never imports the consumer's code: pinned in the machine `repoman.lock` at the
+- **`"toolchain"` — the system-wide shared venv.** A pure-CLI manager (repoman/gitman/copyroom)
+  that never imports the consumer's code: pinned in the machine `repoman.lock` at the
   repoman checkout, installed once per machine by `repoman-sync --machine` into
   `$REPOMAN_TOOLCHAIN_VENV`, and prepended to every consumer's PATH. Local checkouts install
   `--editable` so code edits are picked up live.
@@ -61,6 +61,29 @@ from the genome; it is not a RepoMan manager.
   FAIL.
 - **A `"uv"` manager** → declare it in each consumer's `pyproject.toml` and set
   `install = "uv"`; the doctor checks `uv:<key>` instead.
+
+## 6. Approach B: a manager that brings its own nix module
+
+Most managers need only tasks and a few packages. The RepoMan module wires those itself. This is
+approach A.
+
+A manager can instead ship a reusable devenv module in its own repo. This is approach B. The
+RepoMan wiring module pulls that module in with a presence-gated import:
+
+    imports = lib.optional (inputs ? examplman) (inputs.examplman + "/modules/examplman.nix");
+
+devenv.yaml inputs are not transitive across a remote module import. A consumer that selects the
+manager must declare the input itself. In this example the manager is `examplman`, its roster key
+is `example`, and its input is `examplman`.
+
+To add an approach-B manager:
+
+- Set `nix_input="examplman"` on its `Manager` entry in `repoman/registry.py`.
+- Export `REPOMAN_PROVISIONED_EXAMPLE=1` from the wiring module when the import is active.
+- Read the `provisioned:example` row in `repoman doctor`. It is `ok` when the module is imported
+  and active. It is `warn` when the manager is selected but the input is missing.
+
+No shipped manager uses approach B today. `examplman` is a hypothetical name.
 
 For where a new manager sits in the lifecycle, see the `repoman` skill and
 `adopting-the-man-family.md`.

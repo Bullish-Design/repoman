@@ -29,7 +29,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from .registry import Manager
+from .registry import REGISTRY, REMOVED_MANAGERS, Manager
 
 # A self-check level maps to an exit-code contribution. "warn" is non-fatal (0);
 # "fail" is a finding the caller must act on → 1 (the shared 0/1/2 contract).
@@ -419,6 +419,30 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
             )
 
     return out
+
+
+def roster_check(keys: list[str]) -> SelfCheck | None:
+    """Warn about roster keys that name no manager; ``None`` when all are known.
+
+    The CLI drops these keys so a stale roster cannot crash it. This row makes the
+    stale entry visible. A key that RepoMan removed names the release that removed it.
+    """
+
+    notes: list[str] = []
+    for key in dict.fromkeys(keys):
+        if key in REGISTRY:
+            continue
+        if key in REMOVED_MANAGERS:
+            notes.append(f"'{key}' was removed in {REMOVED_MANAGERS[key]}")
+        else:
+            notes.append(f"'{key}' is not a RepoMan manager")
+    if not notes:
+        return None
+    return SelfCheck(
+        "roster:unknown-manager",
+        "warn",
+        "; ".join(notes) + " — drop it from .repoman/project.toml",
+    )
 
 
 def self_check_exit(checks: list[SelfCheck]) -> int:

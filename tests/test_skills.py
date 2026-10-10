@@ -9,8 +9,8 @@ def test_spine_renders_exactly_the_enabled_phases():
 
 
 def test_spine_ignores_activity_managers():
-    assert build_spine({"copy", "doc"}) == "change"
-    assert build_spine({"copy", "git", "test", "doc"}) == "change → verify → integrate"
+    assert build_spine({"copy"}) == "change"
+    assert build_spine({"copy", "git", "test"}) == "change → verify → integrate"
 
 
 def test_change_phase_always_present():
@@ -18,25 +18,25 @@ def test_change_phase_always_present():
 
 
 def test_roster_without_test_or_git_still_renders_change(tmp_path):
-    out = render_entrypoint([REGISTRY["copy"], REGISTRY["doc"]], ".agents/skills", str(tmp_path))
+    out = render_entrypoint([REGISTRY["copy"]], ".agents/skills", str(tmp_path))
     assert "```\nchange\n```" in out
     assert "verify →" not in out and "→ integrate" not in out
     assert "{{" not in out
 
 
 def test_activities_render_only_the_enabled_ones_in_declared_order():
-    assert build_activities({"doc", "copy"}) == "birth / converge · docs"
-    assert build_activities({"doc"}) == "docs"
+    assert build_activities({"doc", "copy"}) == "birth / converge"  # a removed key adds nothing
+    assert build_activities({"copy"}) == "birth / converge"
     assert build_activities({"test", "git"}) == ""
     assert build_activities(set()) == ""
 
 
 def test_activities_render_apart_from_the_phases(tmp_path):
-    roster = [REGISTRY["doc"], REGISTRY["git"], REGISTRY["copy"], REGISTRY["test"]]
+    roster = [REGISTRY["git"], REGISTRY["copy"], REGISTRY["test"]]
     out = render_entrypoint(roster, ".agents/skills", str(tmp_path))
     assert "change → verify → integrate" in out
-    assert "birth / converge · docs" in out
-    assert "→ birth" not in out and "→ docs" not in out
+    assert "birth / converge" in out
+    assert "→ birth" not in out
     assert "## Activities" in out
     assert out.index("change → verify → integrate") < out.index("## Activities")
 
@@ -56,11 +56,11 @@ def test_laws_name_integrate_and_never_save():
 
 
 def test_render_has_no_doubled_blank_lines(tmp_path):
-    for key in ("copy", "git", "test", "doc"):
+    for key in ("copy", "git", "test"):
         skill = tmp_path / ".agents/skills" / REGISTRY[key].skill / "SKILL.md"
         skill.parent.mkdir(parents=True, exist_ok=True)
         skill.write_text(f"---\nname: {key}\n---\n")
-    roster = [REGISTRY[k] for k in ("copy", "git", "test", "doc")]
+    roster = [REGISTRY[k] for k in ("copy", "git", "test")]
     for r in (roster, [REGISTRY["test"]], []):
         out = render_entrypoint(r, ".agents/skills", str(tmp_path))
         assert "\n\n\n" not in out

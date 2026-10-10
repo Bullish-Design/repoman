@@ -18,7 +18,7 @@ a sync runs, `import yourpkg` / third-party imports raise `ModuleNotFoundError`:
     devenv shell -- uv pip install -e .       # project itself, EDITABLE — but installs NEITHER
                                               # dependency groups NOR extras (project 12)
 
-Since project 12 the manager CLIs (repoman/gitman/copyroom/docman) no longer live in this venv —
+Since project 12 the manager CLIs (repoman/gitman/copyroom) no longer live in this venv —
 they come from the system-wide toolchain venv (`repoman-sync --machine`). This venv holds only the
 uv graph (app deps + testee + its tools), so plain `uv sync` prunes nothing. `uv pip install -e .`
 is add-only but skips `[dependency-groups]` and extras — prefer `uv sync --all-extras`.

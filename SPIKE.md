@@ -26,7 +26,7 @@ tests/consumer-example/
 > **Superseded by project 039 (manifest-driven roster).** The option `repoman.managers`
 > no longer exists (release 0.9.1 removed it). The roster now lives in
 > `.repoman/project.toml`. Manager modules gate on the module argument `repomanManagers`.
-> `tests/consumer-example` now has all four managers in its roster.
+> `tests/consumer-example` now has all three managers in its roster.
 
 ## The mechanism (proven by construction, mirrors existing libs)
 
@@ -61,11 +61,11 @@ its own nix `inputs` transitively. For this family it largely doesn't matter:
 > **Superseded by project 12, then by project 031 (how the tools arrive).** The spike
 > delivered the tools as Python packages. `repoman-sync` ran `uv pip install` and put
 > them in the devenv virtual environment (venv). Today the host profile puts
-> copyroom, gitman, and docman on `PATH`. testee is a per-repo uv dev dependency. Both routes keep
+> copyroom and gitman on `PATH`. testee is a per-repo uv dev dependency. Both routes keep
 > the finding true.
 
 So RepoMan stays a single, light input. Inputs still are not transitive. A repo declares
-the docman or shellij input itself, and RepoMan imports that module only when the input
+the shellij input itself, and RepoMan imports that module only when the input
 exists.
 
 ### Decision: `repoman.lock` manifest
@@ -142,8 +142,7 @@ dropped the pin, because it is unrelated to RepoMan wiring. The consumer's rolli
 already provided Python 3.13, so no pin was needed.
 
 > **Superseded by the Python 3.13 baseline.** `tests/consumer-example` now pins
-> `languages.python.version = "3.13"` and declares the `nixpkgs-python` input. docman's
-> module also pins the version. The baseline is 3.13 because `pyjutsu` ships a `cp313-abi3`
+> `languages.python.version = "3.13"` and declares the `nixpkgs-python` input. The baseline is 3.13 because `pyjutsu` ships a `cp313-abi3`
 > wheel, which cannot load on 3.12.
 
 The idea to surface a missing input in `repoman doctor` was not built. It stays unsettled.
@@ -170,8 +169,8 @@ This output is from the spike, with copyroom 0.4. Findings:
   (`new/update/inspect/status` only). The registry models this (`doctor=None`) and
   `repoman doctor` skips it rather than failing. The conductor must treat the verb set as
   per-manager, not assume the full contract. Update: copyroom 0.6 added `doctor`, and
-  every manager in the registry has one. The `doctor=None` path stays. `status` is still
-  per-manager: `doc` has none, and `repoman status` skips it.
+  every manager in the registry has one. The `doctor=None` path stays. `status` was
+  per-manager too. The retired `repoman status` skipped a manager that had none.
 - **gitman and native toolchains — done** (project 01, guide 1). gitman depends on
   `pyjutsu`, a native (Rust/maturin) extension. A plain `uv pip install` could not
   satisfy it, so the spike built it from a sibling checkout. `modules/managers/gitman.nix`

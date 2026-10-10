@@ -3,16 +3,13 @@
 devenv.lock
 .venv/
 .pre-commit-config.yaml
-# docman's enterShell (docs-init) scaffolds these into a doc-enabled consumer. In a
-# real repo they're source you commit; in this throwaway fixture they're generated
-# noise — ignore them so the fixture stays focused on repoman wiring.
+# Leftover scaffold from the removed doc manager. The files are generated, not source.
+# Delete them and these entries together.
 .docman/
 docs/
 snippets/
 .markdownlint.jsonc
 .typos.toml
-.docman/site/
-.docman/.cache/
 
 # Agent-files convention: .agents/skills/ + AGENTS.md + CLAUDE.md tracked;
 # the rest of .agents/ (tool runtime state) stays ignored (.agents/ dual-use).

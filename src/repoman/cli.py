@@ -21,6 +21,7 @@ from .checks import (
     SelfCheck,
     detect_context,
     format_self_check,
+    roster_check,
     run_self_check,
     self_check_exit,
 )
@@ -52,6 +53,13 @@ def _repo_root() -> str:
     return os.environ.get("DEVENV_ROOT", os.getcwd())
 
 
+def _roster_keys() -> list[str]:
+    """The raw roster keys: ``REPOMAN_MANAGERS`` when set, else the core default."""
+
+    raw = os.environ.get("REPOMAN_MANAGERS")
+    return raw.split() if raw is not None else list(DEFAULT_MANAGERS)
+
+
 def _enabled() -> list[Manager]:
     """Managers wired into this repo, from ``REPOMAN_MANAGERS`` or the core default.
 
@@ -60,15 +68,14 @@ def _enabled() -> list[Manager]:
     wire nothing — which must not silently become the three default managers.
 
     Unknown keys are dropped (never a KeyError): the registry is the trusted filter
-    against a stale or hand-edited env. Duplicates are collapsed, so a roster of
+    against a stale or hand-edited env. ``repoman doctor`` reports them in the
+    ``roster:unknown-manager`` row. Duplicates are collapsed, so a roster of
     ``"git git"`` can't run gitman's doctor twice.
     """
 
-    raw = os.environ.get("REPOMAN_MANAGERS")
-    keys = raw.split() if raw is not None else DEFAULT_MANAGERS
     enabled: list[Manager] = []
     seen: set[str] = set()
-    for key in keys:
+    for key in _roster_keys():
         if key in REGISTRY and key not in seen:
             seen.add(key)
             enabled.append(REGISTRY[key])
@@ -208,6 +215,9 @@ def doctor(
     enabled = _enabled()
 
     self_checks = run_self_check(enabled, _repo_root(), _skills_dir())
+    roster_row = roster_check(_roster_keys())
+    if roster_row is not None:
+        self_checks.insert(0, roster_row)
     self_checks += skill_ownership_checks(_repo_root(), _skills_dir(), [m.key for m in enabled])
     exit_code = self_check_exit(self_checks)
 

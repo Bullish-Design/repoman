@@ -2,7 +2,7 @@
 
 - **Status:** Accepted 2026-09-19. Supersedes the 2026-08-03 agent-files
   convention (tool-shipped / genome / overlay, tracked `.agents/skills/`).
-- **Deciders:** the `*man` family (copyroom, gitman, testee, docman, shellij,
+- **Deciders:** the `*man` family (copyroom, gitman, testee, shellij,
   repoman).
 - **Reference:** `.scratch/PLATFORM-INVESTIGATION.md` §3.2, §3.3, Q1;
   `devman/.scratch/projects/025-the-link-plane/CONCEPT.md` §7.2-7.3.
@@ -46,8 +46,7 @@ real checks.
 
 The expected link set for a managed project is:
 
-- the four manager skills the router needs — `copyroom`, `gitman`, `testee`,
-  `docman`;
+- the three manager skills the router needs — `copyroom`, `gitman`, `testee`;
 - the copyroom canonical set — `copyroom` (already listed), `copyroom-adopt`,
   `copyroom-template-edit`;
 - the shared writing guide — `writing`.

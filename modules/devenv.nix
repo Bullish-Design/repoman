@@ -20,14 +20,19 @@
 #
 # The manifest roster selects which manager tasks/skills are WIRED. It does not
 # install anything. The host profile puts the manager commands (copyroom, gitman,
-# docman, and testee) on PATH, and RepoMan runs them by name. Testee starts outside
+# and testee) on PATH, and RepoMan runs them by name. Testee starts outside
 # devenv and opens a clean shell for the checks. RepoMan reads no Vendomat closure.
 { pkgs, lib, config, inputs ? {}, ... }:
 
 let
   cfg = config.repoman;
 
-  allManagers = [ "copy" "git" "test" "doc" ];
+  allManagers = [ "copy" "git" "test" ];
+
+  # Keys that RepoMan once shipped. A manifest that still names one is accepted, so
+  # a stale repo keeps evaluating. No manager module reads the key, and
+  # `repoman doctor` warns about it (`roster:unknown-manager`).
+  removedManagers = [ "doc" ];
 
   # Project 039: the roster moves from a devenv.nix option to a tracked repo
   # manifest, `.repoman/project.toml`, modelled on
@@ -58,7 +63,7 @@ let
     else if rawManifest.schema != 1 then
       throw ("repoman: " + manifestPath + " field 'schema' has unsupported value "
         + toString rawManifest.schema + "; supported schema is 1")
-    else if rawManifest ? managers && !(builtins.all (m: builtins.elem m allManagers) rawManifest.managers) then
+    else if rawManifest ? managers && !(builtins.all (m: builtins.elem m (allManagers ++ removedManagers)) rawManifest.managers) then
       throw ("repoman: " + manifestPath + " field 'managers' names an unknown manager;"
         + " valid values are " + lib.concatStringsSep ", " allManagers)
     else if rawManifest ? cliProvider && !(builtins.elem rawManifest.cliProvider [ "store" "venv" ]) then
@@ -75,7 +80,6 @@ in
     ./managers/testee.nix
     ./managers/copyroom.nix
     ./managers/gitman.nix   # activates when "git" is selected; contributes git only
-    ./managers/docman.nix   # activates when "doc" is selected (pure-Python; toolchain in docman's module)
   ]
   # shellij is NOT a roster manager: no roster entry, no repoman.session.*
   # options, nothing to select. It is installed by default — new-repo templates
@@ -100,7 +104,7 @@ in
     # explicit `repoman.enable = true;` was the real signal and false let a repo
     # opt out without removing the pin. Now the module is only present when a
     # consumer's central devenv.local.nix imports it — that import IS the enable
-    # signal, the same presence-gated pattern shellij and docman already use.
+    # signal, the same presence-gated pattern shellij already uses.
     # `repoman.enable = false;` still opts a repo out explicitly if it ever needs
     # to keep the import (e.g. transitively, for shellij) without running repoman.
     enable = lib.mkOption {
@@ -135,7 +139,7 @@ in
       export REPOMAN_TESTEE_HOST_BIN="''${REPOMAN_TESTEE_HOST_BIN:-$HOME/.nix-profile/bin/testee}"
       export PATH="${config.devenv.state}/venv/bin:$(dirname "$REPOMAN_TESTEE_HOST_BIN"):$PATH"
       if [ -t 1 ]; then
-        echo "RepoMan: managers = ${lib.concatStringsSep " " managerRoster}"
+        echo "RepoMan: managers = ${lib.concatStringsSep " " (builtins.filter (m: builtins.elem m allManagers) managerRoster)}"
       fi
     '';
     })

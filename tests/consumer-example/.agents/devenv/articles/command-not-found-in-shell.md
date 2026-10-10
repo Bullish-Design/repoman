@@ -23,7 +23,7 @@ assembled from three distinct sources; the fix depends on which one *should* pro
   Re-run as `devenv shell -- <cmd>` (the `devenv-run-commands` skill).
 - **A Python console script (e.g. `pytest`, your CLI) missing?** App/test deps aren't synced:
   `devenv shell -- uv sync --all-extras` (the `devenv-python-venv` skill).
-- **`gitman` / `copyroom` / `docman` / `repoman` missing?** Those live in the SYSTEM-WIDE toolchain
+- **`gitman` / `copyroom` / `repoman` missing?** Those live in the SYSTEM-WIDE toolchain
   venv (project 12), not this repo's venv — bootstrap it once per machine:
   `cd <repoman checkout> && devenv shell -- repoman-sync --machine`.
 - **A system tool missing?** Add it to `packages` in `devenv.nix`, then refresh

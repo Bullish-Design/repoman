@@ -15,10 +15,12 @@ def test_managers_lists_enabled(monkeypatch):
     assert "gitman" not in result.stdout
 
 
-def test_managers_lists_doc(monkeypatch):
-    monkeypatch.setenv("REPOMAN_MANAGERS", "doc")
+def test_managers_drops_the_removed_doc_manager(monkeypatch):
+    monkeypatch.setenv("REPOMAN_MANAGERS", "doc test")
     result = runner.invoke(app, ["managers"])
-    assert result.exit_code == 0 and "docman" in result.stdout
+    assert result.exit_code == 0
+    assert "testee" in result.stdout
+    assert "docman" not in result.stdout
 
 
 def test_enabled_drops_unknown_manager_keys(monkeypatch):
@@ -32,7 +34,7 @@ def test_enabled_drops_unknown_manager_keys(monkeypatch):
 
 
 # Commands the host profile puts on PATH.
-_HOST_COMMANDS = ("repoman", "copyroom", "gitman", "docman", "testee")
+_HOST_COMMANDS = ("repoman", "copyroom", "gitman", "testee")
 
 
 def _healthy_repo(tmp_path, monkeypatch, managers):
@@ -87,14 +89,32 @@ def test_doctor_fails_when_testee_version_does_not_match(monkeypatch, tmp_path):
     assert result.exit_code == 1
 
 
-def test_doctor_warns_when_approach_b_input_missing(monkeypatch, tmp_path):
-    # doc selected + CLI on PATH but no REPOMAN_PROVISIONED_DOC → WARN provisioned:doc,
-    # non-fatal (exit 0).
-    _healthy_repo(tmp_path, monkeypatch, "doc")
-    monkeypatch.delenv("REPOMAN_PROVISIONED_DOC", raising=False)
+def test_doctor_warns_about_the_removed_doc_manager(monkeypatch, tmp_path):
+    # A repo that still lists `doc` keeps working: the CLI drops the key and the
+    # doctor names it. The row is a warning, so the exit code stays 0.
+    _healthy_repo(tmp_path, monkeypatch, "test doc")
     result = runner.invoke(app, ["doctor"])
-    assert "WARN provisioned:doc" in result.stdout
+    assert "WARN roster:unknown-manager" in result.stdout
+    assert "'doc' was removed in 0.13.0" in result.stdout
+    assert "installed:doc" not in result.stdout
     assert result.exit_code == 0
+
+
+def test_doctor_json_carries_the_unknown_manager_row(monkeypatch, tmp_path):
+    _healthy_repo(tmp_path, monkeypatch, "test doc bogus doc")
+    result = runner.invoke(app, ["doctor", "--json"])
+    rows = {row["name"]: row for row in json.loads(result.stdout)["checks"]}
+    row = rows["roster:unknown-manager"]
+    assert row["warn_only"] is True and row["ok"] is False
+    assert "'doc' was removed in 0.13.0" in row["detail"]
+    assert "'bogus' is not a RepoMan manager" in row["detail"]
+    assert row["detail"].count("'doc'") == 1  # a duplicate key reports once
+
+
+def test_doctor_has_no_unknown_manager_row_for_a_clean_roster(monkeypatch, tmp_path):
+    _healthy_repo(tmp_path, monkeypatch, "test")
+    result = runner.invoke(app, ["doctor"])
+    assert "roster:unknown-manager" not in result.stdout
 
 
 def test_install_skills_writes_entrypoint_only(monkeypatch, tmp_path):

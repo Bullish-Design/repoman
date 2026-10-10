@@ -1,4 +1,4 @@
-from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, REGISTRY, SPINE, Manager
+from repoman.registry import ACTIVITIES, DEFAULT_MANAGERS, REGISTRY, REMOVED_MANAGERS, SPINE, Manager
 
 
 def test_keys_match_their_entry():
@@ -30,7 +30,7 @@ def test_spine_is_three_ordered_phases():
 
 
 def test_activities_are_unordered_and_outside_the_spine():
-    assert ACTIVITIES == (("birth / converge", "copy"), ("docs", "doc"))
+    assert ACTIVITIES == (("birth / converge", "copy"),)
     for _label, key in ACTIVITIES:
         assert key in REGISTRY
     spine_keys = {key for _label, key in SPINE}
@@ -56,30 +56,25 @@ def test_core_managers_present():
     assert {"copy", "git", "test"} <= set(REGISTRY)
 
 
-def test_doc_entry_shape():
-    m = REGISTRY["doc"]
-    assert m.command == "docman"
-    assert m.tier == "publish"
-    assert m.doctor == ["doctor"]
-    assert m.status is None  # docman has no status verb — repoman status skips it
-    assert m.skill == "docman"  # defaults to the command; docman ships a `docman` skill dir
+def test_the_roster_is_exactly_copy_git_test():
+    assert set(REGISTRY) == {"copy", "git", "test"}
 
 
-def test_approach_b_managers_declare_their_nix_input():
-    # The one remaining approach-B manager needs a presence-gated devenv.yaml input;
-    # `repoman doctor` warns (provisioned:<key>) when it's missing.
-    assert REGISTRY["doc"].nix_input == "docman"
+def test_removed_managers_are_not_registered():
+    # A removed key stays out of the registry. The doctor reports it instead.
+    assert REMOVED_MANAGERS == {"doc": "0.13.0"}
+    assert not set(REMOVED_MANAGERS) & set(REGISTRY)
 
 
-def test_approach_a_and_pure_python_managers_have_no_nix_input():
-    # Approach-A (copy) and pure-Python (test) + git need no consumer input.
+def test_no_shipped_manager_needs_a_nix_input():
+    # `Manager.nix_input` is the approach-B extension seam. No shipped manager uses it.
     for key in ("copy", "git", "test"):
         assert REGISTRY[key].nix_input == ""
 
 
 def test_install_model_split():
     # Every current manager uses a host command on PATH.
-    for key in ("copy", "git", "doc", "test"):
+    for key in ("copy", "git", "test"):
         assert REGISTRY[key].install == "path"
 
 

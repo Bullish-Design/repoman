@@ -27,8 +27,7 @@ The expected link set is **RepoMan's own policy**, not a devman publication.
 Devman publishes only one universal skill: ``UNIVERSAL_SKILLS = ("writing",)``
 in ``devman/src/devman/doctor.py``. Its comment refuses to make ``gitman`` and
 ``copyroom`` universal. A repo expects a manager skill only when it enables that
-manager, so a ``git``-only repo gets no warning for ``copyroom``, ``testee`` or
-``docman``.
+manager, so a ``git``-only repo gets no warning for ``copyroom`` or ``testee``.
 
 A missing expected link is ``warn``, never ``fail``. The agent surface is
 developer guidance, not an input to evaluating or verifying a clone (§3.2), so it
@@ -58,7 +57,7 @@ ENTRYPOINT_SKILL = "repoman"
 def expected_skills(enabled: Iterable[str]) -> tuple[str, ...]:
     """Return the sorted skill names a repo with this roster expects.
 
-    ``enabled`` holds manager keys (``copy``, ``git``, ``test``, ``doc``). The
+    ``enabled`` holds manager keys (``copy``, ``git``, ``test``). The
     skill name of each key comes from :data:`repoman.registry.REGISTRY`. An
     unknown key adds nothing.
     """
