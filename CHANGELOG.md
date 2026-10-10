@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.1 — 2026-10-10 — one full gate in `devenv test`
+
+### Fixed
+
+- **RepoMan no longer sets `enterTest` for the `test` manager.** Testee's own devenv
+  module sets `enterTest` to `testee verify --full`, and devenv joins both values. The
+  full gate ran twice under `devenv test`. Now it runs once. `repoman:test`,
+  `repoman:test:ci` and `REPOMAN_TESTEE_VERSION` do not change.
+
 ## 0.12.0 — 2026-10-09 — Testee 0.5.0 host wrapper
 
 Testee 0.5.0 runs checks that the consumer declares in Nix. Its wrapper starts before

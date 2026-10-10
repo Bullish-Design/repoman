@@ -5,6 +5,10 @@
 # then opens one clean devenv shell for the declared checks. The package version
 # comes from the Testee Nix module pinned in the consumer's devenv.
 #
+# RepoMan sets no `enterTest`. Testee's own module sets it to the full gate, and
+# devenv joins every `enterTest` value. A second value here would run the full
+# gate twice under `devenv test`.
+#
 # Consumers must set `testee.package` and declare their own `testee.checks`.
 # RepoMan supplies no default checks. For example:
 #
@@ -30,9 +34,5 @@ in
       "repoman:test".exec = ''cd "$DEVENV_ROOT" && ${testeeBin} verify'';
       "repoman:test:ci".exec = ''cd "$DEVENV_ROOT" && ${testeeBin} verify --full'';
     };
-
-    enterTest = ''
-      cd "$DEVENV_ROOT" && ${testeeBin} verify --full
-    '';
   };
 }

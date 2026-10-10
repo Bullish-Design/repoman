@@ -12,6 +12,15 @@ def test_manager_tasks_use_the_host_profile():
     assert 'lib.removePrefix "testee-" config.testee.package.name' in testee
 
 
+def test_test_manager_sets_no_enter_test():
+    # Testee's own module sets `enterTest` to the full gate. devenv joins every
+    # value, so a second one in RepoMan would run the full gate twice.
+    text = (MODULES / "managers" / "testee.nix").read_text()
+    assert not any(line.lstrip().startswith("enterTest") for line in text.splitlines())
+    assert '"repoman:test".exec' in text
+    assert '"repoman:test:ci".exec' in text
+
+
 def test_host_managers_run_by_name_from_path():
     # gitman.nix runs no task: gitman 0.12 has one command, `work`.
     for name, command in (("copyroom.nix", "copyroom status"), ("docman.nix", "docman doctor")):
