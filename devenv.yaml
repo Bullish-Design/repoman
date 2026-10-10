@@ -13,7 +13,7 @@ inputs:
   # override the url in `devenv.local.yaml` — untracked, same schema, merged over
   # this file by devenv. The committed file says WHAT, the local overlay says WHERE.
 
-  # The host profile puts the pure-CLI managers (copyroom, gitman, docman) on PATH.
+  # The host profile puts the pure-CLI managers (copyroom, gitman) on PATH.
   # RepoMan runs them by name. This repository declares no Vendomat input and imports
   # no Vendomat module.
 
@@ -31,13 +31,6 @@ inputs:
   # tree nix is already evaluating buys no reproducibility.
   repoman:
     url: "path:./modules"
-    flake: false
-
-  # Approach-B provisioning for the "doc" manager: docman's own nix module (toolchain +
-  # enterShell config seeding) is pulled through the presence-gated import in
-  # modules/managers/docman.nix — only fire it here by declaring the input.
-  docman:
-    url: "git+https://github.com/Bullish-Design/docman?ref=refs/tags/v0.2.0"
     flake: false
 
 imports:

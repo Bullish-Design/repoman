@@ -60,13 +60,13 @@ def test_repoman_dev_shell_self_imports_the_meta_module():
     root = Path(__file__).resolve().parents[1]
     yaml = (root / "devenv.yaml").read_text()
     assert "repoman:" in yaml and "?dir=modules" in yaml
-    assert "docman:" in yaml
+    assert "docman:" not in yaml
     assert "imports:" in yaml and "- repoman" in yaml
 
 
 def test_repoman_dev_shell_uses_the_tracked_full_roster():
     root = Path(__file__).resolve().parents[1]
-    assert 'managers = ["copy", "git", "test", "doc"]' in (root / ".repoman/project.toml").read_text()
+    assert 'managers = ["copy", "git", "test"]' in (root / ".repoman/project.toml").read_text()
     assert "managers =" not in (root / "devenv.nix").read_text()
 
 

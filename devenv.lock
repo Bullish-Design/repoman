@@ -17,17 +17,6 @@
         "type": "github"
       }
     },
-    "docman": {
-      "flake": false,
-      "locked": {
-        "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/docman"
-      },
-      "original": {
-        "type": "git",
-        "url": "file:///home/andrew/Documents/Projects/docman"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -178,7 +167,6 @@
     "root": {
       "inputs": {
         "devenv": "devenv",
-        "docman": "docman",
         "mk-shell-bin": "mk-shell-bin",
         "nix2container": "nix2container",
         "nixpkgs": "nixpkgs_2",

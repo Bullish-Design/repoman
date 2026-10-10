@@ -267,9 +267,9 @@ format    # ruff format
 ```
 
 Repoman's own dev shell is a first-class managed repo: it imports the meta-module
-(`devenv.yaml` → `imports: [repoman]`) and its tracked manifest selects the full
-roster, so the host's managers (`copyroom`, `gitman`, `docman`) are on
-PATH inside it. That makes this checkout the canonical **host** for bootstrapping a new
+(`devenv.yaml` → `imports: [repoman]`) and its tracked manifest selects the `copy`,
+`git`, and `test` managers, so the host's managers (`copyroom`, `gitman`) are on
+PATH inside it. This checkout does not select `doc` and declares no docman input. That makes this checkout the canonical **host** for bootstrapping a new
 repo — no need to hop into another repo's shell:
 
 ```bash
