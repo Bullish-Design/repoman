@@ -87,7 +87,7 @@ def test_repoman_dev_shell_locks_the_testee_module_as_an_input():
     groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
     assert not any(spec == "testee" or spec.startswith("testee") for spec in groups)
     yaml = (root / "devenv.yaml").read_text()
-    assert "url: git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.0" in yaml
+    assert "url: git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.1" in yaml
     assert "- testee/nix/testee.nix" in yaml
     nix = (root / "devenv.nix").read_text()
     assert "getFlake" not in nix
