@@ -1,22 +1,18 @@
 """RepoMan self-check (preflight) for `repoman doctor`.
 
 Validates the conductor's own wiring: installed manager commands and skills.
-This catches a manager that is selected but not installed.
+This catches a manager that is selected but not installed, or too old.
 
-The manager family splits by install model. Host managers (`install == "path"`)
-are on `PATH`: the host profile installs them, and RepoMan runs them by name.
-The Testee wrapper also runs from the host profile. Its pinned Nix package supplies
-the required version, which this module checks. RepoMan reads no Vendomat closure.
-An optional uv manager (`install == "uv"`) lives in the consumer's uv graph.
+Every manager is a host command. The host profile puts it on `PATH`, and RepoMan
+runs it by name. A manager with a ``min_version`` also gets a ``version:<key>`` row.
+RepoMan reads no Vendomat closure.
 
 Two disciplines this module holds to, because it is the *diagnostic* layer:
 
-* **Never crash on the inputs it exists to diagnose.** Every filesystem read is
-  guarded (`OSError`, decode errors, malformed TOML). A doctor that raises is
-  strictly worse than one that reports ``fail``.
-* **Validate the binary that actually runs.** A uv manager runs from the consumer
-  venv. A path manager runs from ``PATH`` or its explicit binary environment
-  variable. The Testee version row checks that binary against the pinned package.
+* **Never crash on the inputs it exists to diagnose.** Every filesystem read and
+  every subprocess call is guarded. A doctor that raises is strictly worse than one
+  that reports ``fail``.
+* **Validate the binary that actually runs.** That is the first match on ``PATH``.
 """
 
 from __future__ import annotations
@@ -25,7 +21,6 @@ import os
 import re
 import shutil
 import subprocess
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -82,9 +77,8 @@ def detect_context(start: str) -> Context:
        accepted limitation; the message still names the right invocation.
     3. Neither → ``not-a-repo``.
 
-    Explicitly NOT signals: ``DEVENV_ROOT`` / ``DEVENV_STATE`` /
-    ``REPOMAN_TOOLCHAIN_BIN`` alone. Plenty of devenv projects don't use repoman;
-    only ``REPOMAN_MANAGERS`` proves a repoman-managed shell.
+    Explicitly NOT signals: ``DEVENV_ROOT`` / ``DEVENV_STATE`` alone. Plenty of devenv
+    projects don't use repoman; only ``REPOMAN_MANAGERS`` proves a repoman-managed shell.
 
     Walks ``start`` → root and stops at the first match, so a repo nested under
     another repo resolves to the nearest one.
@@ -104,198 +98,58 @@ def detect_context(start: str) -> Context:
     return Context("not-a-repo", start, "not inside a repoman-managed repo")
 
 
-def _normalize(name: str) -> str:
-    """PEP 503 name normalisation."""
-
-    return re.sub(r"[-_.]+", "-", name).lower()
-
-
-def consumer_venv_bin() -> Path | None:
-    """The consumer devenv venv's bin dir for an optional uv-installed manager.
-
-    ``DEVENV_STATE`` is exported by devenv; fall back to the conventional layout
-    under ``DEVENV_ROOT`` so the check still works outside a devenv shell.
-    """
-
-    state = os.environ.get("DEVENV_STATE")
-    if state:
-        return Path(state) / "venv" / "bin"
-    root = os.environ.get("DEVENV_ROOT")
-    if root:
-        return Path(root) / ".devenv" / "state" / "venv" / "bin"
-    return None
-
-
 def manager_binary(manager: Manager) -> Path | None:
-    """The absolute path ``manager`` runs from, if knowable.
+    """The absolute path of ``manager.command`` on ``PATH``, or ``None``."""
 
-    A path manager runs from its configured environment path or ``PATH``. A uv
-    manager runs from the consumer venv. ``None`` means no binary was found.
-    """
-
-    if manager.install == "path":
-        configured = os.environ.get(manager.binary_env) if manager.binary_env else None
-        if configured:
-            return Path(configured)
-        found = shutil.which(manager.command)
-        return Path(found) if found else None
-    bin_dir = consumer_venv_bin()
-    return bin_dir / manager.command if bin_dir else None
-
-
-def _read_toml(path: Path) -> tuple[dict | None, str | None]:
-    """``(data, error)`` — never raises. ``error`` is a human-readable reason."""
-
-    try:
-        with open(path, "rb") as fh:
-            return tomllib.load(fh), None
-    except tomllib.TOMLDecodeError as exc:
-        return None, f"unparseable: {exc}"
-    except OSError as exc:
-        return None, f"unreadable: {exc.strerror or exc}"
-
-
-def _requirement_name(req: str) -> str:
-    """'testee>=0.3 ; python_version>"3.12"' -> 'testee' (PEP 508 head, normalized)."""
-
-    head = re.split(r"[\s\[<>=!~;@()]", req.strip(), maxsplit=1)[0]
-    return _normalize(head)
-
-
-def uv_declared_in(pyproject: dict, package: str) -> str | None:
-    """Which pyproject table declares ``package``, or None. Generic over any uv manager (D5)."""
-
-    target = _normalize(package)
-    project = pyproject.get("project") or {}
-    tables: list[tuple[str, list]] = [("[project.dependencies]", project.get("dependencies") or [])]
-    for extra, reqs in (project.get("optional-dependencies") or {}).items():
-        tables.append((f"[project.optional-dependencies] {extra}", reqs or []))
-    for group, reqs in (pyproject.get("dependency-groups") or {}).items():
-        tables.append((f"[dependency-groups] {group}", reqs or []))
-    for label, reqs in tables:
-        # A malformed table may not be a list at all; and dependency-groups entries
-        # may be {include-group = "..."} dicts — skip anything that isn't a string.
-        if not isinstance(reqs, list):
-            continue
-        if any(isinstance(r, str) and _requirement_name(r) == target for r in reqs):
-            return label
-    return None
-
-
-def _load_pyproject(repo_root: str) -> tuple[dict | None, str | None]:
-    """``(data, error)`` for ``<repo_root>/pyproject.toml`` — never raises."""
-
-    path = Path(repo_root) / "pyproject.toml"
-    if not path.exists():
-        return None, None  # genuinely absent, not broken
-    return _read_toml(path)
+    found = shutil.which(manager.command)
+    return Path(found) if found else None
 
 
 # ------------------------------------------------------------------ self-check
 
 
 def _installed_check(manager: Manager) -> SelfCheck:
-    """Validate the binary a manager runs from.
+    """A manager must be an executable file on ``PATH``."""
 
-    A path manager must match the binary its task uses. A uv manager runs from the
-    consumer venv, so a green ``PATH`` lookup can coexist with a missing venv binary.
-    """
+    name = f"installed:{manager.key}"
+    binary = manager_binary(manager)
+    if binary is None:
+        return SelfCheck(name, "fail", f"{manager.command} not on PATH")
+    if not binary.exists() or not os.access(binary, os.X_OK):
+        return SelfCheck(name, "fail", f"{binary} missing or not executable")
+    return SelfCheck(name, "ok", str(binary))
 
-    if manager.install == "path":
-        binary = manager_binary(manager)
-        on_path = shutil.which(manager.command)
-        if binary is None or not binary.exists() or not os.access(binary, os.X_OK):
-            detail = f"{binary} missing or not executable" if binary else f"{manager.command} not on PATH"
-            return SelfCheck(f"installed:{manager.key}", "fail", detail)
-        if manager.binary_env and not on_path:
-            return SelfCheck(
-                f"installed:{manager.key}",
-                "fail",
-                f"{manager.command} is missing from PATH; add {binary.parent}",
-            )
-        if on_path:
-            try:
-                shadowed = Path(on_path).resolve() != binary.resolve()
-            except OSError:
-                shadowed = False
-            if shadowed:
-                return SelfCheck(
-                    f"installed:{manager.key}",
-                    "fail",
-                    f"tasks use {binary}, but PATH resolves {manager.command} to {on_path}",
-                )
-        return SelfCheck(
-            f"installed:{manager.key}",
-            "ok",
-            str(binary),
-        )
 
-    on_path = shutil.which(manager.command)
-    expected = manager_binary(manager)
-    if expected is None:
-        # No venv path is derivable (outside a devenv shell) — PATH is the best signal.
-        return SelfCheck(
-            f"installed:{manager.key}",
-            "ok" if on_path else "fail",
-            on_path or f"{manager.command} not on PATH — run `uv sync`",
-        )
+def _dotted_version(text: str) -> tuple[int, int, int] | None:
+    """First ``X.Y.Z`` in ``text`` as a tuple, or ``None``."""
 
-    if not expected.exists():
-        detail = f"{expected} missing — run `uv sync`"
-        if on_path:
-            detail += f" (a different {manager.command} is on PATH at {on_path})"
-        return SelfCheck(f"installed:{manager.key}", "fail", detail)
-
-    if on_path:
-        try:
-            shadowed = Path(on_path).resolve() != expected.resolve()
-        except OSError:
-            shadowed = False
-        if shadowed:
-            return SelfCheck(
-                f"installed:{manager.key}",
-                "warn",
-                f"{expected} is what the tasks run, but PATH resolves {manager.command}"
-                f" to {on_path} — the two can disagree",
-            )
-    return SelfCheck(f"installed:{manager.key}", "ok", str(expected))
+    found = re.search(r"\b(\d+)\.(\d+)\.(\d+)", text)
+    return (int(found[1]), int(found[2]), int(found[3])) if found else None
 
 
 def _version_check(manager: Manager) -> SelfCheck | None:
-    """Check a manager version against the value exported by its pinned package."""
+    """Check that a manager reports at least ``min_version`` for ``--version``."""
 
-    if not manager.version_env:
+    if not manager.min_version:
         return None
-    required = os.environ.get(manager.version_env)
-    if not required:
-        return SelfCheck(
-            f"version:{manager.key}",
-            "fail",
-            f"{manager.version_env} is missing — import the pinned Testee module",
-        )
+    name = f"version:{manager.key}"
     binary = manager_binary(manager)
     if binary is None or not binary.exists() or not os.access(binary, os.X_OK):
-        return SelfCheck(
-            f"version:{manager.key}", "fail", f"cannot read version; {binary or manager.command} is missing"
-        )
+        return SelfCheck(name, "fail", f"cannot read version; {binary or manager.command} is missing")
     try:
         result = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=10, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return SelfCheck(f"version:{manager.key}", "fail", f"cannot read version from {binary}: {exc}")
-    if result.returncode != 0:
-        return SelfCheck(
-            f"version:{manager.key}",
-            "fail",
-            f"{binary} --version exited {result.returncode}: {(result.stderr or result.stdout).strip()}",
-        )
+        return SelfCheck(name, "fail", f"cannot read version from {binary}: {exc}")
     output = (result.stdout or result.stderr).strip()
-    match = re.fullmatch(r"testee\s+(\S+)", output)
-    if match is None:
-        return SelfCheck(f"version:{manager.key}", "fail", f"unrecognized version from {binary}: {output!r}")
-    actual = match.group(1)
-    level = "ok" if actual == required else "fail"
-    detail = f"{binary} reports {actual}; pinned package requires {required}"
-    return SelfCheck(f"version:{manager.key}", level, detail)
+    if result.returncode != 0:
+        return SelfCheck(name, "fail", f"{binary} --version exited {result.returncode}: {output}")
+    actual = _dotted_version(output)
+    if actual is None:
+        return SelfCheck(name, "fail", f"unrecognized version from {binary}: {output!r}")
+    needed = _dotted_version(manager.min_version)
+    level = "ok" if needed is not None and actual >= needed else "fail"
+    shown = ".".join(map(str, actual))
+    return SelfCheck(name, level, f"{binary} reports {shown}; needs {manager.min_version} or later")
 
 
 def _gitman_interface_check(manager: Manager) -> SelfCheck:
@@ -317,10 +171,10 @@ def _gitman_interface_check(manager: Manager) -> SelfCheck:
         return SelfCheck("interface:git", "fail", f"cannot check gitman and jj: {exc}")
     if help_result.returncode != 0 or not re.search(r"^usage: gitman .*\{work\}", help_result.stdout, re.M):
         return SelfCheck("interface:git", "fail", f"{binary} is not the work-only gitman (0.12 or later)")
-    version = re.search(r"\bjj (\d+)\.(\d+)\.(\d+)", jj_result.stdout)
-    if jj_result.returncode != 0 or version is None or tuple(map(int, version.groups())) < (0, 46, 0):
+    version = _dotted_version(jj_result.stdout)
+    if jj_result.returncode != 0 or version is None or version < (0, 46, 0):
         return SelfCheck("interface:git", "fail", "gitman work needs jj 0.46.0 or later")
-    return SelfCheck("interface:git", "ok", f"{binary}; {version.group(0)}")
+    return SelfCheck("interface:git", "ok", f"{binary}; jj {'.'.join(map(str, version))}")
 
 
 def _skill_defers(path: Path) -> bool | None:
@@ -338,57 +192,13 @@ def run_self_check(managers: list[Manager], repo_root: str, skills_dir: str) -> 
 
     out: list[SelfCheck] = []
 
-    pyproject, pyproject_error = _load_pyproject(repo_root)
-    if pyproject_error is not None:
-        out.append(SelfCheck("pyproject", "fail", f"{repo_root}/pyproject.toml {pyproject_error}"))
-
-    for m in managers:
-        if m.install == "uv":
-            where = uv_declared_in(pyproject, m.package) if pyproject else None
-            out.append(
-                SelfCheck(
-                    f"uv:{m.key}",
-                    "ok" if where else "fail",
-                    f"uv-declared — {where}"
-                    if where
-                    else f"{m.package} not declared in pyproject.toml — add it to "
-                    f"[dependency-groups] dev (+ [tool.uv.sources]) and run `uv sync`",
-                )
-            )
-            continue
-
-    # --- installed:<key> (the binary the manager runs from) ---------------------
     for m in managers:
         out.append(_installed_check(m))
         version_check = _version_check(m)
         if version_check is not None:
             out.append(version_check)
-        if m.key == "git":
+        if m.key == "git":  # gitman has no `--version`, so its floor is an interface probe
             out.append(_gitman_interface_check(m))
-
-    # Nix-layer provisioning: an approach-B manager's nix module lives in the
-    # manager's own repo and is pulled in by a presence-gated import that only
-    # fires when the consumer declares that manager's `devenv.yaml` input (R1 —
-    # inputs aren't transitive across a remote module import). checks.py runs
-    # *inside* the shell and can't see devenv.yaml, so each such module signals
-    # input-presence via `REPOMAN_PROVISIONED_<KEY>=1`. A missing signal means
-    # the CLI installed (installed:<key> ok) but its nix module didn't import —
-    # warn (non-fatal) so the gap surfaces early instead of as a confusing
-    # sub-doctor error. Orthogonal to installed:<key> (the venv CLI).
-    for m in managers:
-        if not m.nix_input:
-            continue
-        signalled = os.environ.get(f"REPOMAN_PROVISIONED_{m.key.upper()}") == "1"
-        out.append(
-            SelfCheck(
-                f"provisioned:{m.key}",
-                "ok" if signalled else "warn",
-                ""
-                if signalled
-                else f"{m.key} selected but its nix module isn't imported — add the "
-                f"'{m.nix_input}' input to devenv.yaml, then `devenv update` + repoman-sync",
-            )
-        )
 
     skill = Path(repo_root) / skills_dir / "repoman" / "SKILL.md"
     out.append(

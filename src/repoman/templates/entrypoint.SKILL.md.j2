@@ -46,5 +46,8 @@ For domain detail, open that manager's own skill under `{{ skills_dir }}/`.
 
 - **Verify before you integrate.** Run `verify` first. Then run `integrate`.
 - **Never integrate on red.** Never merge or push while `verify` fails.
+{% if verdict %}
+- **Ask for the verdict.** Run `testee status -r <rev>` before you integrate. Integrate only on exit 0. Exit 1 means red: fix the failure. Exit 2 means no verdict: run `testee verify -r <rev>`.
+{% endif %}
 - **One front door.** Route domain work through the manager. Cross-phase ordering lives here.
 - **Health is per manager.** `repoman doctor` checks RepoMan's own wiring only. To check a manager, run that manager's own `doctor`. `repoman managers` lists what is wired.

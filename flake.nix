@@ -133,7 +133,6 @@
                 options.env = lib.mkOption { type = lib.types.attrsOf lib.types.unspecified; default = { }; };
                 options.scripts = lib.mkOption { type = lib.types.attrsOf lib.types.unspecified; default = { }; };
                 options.enterShell = lib.mkOption { type = lib.types.lines; default = ""; };
-                options.enterTest = lib.mkOption { type = lib.types.lines; default = ""; };
                 options.languages.rust.enable = lib.mkOption { type = lib.types.bool; default = false; };
               })
               (self + "/modules/devenv.nix")
@@ -162,6 +161,8 @@
             assert noManifestConsumer.env.REPOMAN_MANAGERS == "copy git test";
             # A manifest carrying a roster resolves it without any devenv.nix option.
             assert manifestConsumer.env.REPOMAN_MANAGERS == "copy git";
+            # The `test` manager contributes no task. Testee owns `testee verify`.
+            assert !(noManifestConsumer.tasks ? "repoman:test");
             pkgs.runCommand "repoman-consumer-module-check" { } "touch $out";
         });
 

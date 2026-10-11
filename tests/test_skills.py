@@ -55,6 +55,18 @@ def test_laws_name_integrate_and_never_save():
     assert "save" not in out
 
 
+def test_laws_ask_for_the_testee_verdict_before_integrate():
+    out = render_entrypoint([REGISTRY["test"], REGISTRY["git"]], ".agents/skills", "/nonexistent")
+    laws = out.split("## Laws")[1]
+    assert "Run `testee status -r <rev>` before you integrate. Integrate only on exit 0." in laws
+    assert "testee verify -r <rev>" in laws
+
+
+def test_verdict_law_is_absent_without_the_test_manager():
+    out = render_entrypoint([REGISTRY["git"], REGISTRY["copy"]], ".agents/skills", "/nonexistent")
+    assert "testee status" not in out
+
+
 def test_render_has_no_doubled_blank_lines(tmp_path):
     for key in ("copy", "git", "test"):
         skill = tmp_path / ".agents/skills" / REGISTRY[key].skill / "SKILL.md"

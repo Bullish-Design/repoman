@@ -47,7 +47,6 @@ def test_git_route_names_the_work_only_gitman():
     git = REGISTRY["git"]
     assert "gitman work" in git.route_when
     assert "jj" in git.route_when and "gh" in git.route_when
-    assert git.doctor is None and git.status is None  # gitman 0.12 has only `work`
     for retired in ("land", "sync", "repair", "release", "undo"):
         assert retired not in git.route_when
 
@@ -66,40 +65,9 @@ def test_removed_managers_are_not_registered():
     assert not set(REMOVED_MANAGERS) & set(REGISTRY)
 
 
-def test_no_shipped_manager_needs_a_nix_input():
-    # `Manager.nix_input` is the approach-B extension seam. No shipped manager uses it.
-    for key in ("copy", "git", "test"):
-        assert REGISTRY[key].nix_input == ""
-
-
-def test_install_model_split():
-    # Every current manager uses a host command on PATH.
-    for key in ("copy", "git", "test"):
-        assert REGISTRY[key].install == "path"
-
-
-def test_testee_uses_the_host_binary_and_pinned_version():
-    testee = REGISTRY["test"]
-    assert testee.binary_env == "REPOMAN_TESTEE_HOST_BIN"
-    assert testee.version_env == "REPOMAN_TESTEE_VERSION"
-    assert testee.status == ["report"]
-
-
-def test_package_defaults_to_command():
-    # the distribution name the uv:<key> check looks for in pyproject.toml.
-    assert Manager("x", "xcli", "core", "s").package == "xcli"
-    for key, m in REGISTRY.items():
-        assert m.package == m.command
-
-
-def test_install_model_is_validated():
-    # a typo in install must fail loudly, never silently disable a doctor check.
-    import pytest
-
-    with pytest.raises(ValueError):
-        Manager("x", "xcli", "core", "s", install="bogus")
-    Manager("x", "xcli", "core", "s", install="path")
-    Manager("x", "xcli", "core", "s", install="uv")
+def test_testee_has_a_minimum_version_and_copy_git_have_none():
+    assert REGISTRY["test"].min_version == "0.6.0"
+    assert REGISTRY["copy"].min_version == REGISTRY["git"].min_version == ""
 
 
 def test_version_is_read_from_the_installed_distribution():

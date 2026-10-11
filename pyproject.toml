@@ -28,8 +28,8 @@ dev = [
 ]
 
 [dependency-groups]
-# Testee's wrapper is installed by the host profile. The checks run in devenv and
-# use these project tools directly.
+# The host profile installs Testee. Testee runs the checks in its own workspace, after
+# `uv sync`, so they use these project tools directly.
 # pytest-cov: `[tool.pytest.ini_options] addopts` passes --cov, so pytest cannot start
 # without it. Keep this check tool in the project environment so Testee can report it.
 dev = ["pytest-cov>=5", "ty"]

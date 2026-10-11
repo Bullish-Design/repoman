@@ -10,7 +10,7 @@ the router skill. The router states the lifecycle order: `change`, `verify`, `in
 |---|---|---|
 | [copyroom](https://github.com/Bullish-Design/copyroom) | `copy` | templating / scaffolding / convergence (Copier) |
 | [gitman](https://github.com/Bullish-Design/gitman) | `git` | version control (native jj and `gh`; gitman opens workspaces) |
-| [testee](https://github.com/Bullish-Design/testee) | `test` | verification (pytest / ruff / ty) |
+| [testee](https://github.com/Bullish-Design/testee) | `test` | verification (one verdict per commit) |
 
 ---
 
@@ -70,10 +70,14 @@ helper.
 # devenv.yaml
 inputs:
   repoman:
-    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.13.0"
+    url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.14.0"
+    flake: false
+  testee:                      # only when `test` is on the roster
+    url: "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.0"
     flake: false
 imports:
   - repoman
+  - testee/nix/testee.nix
 ```
 
 ```nix
@@ -141,7 +145,7 @@ on any exit.
 `tests/test_fleet_shape.py` fails if a local path reaches `devenv.yaml`. It does not
 check `devenv.lock`, because devenv rewrites that file on every shell entry. A
 release gate guards the lock. The `gate` script runs `scripts/check-fleet-lock.py --rev HEAD`,
-which fails if any lock node in the committed `devenv.lock` names a local path, and then runs `testee verify --full`.
+which fails if any lock node in the committed `devenv.lock` names a local path, and then runs `testee verify`.
 Native `jj git push` runs no hook, so run `gate` before you push or tag:
 
 ```bash
@@ -160,13 +164,10 @@ forgot to stage". A path input reads the directory literally.
 
 The host profile installs the manager commands and puts them on `PATH`:
 `copyroom`, `gitman`, `repoman`, and Testee. RepoMan runs them by name.
-Testee starts before devenv, reads the declared manifest, and opens one clean
-devenv shell for the checks. The project's `testee.checks` entries run the project's
-declared tools, such as pytest, ruff, and ty.
-
-The Nix module and package use the same pinned Testee source. `repoman doctor`
-checks that the host wrapper matches the package version. Set
-`REPOMAN_TESTEE_HOST_BIN` if the host profile does not use `$HOME/.nix-profile`.
+Testee checks a commit in its own workspace and runs the checks that the project
+declares in `testee.checks`, such as pytest, ruff, and ty. The Testee devenv module
+declares the checks and ships no runner. `repoman doctor` checks that the `testee` on
+`PATH` is version 0.6.0 or later. RepoMan sets no `testee` path and wires no Testee task.
 
 `.repoman/project.toml` selects what is wired (tasks, skills, and routing). It
 does not select or install the shared closure.
@@ -186,7 +187,8 @@ RepoMan runs no manager. Call each manager's own CLI:
 - **Birth and adoption:** `copyroom new` and `copyroom adopt`.
 - **Health:** each manager's own `doctor`. The managers use different exit-code dialects,
   so RepoMan merges none of them. The router skill is where the knowledge joins.
-- **Test verdict:** `testee verify` (the `repoman:test` task).
+- **Test verdict:** `testee verify` runs the checks. `testee status -r <rev>` reads the
+  verdict: exit `0` green, `1` red, `2` no verdict.
 
 RepoMan does not write `.devman/project.toml`. Devman writes no manifests by design. A
 person maintains the file by hand, and the template seeds it.
@@ -212,21 +214,18 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
   or run `copyroom template-preview`.
 - `copyroom status` exits `1` in a repo with no Copier answers file. RepoMan's own
   checkout has none.
-- `testee report` reads the latest saved report. For a new verdict, run
-  `testee verify`.
+- `testee status -r <rev>` runs nothing. It reads the stored verdicts. For a new verdict,
+  run `testee verify`.
 - `jj status` is not read-only. It snapshots the working copy (`@`).
 
 ## Reading `repoman doctor`
 
 | Row | Means |
 |---|---|
-| `pyproject` | `pyproject.toml` parses (a missing file is not a failure) |
-| `uv:<key>` | an optional uv manager is declared in `pyproject.toml` |
 | `roster:unknown-manager` | the roster names a key that is not a manager, such as `doc`, removed in 0.13.0 (warn only) |
-| `installed:<key>` | a manager's task executable exists and matches its `PATH` entry |
-| `version:test` | the host Testee wrapper matches the pinned Testee package version |
+| `installed:<key>` | the manager's command is an executable file on `PATH` |
+| `version:test` | the `testee` on `PATH` reports the registry minimum (0.6.0) or later |
 | `interface:git` | `gitman` is the work-only tool and `jj` is 0.46.0 or later |
-| `provisioned:<key>` | an approach-B manager's nix module actually imported (no shipped manager uses approach B today) |
 | `skill:entrypoint` | the router skill exists |
 | `skill:<key>:defers` | an installed manager skill defers to the router (warn only) |
 | `skill:tool-shipped` | every expected skill link exists |

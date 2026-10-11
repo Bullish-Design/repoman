@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.14.0 — 2026-10-11 — Testee 0.6 and a uniform `test` manager
+
+Testee 0.6.0 checks a commit in its own workspace, stores one verdict per check and ships
+no runner. `testee verify` is a full gate. `testee status -r REV` exits `0` for green, `1`
+for red and `2` for no verdict. The `test` manager now works like `copy` and `git`: a
+command on `PATH` with a minimum version. **Host Testee 0.6.0 or later is required.**
+
+### Changed (breaking)
+
+- **`repoman:test` and `repoman:test:ci` are gone.** `modules/managers/testee.nix` is
+  deleted. A repo that calls `testee verify` needs no RepoMan task. A repo that lists
+  `repoman:test` in a `tasks."base:test".after` (scopeman) no longer evaluates:
+  devenv stops with "depending on non-existent repoman:test". Replace the line with
+  `tasks."base:test".exec = ''cd "$DEVENV_ROOT" && testee verify'';`.
+- **`base:test` runs the full gate.** `repoman:test` ran the quick profile. `testee verify`
+  runs every required check and reuses each verdict that exists for the tree.
+- **`REPOMAN_TESTEE_HOST_BIN` and `REPOMAN_TESTEE_VERSION` are removed.** `enterShell` no
+  longer exports the first and no longer puts `$HOME/.nix-profile/bin` first on `PATH`. It
+  keeps the consumer venv on `PATH`. RepoMan no longer reads `testee.package`; remove that
+  line (Testee 0.6.0 warns about it).
+- **`repoman doctor` checks a minimum, not an exact version.** `version:test` passes when
+  `testee --version` reports 0.6.0 or later. The check that the binary matches the pinned
+  package, and the "tasks use X, but PATH resolves Y" failure, are gone.
+- **`Manager.binary_env` and `Manager.version_env` become `Manager.min_version`.** A manager
+  with a `min_version` gets a `version:<key>` row. The `test` manager sets `"0.6.0"`.
+- **`devenv test` runs no gate.** Testee 0.6.0's module sets no `enterTest`. Run `testee verify`.
+- **The router adds a law.** When `test` is on the roster: "Run `testee status -r <rev>` before
+  you integrate. Integrate only on exit 0." Run `repoman-sync` to regenerate it.
+- **The `test` route text** reads "verify a commit and read its verdict".
+
+### Removed
+
+- Dead registry fields: `Manager.doctor`, `Manager.status`, `Manager.nix_input`,
+  `Manager.install` and `Manager.package`. No shipped manager used `nix_input`; none used
+  `install="uv"`. This reverses the 0.13.0 decision to keep `nix_input` as an extension seam.
+- The doctor rows `provisioned:<key>`, `uv:<key>` and `pyproject`, and the helpers behind them
+  (`consumer_venv_bin`, `uv_declared_in`).
+- The `enterTest` stub option in the `flake.nix` check fixture, and `REPOMAN_PROVISIONED_DOC` in the test setup.
+
+### Changed
+
+- RepoMan's own dev shell takes the Testee module from a locked `devenv.yaml` input
+  (`v0.6.0`, `flake: false`) instead of `builtins.getFlake`. It declares
+  `testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ]`.
+- The `gate` script runs `testee verify` (the `--full` flag is now a no-op).
+- The consumer fixture under `tests/consumer-example/` imports the Testee module from
+  `devenv.yaml`, and its router snapshot has the new law.
+- `jj` and `testee` versions share one parser, `_dotted_version`.
+
+### Migration
+
+1. Install Testee 0.6.0 on the host. Keep it on `PATH` until no repo runs RepoMan 0.13 or older.
+2. In each repo that bumps to RepoMan 0.14, replace any use of `repoman:test` or
+   `repoman:test:ci` with `testee verify`.
+3. Move the Testee module to a `devenv.yaml` input and drop `testee.package`
+   (see the Testee 0.5 to 0.6 migration notes). Python repos add `testee.prepare`.
+4. Run `repoman-sync` to regenerate the router skill.
+
 ## 0.13.0 — 2026-10-10 — remove the `doc` manager
 
 No repo uses the `doc` manager any more. RepoMan stops shipping it. The roster has three

@@ -1,18 +1,9 @@
 { pkgs, config, ... }:
-let
-  # Testee v0.5.1, the fleet's private-repo pin form (gh credential route; the
-  # anonymous `github:` shorthand 404s — see the fleet migration guide). One
-  # pinned source supplies BOTH the wrapper package and the manifest module.
-  testeeFlake =
-    builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1";
-in
 {
-  imports = [ testeeFlake.devenvModules.default ];
-
-  # Testee v2 gate; whole-tree checks mirror the v0.4 built-in tool set. The
-  # wrapper package here backs the module; the HOST also runs the same tagged
-  # wrapper from `nix profile` (fleet v2 pattern).
-  testee.package = testeeFlake.packages.${pkgs.stdenv.hostPlatform.system}.testee;
+  # Testee 0.6 gate. The `testee` input in devenv.yaml supplies the module, locked by
+  # rev and narHash. The module ships no runner: the host `testee` runs these checks
+  # in its own workspace, so `uv sync` there makes the venv follow uv.lock.
+  testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ];
   testee.checks = {
     ruff = {
       argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ruff check . --output-format json" ];
@@ -155,14 +146,14 @@ in
   # tag unless the author runs this first. It checks the lock, then runs the full
   # Testee gate. Run `gate` before `jj git push` and before `gh release create`.
   scripts.gate = {
-    description = "Release gate: refuse a local-path lock, then run testee verify --full.";
+    description = "Release gate: refuse a local-path lock, then run testee verify.";
     exec = ''
       set -euo pipefail
       cd "''${DEVENV_ROOT:-$PWD}"
       # Check the lock committed at HEAD (the parent of the working copy), not the working
       # tree: entering this shell rewrote the working-tree lock before this line ran.
       python3 scripts/check-fleet-lock.py --rev HEAD
-      testee verify --full
+      testee verify
     '';
   };
 
@@ -171,14 +162,14 @@ in
   # The two task names the `base` group calls (groups/base/README.md). devenv
   # owns each implementation; Dagu owns the composition (§6).
   #
-  # `base:test` forwards to `repoman:test` — the repository's own gate, defined
-  # by the testee manager module (`testee verify`); duplicating it
-  # would be a second implementation (PROPOSAL.md §6 rule 6). `base:check` is
-  # the fast one: ruff over the repo's own `src` scope (`uv run --group dev`
-  # because the venv bin is not on the task runner's PATH).
+  # `base:test` runs the repository's own gate, `testee verify`: every required check,
+  # and a cached verdict for each check that already has one for this tree. Testee owns
+  # that command, so RepoMan wires no task for it. `base:check` is the fast one: ruff
+  # over the repo's own `src` scope (`uv run --group dev` because the venv bin is not
+  # on the task runner's PATH).
   tasks = {
     "repoman:lint".exec = "uv run --group dev ruff check src";
     "base:check".after = [ "repoman:lint" ];
-    "base:test".after = [ "repoman:test" ];
+    "base:test".exec = ''cd "$DEVENV_ROOT" && testee verify'';
   };
 }

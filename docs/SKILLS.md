@@ -87,7 +87,7 @@ These activities have no order. Run each one when you need it.
 
 | When you want to… | Manager | Skill | Command |
 |---|---|---|---|
-| verify code health, fix lint/format, or rerun failures | test | `testee` | `testee` |
+| verify a commit and read its verdict | test | `testee` | `testee` |
 | scaffold a repo, pull template updates, or check template drift | copy | `copyroom` | `copyroom` |
 ```
 

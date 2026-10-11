@@ -3,13 +3,12 @@
 > **One devenv import that turns a repo into a managed agentic repo.**
 > Import the module and name your managers in `.repoman/project.toml`. RepoMan wires
 > their tasks, generates one router skill, and checks its own wiring with `repoman doctor`.
-> RepoMan installs no manager commands. The host profile puts them on `PATH`, except
-> testee, which the repo declares.
+> RepoMan installs no manager commands. The host profile puts them on `PATH`.
 
 RepoMan is the **conductor** for the `*man` family. It is a per-repo lifecycle front
 door. It *composes* the individual managers and does not replace them.
 
-This document describes RepoMan 0.13.0. Blocks that start with **Superseded** record
+This document describes RepoMan 0.14.0. Blocks that start with **Superseded** record
 design history.
 
 ---
@@ -69,7 +68,7 @@ Brainstorming settled four decisions. The code still follows them.
 Later projects settled two more decisions (see §6):
 
 - **RepoMan installs no manager commands.** The host profile puts `copy`, `git`,
-  and the Testee wrapper on `PATH`, and RepoMan runs them by name.
+  and Testee on `PATH`, and RepoMan runs them by name.
 - **RepoMan writes one file in normal operation.** It is the router skill. devman links
   every other skill.
 
@@ -94,10 +93,9 @@ imports:
 ```
 
 Importing the module enables RepoMan. `repoman.enable` defaults to true, so a repo needs
-no line for it. Two small declarations complete the setup. `.repoman/project.toml` is
-optional. It replaces the default roster, `copy git test` (see §4). `pyproject.toml`
-declares testee under `[dependency-groups] dev`, because `test` is in the default roster
-(see §6).
+no line for it. `.repoman/project.toml` is optional. It replaces the default roster,
+`copy git test` (see §4). When `test` is on the roster, `devenv.yaml` also imports the
+Testee module (see §6).
 
 Then run `devenv shell` and `repoman-sync`. The repo now has the roster's manager tasks
 and the router skill under `.agents/skills/repoman/`. The manager commands are on `PATH`,
@@ -262,15 +260,14 @@ profile's lock pins the manager commands. copyroom has no
 cross-repo command: it converges the template layers of one repo. A past fleet rollout
 ran from a scratch script that no longer exists.
 
-**One wrapper install model.** The host profile puts the manager commands on `PATH`.
-Testee's v2 wrapper starts before devenv, reads the manifest, and starts a clean shell.
-The check commands use tools that the project declares, such as pytest, ruff, and ty.
-The Testee Nix module pins the manifest module and wrapper package to one source.
-`repoman doctor` checks that the host wrapper reports the pinned package version.
+**One install model.** The host profile puts every manager command on `PATH`. RepoMan
+checks each command on `PATH`. A manager with a `min_version` in `src/repoman/registry.py`
+also gets a `version:<key>` row. Testee's minimum is 0.6.0.
 
-`Manager.install` in `src/repoman/registry.py` keeps support for uv-installed managers,
-but the current manager roster uses host commands. RepoMan checks those commands on
-`PATH`; it checks Testee's version against the pinned Nix package.
+Testee checks a commit in its own workspace and stores one verdict per check. The project
+declares the checks with the Testee devenv module, which it imports from a locked
+`devenv.yaml` input. The module ships no runner, so the version on `PATH` is the only
+runner. `testee status -r <rev>` exits `0` for green, `1` for red and `2` for no verdict.
 
 **`repoman-sync` installs nothing.** It checks that `repoman` is on `PATH`, then runs
 `repoman install-skills`. It exits `2` when `repoman` is missing, and in a consumer repo
@@ -291,13 +288,6 @@ may add system `packages` and language toolchains (`languages.*`) to the consume
 It does so only when the manager is in the roster.
 
 `modules/managers/gitman.nix` adds `git` and nothing else. `copyroom.nix` adds `git` and `gnupatch`.
-These are approach A: the manager module wires the tasks and packages itself.
-
-**Approach B** is the extension seam for a manager that ships its own devenv module. The
-RepoMan wiring module imports that module only when the repo declares the manager's input.
-Take a hypothetical manager `examplman` with key `example`. Its wiring module would use
-`lib.optional (inputs ? examplman)`. `Manager.nix_input` names the input. `repoman doctor`
-then reports a `provisioned:example` row. No shipped manager uses approach B today.
 
 > **Superseded by gitman's project 32 (the pyjutsu wheel pin).** Project 01 first showed
 > this pattern with gitman's Rust need. The need was real when project 01 measured it. A
@@ -352,7 +342,7 @@ repoman/
   .repoman/project.toml  # this repo's roster: copy git test
   modules/
     devenv.nix         # ← THE meta-module consumers import (options + roster + wiring)
-    managers/          # copyroom.nix, gitman.nix, testee.nix
+    managers/          # copyroom.nix, gitman.nix
                        #   per-manager wiring, gated on membership in the roster
     scripts/
       repoman-sync.sh  # verify the closure, then generate the router skill

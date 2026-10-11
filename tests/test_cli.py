@@ -45,7 +45,7 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
     for command in _HOST_COMMANDS:
         binary = host_bin / command
         if command == "testee":
-            binary.write_text('#!/bin/sh\nprintf "testee 0.5.0\\n"\n')
+            binary.write_text('#!/bin/sh\nprintf "testee 0.6.0\\n"\n')
             binary.chmod(0o755)
         else:
             binary.write_text("#!/bin/sh\nexit 0\n")
@@ -64,28 +64,24 @@ def _healthy_repo(tmp_path, monkeypatch, managers):
     monkeypatch.setenv("DEVENV_STATE", str(state))
     monkeypatch.setenv("REPOMAN_MANAGERS", managers)
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    monkeypatch.setenv("REPOMAN_TESTEE_HOST_BIN", str(host_bin / "testee"))
-    monkeypatch.setenv("REPOMAN_TESTEE_VERSION", "0.5.0")
     monkeypatch.setattr("repoman.checks.shutil.which", which)
 
 
-def test_doctor_fails_when_testee_host_binary_is_missing(monkeypatch, tmp_path):
+def test_doctor_fails_when_testee_is_not_on_path(monkeypatch, tmp_path):
     monkeypatch.setenv("REPOMAN_MANAGERS", "test")
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    monkeypatch.setenv("REPOMAN_TESTEE_HOST_BIN", str(tmp_path / "missing-testee"))
-    monkeypatch.setenv("REPOMAN_TESTEE_VERSION", "0.5.0")
     monkeypatch.setattr("repoman.checks.shutil.which", lambda _c: None)
     result = runner.invoke(app, ["doctor"])
     assert "FAIL installed:test" in result.stdout
     assert result.exit_code == 1
 
 
-def test_doctor_fails_when_testee_version_does_not_match(monkeypatch, tmp_path):
+def test_doctor_fails_when_testee_is_too_old(monkeypatch, tmp_path):
     _healthy_repo(tmp_path, monkeypatch, "test")
-    (tmp_path / "host-bin" / "testee").write_text('#!/bin/sh\nprintf "testee 0.4.0\\n"\n')
+    (tmp_path / "host-bin" / "testee").write_text('#!/bin/sh\nprintf "testee 0.5.1\\n"\n')
     result = runner.invoke(app, ["doctor"])
     assert "FAIL version:test" in result.stdout
-    assert "pinned package requires 0.5.0" in result.stdout
+    assert "needs 0.6.0 or later" in result.stdout
     assert result.exit_code == 1
 
 

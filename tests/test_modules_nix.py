@@ -7,18 +7,16 @@ MODULES = Path(__file__).resolve().parents[1] / "modules"
 def test_manager_tasks_use_the_host_profile():
     users = {p.name for p in (MODULES / "managers").glob("*.nix") if "venvBin" in p.read_text()}
     assert users == set()
-    testee = (MODULES / "managers" / "testee.nix").read_text()
-    assert "REPOMAN_TESTEE_HOST_BIN" in testee
-    assert 'lib.removePrefix "testee-" config.testee.package.name' in testee
 
 
-def test_test_manager_sets_no_enter_test():
-    # Testee's own module sets `enterTest` to the full gate. devenv joins every
-    # value, so a second one in RepoMan would run the full gate twice.
-    text = (MODULES / "managers" / "testee.nix").read_text()
-    assert not any(line.lstrip().startswith("enterTest") for line in text.splitlines())
-    assert '"repoman:test".exec' in text
-    assert '"repoman:test:ci".exec' in text
+def test_test_manager_has_no_nix_module():
+    # The `test` manager is uniform with copy and git: a bare command on PATH.
+    # Testee's own module (a devenv.yaml input) declares checks. The host `testee` runs them.
+    assert not (MODULES / "managers" / "testee.nix").exists()
+    text = (MODULES / "devenv.nix").read_text()
+    assert "managers/testee.nix" not in text
+    for retired in ("REPOMAN_TESTEE_HOST_BIN", "REPOMAN_TESTEE_VERSION", "repoman:test"):
+        assert retired not in text
 
 
 def test_host_managers_run_by_name_from_path():
@@ -34,9 +32,8 @@ def test_meta_module_does_not_eval_getenv():
 
 def test_meta_module_keeps_the_consumer_venv_on_path_and_reads_no_closure():
     text = (MODULES / "devenv.nix").read_text()
-    assert "export REPOMAN_TESTEE_HOST_BIN=" in text
-    assert '$(dirname "$REPOMAN_TESTEE_HOST_BIN")' in text
     assert '"${config.devenv.state}/venv/bin:' in text
+    assert "nix-profile" not in text
     for retired in ("REPOMAN_TOOLCHAIN_BIN", "toolchainBin", "storeBinExpr", "REPOMAN_TOOLCHAIN_MANIFEST"):
         assert retired not in text
 
@@ -51,7 +48,7 @@ def test_manifest_is_the_only_roster_configuration():
 def test_manager_modules_receive_the_manifest_roster():
     text = (MODULES / "devenv.nix").read_text()
     assert "_module.args.repomanManagers = managerRoster;" in text
-    for name in ("gitman.nix", "copyroom.nix", "testee.nix"):
+    for name in ("gitman.nix", "copyroom.nix"):
         assert "repomanManagers" in (MODULES / "managers" / name).read_text()
 
 
@@ -84,14 +81,23 @@ def test_repoman_dev_shell_does_not_shadow_repoman_sync():
     assert "repoman-sync = {" not in (root / "devenv.nix").read_text()
 
 
-def test_repoman_dev_shell_pins_testee_in_nix():
+def test_repoman_dev_shell_locks_the_testee_module_as_an_input():
     root = Path(__file__).resolve().parents[1]
     pyproject = (root / "pyproject.toml").read_text()
     groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
     assert not any(spec == "testee" or spec.startswith("testee") for spec in groups)
-    assert (
-        'builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1"'
-        in (root / "devenv.nix").read_text()
-    )
-    assert "testee.package = testeeFlake.packages." in (root / "devenv.nix").read_text()
+    yaml = (root / "devenv.yaml").read_text()
+    assert "url: git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.0" in yaml
+    assert "- testee/nix/testee.nix" in yaml
+    nix = (root / "devenv.nix").read_text()
+    assert "getFlake" not in nix
+    assert "testee.package" not in nix
+    assert 'testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ];' in nix
     assert 'requires-python = ">=3.13"' in pyproject
+
+
+def test_repoman_dev_shell_runs_testee_verify_as_base_test():
+    nix = (Path(__file__).resolve().parents[1] / "devenv.nix").read_text()
+    assert "\"base:test\".exec = ''cd \"$DEVENV_ROOT\" && testee verify'';" in nix
+    assert "repoman:test" not in nix and "testee:verify" not in nix
+    assert "--full" not in nix

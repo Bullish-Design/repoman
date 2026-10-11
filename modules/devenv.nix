@@ -16,12 +16,12 @@
 # Each manager's wiring lives in ./managers/<name>.nix and gates itself on
 # membership in the tracked project manifest. Imports cannot depend on `config`, so we
 # import every manager module statically and let each one decide whether to
-# activate — the standard devenv/NixOS module idiom.
+# activate — the standard devenv/NixOS module idiom. The `test` manager has no module:
+# Testee ships its own devenv module, which the consumer imports in devenv.yaml.
 #
-# The manifest roster selects which manager tasks/skills are WIRED. It does not
+# The manifest roster selects which manager skills are WIRED. It does not
 # install anything. The host profile puts the manager commands (copyroom, gitman,
-# and testee) on PATH, and RepoMan runs them by name. Testee starts outside
-# devenv and opens a clean shell for the checks. RepoMan reads no Vendomat closure.
+# and testee) on PATH, and RepoMan runs them by name. RepoMan reads no Vendomat closure.
 { pkgs, lib, config, inputs ? {}, ... }:
 
 let
@@ -77,7 +77,6 @@ let
 in
 {
   imports = [
-    ./managers/testee.nix
     ./managers/copyroom.nix
     ./managers/gitman.nix   # activates when "git" is selected; contributes git only
   ]
@@ -134,10 +133,8 @@ in
 
     enterShell = ''
       # Tasks run this enterShell block, but do not prepend the consumer venv.
-      # Keep app tools available, then put the host Testee profile before packages
-      # added by devenv. The doctor and manager task use this same wrapper.
-      export REPOMAN_TESTEE_HOST_BIN="''${REPOMAN_TESTEE_HOST_BIN:-$HOME/.nix-profile/bin/testee}"
-      export PATH="${config.devenv.state}/venv/bin:$(dirname "$REPOMAN_TESTEE_HOST_BIN"):$PATH"
+      # Keep app tools available.
+      export PATH="${config.devenv.state}/venv/bin:$PATH"
       if [ -t 1 ]; then
         echo "RepoMan: managers = ${lib.concatStringsSep " " (builtins.filter (m: builtins.elem m allManagers) managerRoster)}"
       fi

@@ -32,7 +32,7 @@ birth / converge
 
 | When you want to… | Manager | Skill | Command |
 |---|---|---|---|
-| verify code health and review the latest report | test | `testee` | `testee` |
+| verify a commit and read its verdict | test | `testee` | `testee` |
 | open a workspace with `gitman work`; use native jj and `gh` to describe, bookmark, push, and open a PR | git | `gitman` | `gitman` |
 | scaffold a repo, pull template updates, or check template drift | copy | `copyroom` | `copyroom` |
 
@@ -42,5 +42,6 @@ For domain detail, open that manager's own skill under `.agents/skills/`.
 
 - **Verify before you integrate.** Run `verify` first. Then run `integrate`.
 - **Never integrate on red.** Never merge or push while `verify` fails.
+- **Ask for the verdict.** Run `testee status -r <rev>` before you integrate. Integrate only on exit 0. Exit 1 means red: fix the failure. Exit 2 means no verdict: run `testee verify -r <rev>`.
 - **One front door.** Route domain work through the manager. Cross-phase ordering lives here.
 - **Health is per manager.** `repoman doctor` checks RepoMan's own wiring only. To check a manager, run that manager's own `doctor`. `repoman managers` lists what is wired.

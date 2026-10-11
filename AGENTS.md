@@ -33,7 +33,7 @@ forward and **cannot** load on 3.12 — measured:
 devenv shell                     # enter the pinned environment
 repoman-sync                     # generate the router skill
 devenv tasks run -v base:check   # repoman:lint — must be green before a PR
-devenv tasks run -v base:test    # repoman:test
+devenv tasks run -v base:test    # testee verify
 ```
 
 ## Where things live

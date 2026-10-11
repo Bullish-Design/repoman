@@ -4,24 +4,11 @@ import pytest
 
 import repoman.checks as checks
 from repoman.checks import run_self_check, self_check_exit
-from repoman.registry import REGISTRY, Manager
+from repoman.registry import REGISTRY
 
 
 def _names(result):
     return {item.name: item for item in result}
-
-
-_PYPROJECT_UV = """[project]
-name = "x"
-version = "0.0.0"
-requires-python = ">=3.13"
-dependencies = []
-
-[dependency-groups]
-dev = ["uv-tool"]
-"""
-
-UV_MANAGER = Manager("uv-tool", "uv-tool", "core", "test fixture", install="uv")
 
 
 @pytest.fixture
@@ -35,27 +22,14 @@ def host(tmp_path, monkeypatch):
         binary.write_text("#!/bin/sh\nexit 0\n")
         binary.chmod(0o755)
     testee = bin_dir / "testee"
-    testee.write_text('#!/bin/sh\nprintf "testee 0.5.0\\n"\n')
+    testee.write_text('#!/bin/sh\nprintf "testee 0.6.0\\n"\n')
     testee.chmod(0o755)
-    monkeypatch.delenv("DEVENV_STATE", raising=False)
-    monkeypatch.delenv("DEVENV_ROOT", raising=False)
-    monkeypatch.setenv("REPOMAN_TESTEE_HOST_BIN", str(testee))
-    monkeypatch.setenv("REPOMAN_TESTEE_VERSION", "0.5.0")
     monkeypatch.setattr(
         checks.shutil,
         "which",
         lambda command: str(bin_dir / command) if (bin_dir / command).exists() else None,
     )
     return types.SimpleNamespace(bin=bin_dir)
-
-
-@pytest.fixture
-def consumer_venv(tmp_path, monkeypatch):
-    bin_dir = tmp_path / ".devenv" / "state" / "venv" / "bin"
-    bin_dir.mkdir(parents=True)
-    (bin_dir / "uv-tool").write_text("")
-    monkeypatch.setenv("DEVENV_STATE", str(tmp_path / ".devenv" / "state"))
-    return bin_dir
 
 
 def test_host_manager_on_path_is_installed(host):
@@ -78,20 +52,9 @@ def test_host_manager_missing_from_path_fails(host):
     assert self_check_exit(result) == 1
 
 
-def test_binary_resolution(host, consumer_venv):
+def test_binary_resolution(host):
     assert checks.manager_binary(REGISTRY["git"]) == host.bin / "gitman"
     assert checks.manager_binary(REGISTRY["test"]) == host.bin / "testee"
-    assert checks.manager_binary(UV_MANAGER) == consumer_venv / "uv-tool"
-
-
-def test_uv_manager_warns_when_path_shadows_the_venv(host, consumer_venv, tmp_path, monkeypatch):
-    stale = tmp_path / "stale" / "uv-tool"
-    stale.parent.mkdir()
-    stale.write_text("")
-    monkeypatch.setattr(checks.shutil, "which", lambda command: str(stale) if command == "uv-tool" else None)
-    installed = _names(run_self_check([UV_MANAGER], ".", ".claude/skills"))["installed:uv-tool"]
-    assert installed.level == "warn"
-    assert str(stale) in installed.detail and str(consumer_venv / "uv-tool") in installed.detail
 
 
 def test_gitman_interface_check_needs_the_work_only_binary_and_jj_0_46(host, tmp_path, monkeypatch):
@@ -117,75 +80,53 @@ def test_gitman_interface_check_needs_the_work_only_binary_and_jj_0_46(host, tmp
     assert names["interface:git"].level == "fail"
 
 
-def test_uv_manager_is_declared_in_dependency_group(host, consumer_venv, tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_UV)
-    result = run_self_check([UV_MANAGER], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:uv-tool"].level == "ok"
-    assert _names(result)["installed:uv-tool"].level == "ok"
+def _testee_prints(host, text):
+    testee = host.bin / "testee"
+    testee.write_text(f'#!/bin/sh\nprintf "{text}\\n"\n')
+    testee.chmod(0o755)
 
 
-def test_uv_manager_not_declared_fails(host, tmp_path):
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.0.0"\n')
-    result = run_self_check([UV_MANAGER], str(tmp_path), ".claude/skills")
-    assert _names(result)["uv:uv-tool"].level == "fail"
-
-
-def test_uv_requirement_normalisation(host, consumer_venv, tmp_path):
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.0.0"\n'
-        '[dependency-groups]\ndev = ["UV_TOOL[all]>=0.3 ; python_version>\\"3.12\\""]\n'
-    )
-    assert _names(run_self_check([UV_MANAGER], str(tmp_path), ".claude/skills"))["uv:uv-tool"].level == "ok"
-
-
-def test_unparseable_pyproject_is_reported(host, tmp_path):
-    (tmp_path / "pyproject.toml").write_text("this is not [ toml")
-    result = run_self_check([UV_MANAGER], str(tmp_path), ".claude/skills")
-    assert _names(result)["pyproject"].level == "fail"
-
-
-def test_uv_manager_has_no_host_rows(host, tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT_UV)
-    names = _names(run_self_check([UV_MANAGER], str(tmp_path), ".claude/skills"))
-    assert "lock:uv-tool" not in names
-
-
-def test_testee_version_matches_the_pinned_package(host):
+def test_testee_at_the_minimum_passes(host):
     names = _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))
     assert names["installed:test"].level == "ok"
     assert names["version:test"].level == "ok"
-    assert "0.5.0" in names["version:test"].detail
+    assert "reports 0.6.0; needs 0.6.0 or later" in names["version:test"].detail
 
 
-def test_testee_path_must_match_the_host_binary(host, tmp_path, monkeypatch):
-    shadow = tmp_path / "shadow" / "testee"
-    shadow.parent.mkdir()
-    shadow.write_text('#!/bin/sh\nprintf "testee 0.5.0\\n"\n')
-    shadow.chmod(0o755)
-    monkeypatch.setattr(
-        checks.shutil,
-        "which",
-        lambda command: str(shadow) if command == "testee" else str(host.bin / command),
-    )
-    names = _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))
-    assert names["installed:test"].level == "fail"
-    assert "tasks use" in names["installed:test"].detail
+@pytest.mark.parametrize("reported", ["testee 0.6.2", "testee 0.10.0", "testee 1.0.0"])
+def test_testee_newer_than_the_minimum_passes(host, reported):
+    _testee_prints(host, reported)
+    assert _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))["version:test"].level == "ok"
 
 
-def test_testee_version_mismatch_fails(host):
+@pytest.mark.parametrize("reported", ["testee 0.5.1", "testee 0.4.0"])
+def test_testee_older_than_the_minimum_fails(host, reported):
+    _testee_prints(host, reported)
+    row = _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))["version:test"]
+    assert row.level == "fail"
+    assert f"reports {reported.split()[1]}; needs 0.6.0 or later" in row.detail
+
+
+def test_version_check_fails_when_the_version_flag_fails(host):
     testee = host.bin / "testee"
-    testee.write_text('#!/bin/sh\nprintf "testee 0.4.0\\n"\n')
+    testee.write_text("#!/bin/sh\nexit 3\n")
+    testee.chmod(0o755)
+    row = _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))["version:test"]
+    assert row.level == "fail" and "exited 3" in row.detail
+
+
+def test_managers_without_a_minimum_get_no_version_row(host):
+    names = _names(run_self_check([REGISTRY["copy"], REGISTRY["git"]], ".", ".claude/skills"))
+    assert not {n for n in names if n.startswith("version:")}
+
+
+def test_unrecognized_version_output_fails(host):
+    testee = host.bin / "testee"
+    testee.write_text('#!/bin/sh\nprintf "no version here\\n"\n')
     testee.chmod(0o755)
     names = _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))
     assert names["version:test"].level == "fail"
-    assert "reports 0.4.0" in names["version:test"].detail
-
-
-def test_testee_requires_a_pinned_version(host, monkeypatch):
-    monkeypatch.delenv("REPOMAN_TESTEE_VERSION")
-    names = _names(run_self_check([REGISTRY["test"]], ".", ".claude/skills"))
-    assert names["version:test"].level == "fail"
-    assert "REPOMAN_TESTEE_VERSION is missing" in names["version:test"].detail
+    assert "unrecognized version" in names["version:test"].detail
 
 
 def test_detect_context_precedence(tmp_path, monkeypatch):
@@ -201,25 +142,6 @@ def test_devenv_vars_alone_are_not_a_repo(tmp_path, monkeypatch):
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
     monkeypatch.setenv("DEVENV_STATE", str(tmp_path / "state"))
     assert checks.detect_context(str(tmp_path)).kind == "not-a-repo"
-
-
-# No shipped manager uses approach B. This synthetic one keeps the extension seam tested.
-APPROACH_B_MANAGER = Manager("example", "gitman", "situational", "test fixture", nix_input="examplman")
-
-
-def test_approach_b_input_warning_is_nonfatal(host, monkeypatch):
-    monkeypatch.delenv("REPOMAN_PROVISIONED_EXAMPLE", raising=False)
-    result = run_self_check([APPROACH_B_MANAGER], ".", ".claude/skills")
-    row = _names(result)["provisioned:example"]
-    assert row.level == "warn"
-    assert "'examplman' input" in row.detail
-    assert self_check_exit(result) == 0
-
-
-def test_approach_b_input_signal_clears_the_warning(host, monkeypatch):
-    monkeypatch.setenv("REPOMAN_PROVISIONED_EXAMPLE", "1")
-    result = run_self_check([APPROACH_B_MANAGER], ".", ".claude/skills")
-    assert _names(result)["provisioned:example"].level == "ok"
 
 
 def test_roster_check_is_silent_for_known_keys():

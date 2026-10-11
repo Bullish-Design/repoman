@@ -1,14 +1,13 @@
 """The RepoMan manager roster.
 
 Maps each manager key (used in the project manifest) to the console script that
-implements it, its tier, and the sub-commands RepoMan calls when aggregating
-``doctor`` / ``status``. RepoMan never models a manager's report — it only knows
-*how to invoke* each one.
+implements it and its tier. The host profile puts every command on ``PATH``, and
+RepoMan runs each one by name. RepoMan never models a manager's report.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -19,47 +18,26 @@ class Manager:
         key: Short manager key (e.g. ``"test"``). The nix module reads these keys from
             `.repoman/project.toml`. The Python CLI never reads that file: it gets
             the roster from ``REPOMAN_MANAGERS``, which the nix module exports.
-        command: Console script name on PATH (e.g. ``"testee"``).
+        command: Console script name on ``PATH`` (e.g. ``"testee"``).
         tier: ``"core"`` | ``"publish"`` | ``"situational"``.
-        doctor: Args for this manager's doctor (every manager has one).
-        status: Args for a status-like read, or ``None`` if it has none.
         summary: One-line description for ``repoman managers``.
-        nix_input: For an approach-B manager, the ``devenv.yaml`` input its nix
-            module needs (presence-gated import); ``""`` for approach-A /
-            pure-Python managers that need no consumer-declared input.
-        install: ``"path"`` (default) — the host puts the manager on ``PATH``
-            and RepoMan runs it by name; ``"uv"`` — the manager is declared as a
-            dependency in the consumer's ``pyproject.toml`` and installed by
-            ``uv sync`` (its ``doctor`` check is ``uv:<key>``, not ``lock:<key>``).
-        package: Distribution name on the index; defaults to ``command``. Used to
-            find the manager in ``pyproject.toml`` for uv-declared managers.
-        binary_env: Environment variable with the canonical executable path, when
-            PATH lookup could select a different install.
-        version_env: Environment variable with the version the executable must report.
+        skill: Name of the manager's own skill; defaults to ``command``.
+        route_when: The "when you want to…" cell in the router's routing table.
+        min_version: Oldest version that ``<command> --version`` may report; ``""`` skips
+            the ``version:<key>`` doctor row.
     """
 
     key: str
     command: str
     tier: str
     summary: str
-    doctor: list[str] | None = field(default_factory=lambda: ["doctor"])
-    status: list[str] | None = None
-    skill: str = ""  # sub-skill name the entrypoint routes to (default: command)
-    route_when: str = ""  # "when you want to…" cell in the routing table
-    nix_input: str = ""  # devenv.yaml input the manager's approach-B nix module needs; "" = none
-    install: str = "path"  # "path" = the host puts the command on PATH;
-    # "uv" = declared in the consumer's pyproject.toml, installed by uv sync
-    package: str = ""  # distribution name; defaults to `command`
-    binary_env: str = ""  # override PATH with the exact executable the module runs
-    version_env: str = ""  # required version supplied by the pinned Nix package
+    skill: str = ""
+    route_when: str = ""
+    min_version: str = ""
 
     def __post_init__(self) -> None:
         if not self.skill:
             object.__setattr__(self, "skill", self.command)
-        if not self.package:
-            object.__setattr__(self, "package", self.command)
-        if self.install not in {"path", "uv"}:
-            raise ValueError(f"{self.key}: unknown install model {self.install!r}")
 
 
 # The lifecycle spine: three ordered phases, as (label, manager-key | None). The
@@ -84,8 +62,6 @@ REGISTRY: dict[str, Manager] = {
         "copyroom",
         "core",
         "Templating / scaffolding / convergence (Copier)",
-        doctor=["doctor"],  # copyroom 0.6+ ships `doctor` (rows: copier, git, cache, template-source)
-        status=["status"],
         route_when="scaffold a repo, pull template updates, or check template drift",
     ),
     "git": Manager(
@@ -93,20 +69,15 @@ REGISTRY: dict[str, Manager] = {
         "gitman",
         "core",
         "Version control (native jj and gh; gitman opens workspaces)",
-        doctor=None,  # gitman 0.12 is work-only: its one command is `work`
         route_when="open a workspace with `gitman work`; use native jj and `gh` to describe, bookmark, push, and open a PR",
     ),
     "test": Manager(
         "test",
         "testee",
         "core",
-        "Verification (pytest / ruff / ty)",
-        status=["report"],
-        route_when="verify code health and review the latest report",
-        # The v2 wrapper starts outside devenv. The project declares the check tools;
-        # this manager invokes the host-profile wrapper pinned by the Testee module.
-        binary_env="REPOMAN_TESTEE_HOST_BIN",
-        version_env="REPOMAN_TESTEE_VERSION",
+        "Verification (a verdict per commit)",
+        route_when="verify a commit and read its verdict",
+        min_version="0.6.0",  # `testee verify` is a full gate; `testee status -r` reads the verdict
     ),
 }
 
