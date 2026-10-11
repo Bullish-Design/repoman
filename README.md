@@ -73,7 +73,7 @@ inputs:
     url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.14.0"
     flake: false
   testee:                      # only when `test` is on the roster
-    url: "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.0"
+    url: "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.1"
     flake: false
 imports:
   - repoman

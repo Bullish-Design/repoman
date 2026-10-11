@@ -42,7 +42,7 @@ command on `PATH` with a minimum version. **Host Testee 0.6.0 or later is requir
 ### Changed
 
 - RepoMan's own dev shell takes the Testee module from a locked `devenv.yaml` input
-  (`v0.6.0`, `flake: false`) instead of `builtins.getFlake`. It declares
+  (`v0.6.1`, `flake: false`) instead of `builtins.getFlake`. It declares
   `testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ]`.
 - The `gate` script runs `testee verify` (the `--full` flag is now a no-op).
 - The consumer fixture under `tests/consumer-example/` imports the Testee module from
@@ -51,7 +51,7 @@ command on `PATH` with a minimum version. **Host Testee 0.6.0 or later is requir
 
 ### Migration
 
-1. Install Testee 0.6.0 on the host. Keep it on `PATH` until no repo runs RepoMan 0.13 or older.
+1. Install a released 0.6 host — Testee `v0.6.1` or later. Keep it on `PATH` until no repo runs RepoMan 0.13 or older.
 2. In each repo that bumps to RepoMan 0.14, replace any use of `repoman:test` or
    `repoman:test:ci` with `testee verify`.
 3. Move the Testee module to a `devenv.yaml` input and drop `testee.package`
