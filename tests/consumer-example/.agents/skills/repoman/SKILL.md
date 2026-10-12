@@ -33,7 +33,7 @@ birth / converge
 | When you want to… | Manager | Skill | Command |
 |---|---|---|---|
 | verify a commit and read its verdict | test | `testee` | `testee` |
-| open a workspace with `gitman work`; use native jj and `gh` to describe, bookmark, push, and open a PR | git | `gitman` | `gitman` |
+| open a workspace with `gitman work`; remove a finished one with `gitman done`; use native jj and `gh` to describe, bookmark, push, and open a PR | git | `gitman` | `gitman` |
 | scaffold a repo, pull template updates, or check template drift | copy | `copyroom` | `copyroom` |
 
 For domain detail, open that manager's own skill under `.agents/skills/`.
