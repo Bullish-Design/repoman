@@ -152,13 +152,21 @@ def _version_check(manager: Manager) -> SelfCheck | None:
     return SelfCheck(name, level, f"{binary} reports {shown}; needs {manager.min_version} or later")
 
 
-def _gitman_interface_check(manager: Manager) -> SelfCheck:
-    """Check that ``gitman`` is the work-only tool and that ``jj`` is new enough.
+def _gitman_commands(help_text: str) -> set[str]:
+    """Return the command names in the ``{work,done}`` set of a gitman usage line."""
 
-    gitman 0.12 has one command, ``work``, and ``work`` needs ``jj workspace add
-    --colocate`` (jj 0.46.0 or later). An older gitman answers ``status`` and
-    ``land`` with a usage error, so the router would send the agent to commands
-    that fail.
+    match = re.search(r"^usage: gitman .*?\{([^}]*)\}", help_text, re.M)
+    return {name.strip() for name in match.group(1).split(",")} if match else set()
+
+
+def _gitman_interface_check(manager: Manager) -> SelfCheck:
+    """Check that ``gitman`` has the ``work`` command and that ``jj`` is new enough.
+
+    gitman 0.12 has one command, ``work``. gitman 0.13 adds ``done``. ``work``
+    needs ``jj workspace add --colocate`` (jj 0.46.0 or later). An older gitman
+    answers ``status`` and ``land`` with a usage error, so the router would send
+    the agent to commands that fail. The check reads the command set from the
+    usage line and requires ``work`` in it, so a later command does not break it.
     """
 
     binary = manager_binary(manager)
@@ -169,8 +177,8 @@ def _gitman_interface_check(manager: Manager) -> SelfCheck:
         jj_result = subprocess.run(["jj", "version"], capture_output=True, text=True, timeout=5, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return SelfCheck("interface:git", "fail", f"cannot check gitman and jj: {exc}")
-    if help_result.returncode != 0 or not re.search(r"^usage: gitman .*\{work\}", help_result.stdout, re.M):
-        return SelfCheck("interface:git", "fail", f"{binary} is not the work-only gitman (0.12 or later)")
+    if help_result.returncode != 0 or "work" not in _gitman_commands(help_result.stdout):
+        return SelfCheck("interface:git", "fail", f"{binary} is not gitman 0.12 or later with the work command")
     version = _dotted_version(jj_result.stdout)
     if jj_result.returncode != 0 or version is None or version < (0, 46, 0):
         return SelfCheck("interface:git", "fail", "gitman work needs jj 0.46.0 or later")

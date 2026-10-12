@@ -225,7 +225,7 @@ RepoMan has no `status` command. Four facts limit the status commands of the man
 | `roster:unknown-manager` | the roster names a key that is not a manager, such as `doc`, removed in 0.13.0 (warn only) |
 | `installed:<key>` | the manager's command is an executable file on `PATH` |
 | `version:test` | the `testee` on `PATH` reports the registry minimum (0.6.0) or later |
-| `interface:git` | `gitman` is the work-only tool and `jj` is 0.46.0 or later |
+| `interface:git` | `gitman` has the `work` and `done` commands and `jj` is 0.46.0 or later |
 | `skill:entrypoint` | the router skill exists |
 | `skill:<key>:defers` | an installed manager skill defers to the router (warn only) |
 | `skill:tool-shipped` | every expected skill link exists |

@@ -69,7 +69,7 @@ REGISTRY: dict[str, Manager] = {
         "gitman",
         "core",
         "Version control (native jj and gh; gitman opens workspaces)",
-        route_when="open a workspace with `gitman work`; use native jj and `gh` to describe, bookmark, push, and open a PR",
+        route_when="open a workspace with `gitman work`; remove a finished one with `gitman done`; use native jj and `gh` to describe, bookmark, push, and open a PR",
     ),
     "test": Manager(
         "test",

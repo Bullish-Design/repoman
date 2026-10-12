@@ -57,7 +57,7 @@ def test_binary_resolution(host):
     assert checks.manager_binary(REGISTRY["test"]) == host.bin / "testee"
 
 
-def test_gitman_interface_check_needs_the_work_only_binary_and_jj_0_46(host, tmp_path, monkeypatch):
+def test_gitman_interface_check_needs_the_work_command_and_jj_0_46(host, tmp_path, monkeypatch):
     gitman = host.bin / "gitman"
     gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {work} ...\\n"\n')
     gitman.chmod(0o755)
@@ -70,7 +70,15 @@ def test_gitman_interface_check_needs_the_work_only_binary_and_jj_0_46(host, tmp
     names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
     assert names["interface:git"].level == "ok"
 
+    gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {work,done} ...\\n"\n')
+    names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
+    assert names["interface:git"].level == "ok"
+
     gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {start,status} ...\\n"\n')
+    names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
+    assert names["interface:git"].level == "fail"
+
+    gitman.write_text('#!/bin/sh\nprintf "usage: gitman [-h] {done,status} ...\\n"\n')
     names = _names(run_self_check([REGISTRY["git"]], str(tmp_path), ".claude/skills"))
     assert names["interface:git"].level == "fail"
 

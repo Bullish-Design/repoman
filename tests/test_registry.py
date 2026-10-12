@@ -43,9 +43,10 @@ def test_spine_has_no_save_or_scaffold_phase():
     assert not labels & {"save", "scaffold"}
 
 
-def test_git_route_names_the_work_only_gitman():
+def test_git_route_names_gitman_work_and_done():
     git = REGISTRY["git"]
     assert "gitman work" in git.route_when
+    assert "gitman done" in git.route_when
     assert "jj" in git.route_when and "gh" in git.route_when
     for retired in ("land", "sync", "repair", "release", "undo"):
         assert retired not in git.route_when
