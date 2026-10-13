@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.14.1 — 2026-10-12
+
+### Fixed
+
+- **`repoman doctor` accepts gitman 0.13.** The `interface:git` check read only the
+  `{work}` usage line of gitman 0.12 and failed on `{work,done}`. It now reads the command
+  set and needs `work` in it. The `git` route text names `gitman work` and `gitman done`.
+
+### Documentation
+
+- The consumer-example router skill names `gitman done`.
+
+### Changed (breaking)
+
+- **RepoMan no longer imports shellij's devenv module.** A repo that wants shellij imports
+  its module itself. The `shellij` input in `devenv.yaml` has no effect on RepoMan.
+
 ## 0.14.0 — 2026-10-11 — Testee 0.6 and a uniform `test` manager
 
 Testee 0.6.0 checks a commit in its own workspace, stores one verdict per check and ships
@@ -57,16 +74,6 @@ command on `PATH` with a minimum version. **Host Testee 0.6.0 or later is requir
 3. Move the Testee module to a `devenv.yaml` input and drop `testee.package`
    (see the Testee 0.5 to 0.6 migration notes). Python repos add `testee.prepare`.
 4. Run `repoman-sync` to regenerate the router skill.
-
-## Unreleased — remove the shellij import
-
-### Changed (breaking)
-
-- **RepoMan no longer imports shellij's devenv module.** The meta-module imported
-  `inputs.shellij + "/modules/devenv.nix"` when a repo declared a `shellij` input.
-  That import is gone. A repo that wants shellij imports its module itself. The
-  `shellij` input in `devenv.yaml` has no effect on RepoMan.
-- **The consumer fixture** drops its `shellij` input.
 
 ## 0.13.0 — 2026-10-10 — remove the `doc` manager
 

@@ -8,7 +8,7 @@
 RepoMan is the **conductor** for the `*man` family. It is a per-repo lifecycle front
 door. It *composes* the individual managers and does not replace them.
 
-This document describes RepoMan 0.14.0. Blocks that start with **Superseded** record
+This document describes RepoMan 0.14.1. Blocks that start with **Superseded** record
 design history.
 
 ---
