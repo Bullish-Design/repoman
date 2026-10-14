@@ -171,25 +171,7 @@
         "nix2container": "nix2container",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-python": "nixpkgs-python",
-        "repoman": "repoman",
-        "testee": "testee"
-      }
-    },
-    "testee": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1791735953,
-        "narHash": "sha256-C4Alij4BhHBXoEkCkfhfMkyiw6UqbFCKutkxKvJ08FY=",
-        "ref": "refs/tags/v0.6.1",
-        "rev": "b5ec947d6283f644edc1a29a2d9201294cf33db0",
-        "revCount": 82,
-        "type": "git",
-        "url": "https://github.com/Bullish-Design/testee"
-      },
-      "original": {
-        "ref": "refs/tags/v0.6.1",
-        "type": "git",
-        "url": "https://github.com/Bullish-Design/testee"
+        "repoman": "repoman"
       }
     }
   },

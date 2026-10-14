@@ -72,13 +72,12 @@ inputs:
   repoman:
     url: "git+https://github.com/Bullish-Design/repoman?dir=modules&ref=refs/tags/v0.14.1"
     flake: false
-  testee:                      # only when `test` is on the roster
-    url: "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.1"
-    flake: false
 imports:
   - repoman
-  - testee/nix/testee.nix
 ```
+
+When `test` is on the roster, the machine supplies the Testee module and command.
+The project keeps its checks in `nix/testee.nix`.
 
 ```nix
 # devenv.nix

@@ -1,29 +1,6 @@
 { pkgs, config, ... }:
 {
-  # Testee 0.6 gate. The `testee` input in devenv.yaml supplies the module, locked by
-  # rev and narHash. The module ships no runner: the host `testee` runs these checks
-  # in its own workspace, so `uv sync` there makes the venv follow uv.lock.
-  testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ];
-  testee.checks = {
-    ruff = {
-      argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ruff check . --output-format json" ];
-      profiles = [ "quick" "full" ];
-      structured = { parser = "ruff-json"; file = "ruff.stdout.log"; };
-    };
-    ruff-format = {
-      argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ruff format --check ." ];
-      profiles = [ "quick" "full" ];
-    };
-    ty = {
-      argv = [ "${pkgs.bash}/bin/bash" "-c" "uv run --no-sync ty check ." ];
-      profiles = [ "full" ];
-    };
-    pytest = {
-      argv = [ "${pkgs.bash}/bin/bash" "-c" ''uv run --no-sync pytest -q --junitxml="$TESTEE_RUN_DIR/pytest.junit.xml"'' ];
-      profiles = [ "full" ];
-      structured = { parser = "junit-xml"; file = "pytest.junit.xml"; };
-    };
-  };
+  imports = [ ./nix/testee.nix ];
 
   env = {
     DEVENV_PROJECT = "repoman";

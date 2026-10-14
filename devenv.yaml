@@ -33,13 +33,5 @@ inputs:
     url: "path:./modules"
     flake: false
 
-  # Testee 0.6: the module only. The host `testee` runs the checks (README, "Declare
-  # checks"). The `git+https` form is the fleet's private-repo pin; devenv.lock locks
-  # the tag by rev and narHash.
-  testee:
-    url: git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.1
-    flake: false
-
 imports:
   - repoman
-  - testee/nix/testee.nix
