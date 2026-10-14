@@ -11,7 +11,7 @@ def test_manager_tasks_use_the_host_profile():
 
 def test_test_manager_has_no_nix_module():
     # The `test` manager is uniform with copy and git: a bare command on PATH.
-    # Testee's own module (a devenv.yaml input) declares checks. The host `testee` runs them.
+    # The machine supplies the Testee module. The project keeps its checks in nix/testee.nix. The host `testee` runs them.
     assert not (MODULES / "managers" / "testee.nix").exists()
     text = (MODULES / "devenv.nix").read_text()
     assert "managers/testee.nix" not in text
@@ -88,18 +88,21 @@ def test_repoman_dev_shell_does_not_shadow_repoman_sync():
     assert "repoman-sync = {" not in (root / "devenv.nix").read_text()
 
 
-def test_repoman_dev_shell_locks_the_testee_module_as_an_input():
+def test_repoman_dev_shell_keeps_testee_checks_in_nix_testee():
     root = Path(__file__).resolve().parents[1]
     pyproject = (root / "pyproject.toml").read_text()
     groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
     assert not any(spec == "testee" or spec.startswith("testee") for spec in groups)
     yaml = (root / "devenv.yaml").read_text()
-    assert "url: git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.6.1" in yaml
-    assert "- testee/nix/testee.nix" in yaml
+    assert "testee" not in yaml
     nix = (root / "devenv.nix").read_text()
+    assert "imports = [ ./nix/testee.nix ];" in nix
+    assert "testee.checks" not in nix
     assert "getFlake" not in nix
     assert "testee.package" not in nix
-    assert 'testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ];' in nix
+    testee_nix = (root / "nix" / "testee.nix").read_text()
+    assert 'testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ];' in testee_nix
+    assert "testee.checks = {" in testee_nix
     assert 'requires-python = ">=3.13"' in pyproject
 
 
