@@ -11,7 +11,7 @@ def test_manager_tasks_use_the_host_profile():
 
 def test_test_manager_has_no_nix_module():
     # The `test` manager is uniform with copy and git: a bare command on PATH.
-    # The machine supplies the Testee module. The project keeps its checks in nix/testee.nix. The host `testee` runs them.
+    # The machine supplies the Testee module. The project keeps its checks as devenv tasks in devenv.nix. The host `testee` runs them.
     assert not (MODULES / "managers" / "testee.nix").exists()
     text = (MODULES / "devenv.nix").read_text()
     assert "managers/testee.nix" not in text
@@ -88,7 +88,7 @@ def test_repoman_dev_shell_does_not_shadow_repoman_sync():
     assert "repoman-sync = {" not in (root / "devenv.nix").read_text()
 
 
-def test_repoman_dev_shell_keeps_testee_checks_in_nix_testee():
+def test_repoman_dev_shell_keeps_testee_checks_as_devenv_tasks():
     root = Path(__file__).resolve().parents[1]
     pyproject = (root / "pyproject.toml").read_text()
     groups = tomllib.loads(pyproject)["dependency-groups"]["dev"]
@@ -96,18 +96,19 @@ def test_repoman_dev_shell_keeps_testee_checks_in_nix_testee():
     yaml = (root / "devenv.yaml").read_text()
     assert "testee" not in yaml
     nix = (root / "devenv.nix").read_text()
-    assert "imports = [ ./nix/testee.nix ];" in nix
-    assert "testee.checks" not in nix
+    assert "nix/testee.nix" not in nix
+    assert not (root / "nix" / "testee.nix").exists()
+    assert "testee.checks" not in nix and "testee.prepare" not in nix
     assert "getFlake" not in nix
     assert "testee.package" not in nix
-    testee_nix = (root / "nix" / "testee.nix").read_text()
-    assert 'testee.prepare = [ [ "uv" "sync" "--locked" "--all-extras" ] ];' in testee_nix
-    assert "testee.checks = {" in testee_nix
+    assert '"setup:sync".exec = "uv sync --locked --all-extras";' in nix
+    for task in ("check:lint", "check:format", "check:types", "test:quick", "test:full"):
+        assert f'"{task}"' in nix
     assert 'requires-python = ">=3.13"' in pyproject
 
 
-def test_repoman_dev_shell_runs_testee_verify_as_base_test():
+def test_repoman_dev_shell_chains_base_test_to_the_test_task():
     nix = (Path(__file__).resolve().parents[1] / "devenv.nix").read_text()
-    assert "\"base:test\".exec = ''cd \"$DEVENV_ROOT\" && testee verify'';" in nix
+    assert '"base:test".after = [ "test:full" ];' in nix
     assert "repoman:test" not in nix and "testee:verify" not in nix
     assert "--full" not in nix

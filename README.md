@@ -76,8 +76,8 @@ imports:
   - repoman
 ```
 
-When `test` is on the roster, the machine supplies the Testee module and command.
-The project keeps its checks in `nix/testee.nix`.
+When `test` is on the roster, the machine supplies the Testee command. The project
+keeps its checks as `check:*` and `test:*` devenv tasks in `devenv.nix`.
 
 ```nix
 # devenv.nix

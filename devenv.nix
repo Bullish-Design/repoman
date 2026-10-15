@@ -1,7 +1,5 @@
 { pkgs, config, ... }:
 {
-  imports = [ ./nix/testee.nix ];
-
   env = {
     DEVENV_PROJECT = "repoman";
   };
@@ -139,14 +137,42 @@
   # The two task names the `base` group calls (groups/base/README.md). devenv
   # owns each implementation; Dagu owns the composition (§6).
   #
-  # `base:test` runs the repository's own gate, `testee verify`: every required check,
-  # and a cached verdict for each check that already has one for this tree. Testee owns
-  # that command, so RepoMan wires no task for it. `base:check` is the fast one: ruff
-  # over the repo's own `src` scope (`uv run --group dev` because the venv bin is not
-  # on the task runner's PATH).
+  # Testee 0.8 runs the standard tasks below (`check:*`, `test:*`) in its own
+  # workspace and keeps one verdict per task. Each task first syncs the venv from
+  # `uv.lock`. `base:check` and `base:test` chain to them, so a cloner needs no Testee:
+  # `devenv tasks run base:test` gives the same answer. `repoman:lint` is the fast
+  # lint over the repo's own `src` scope (`uv run --group dev` because the venv bin
+  # is not on the task runner's PATH).
   tasks = {
+    "setup:sync".exec = "uv sync --locked --all-extras";
+
+    "check:lint" = {
+      after = [ "setup:sync" ];
+      exec = "uv run --no-sync ruff check .";
+    };
+    "check:format" = {
+      after = [ "setup:sync" ];
+      exec = "uv run --no-sync ruff format --check .";
+    };
+    "check:types" = {
+      after = [ "setup:sync" ];
+      exec = "uv run --no-sync ty check .";
+    };
+    "test:quick".exec = ''
+      echo "n/a: no quick test subset"
+      exit 0
+    '';
+    "test:full" = {
+      after = [ "setup:sync" ];
+      exec = ''
+        out="''${TESTEE_RUN_DIR:-.devenv/state}"
+        mkdir -p "$out"
+        uv run --no-sync pytest -q --junitxml="$out/test:full.junit.xml"
+      '';
+    };
+
     "repoman:lint".exec = "uv run --group dev ruff check src";
     "base:check".after = [ "repoman:lint" ];
-    "base:test".exec = ''cd "$DEVENV_ROOT" && testee verify'';
+    "base:test".after = [ "test:full" ];
   };
 }
