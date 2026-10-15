@@ -1,6 +1,8 @@
 # 042 Testee wiring: design recommendation (revision 2)
 
-Status: proposal. Nothing is implemented. Baseline: repoman `main@origin` efa1e92c (0.13.0), testee 1c139ecb (0.5.1).
+Status: partly implemented (updated 2026-10-15). The machine now supplies the Testee module (`main` commit "Use the machine Testee module").
+Testee task mode (0.8.x) is the next step: a repository defines the `check:*` and `test:*` devenv tasks and drops the module. RepoMan's own `devenv.nix` made that move on 2026-10-15.
+The text below is the original proposal at baseline: repoman `main@origin` efa1e92c (0.13.0), testee 1c139ecb (0.5.1).
 Evidence: `01`–`16` in this directory. Labels: `verified` (command output or code cited), `inferred`, `unknown`.
 Revision 1 recommended "self-launch" (enforce the project pin). Revision 2 replaces it. Section 3 says why.
 **The canonical concept is now `testee/.scratch/projects/07-host-runner-and-receipts/CONCEPT.md`.** It adds the settled decisions:

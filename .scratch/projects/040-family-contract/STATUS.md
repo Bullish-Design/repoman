@@ -31,3 +31,15 @@ Four items, all in the migration plan's step 10:
 **Step 0 blocks the rest.** `vendomat/flake.lock` pins repoman v0.7.5, which
 still has `aggregate.py`. RepoMan must cut a release with it removed, and
 Vendomat must bump to that tag, before any tool's doctor fail code moves.
+
+## Update, 2026-10-15
+
+**Step 10 is done in code.** `src/repoman/checks.py:31` now reads `fail: 1`.
+`src/repoman/cli.py` exits with `_INFRA` for an infrastructure failure. RepoMan
+uses the 0/1/2 contract. The list of four items above is history, not open work.
+
+**Vendomat project 22 ruling R15 retires RepoMan.** The central overlay stops
+importing the RepoMan host module, and no repository keeps RepoMan settings. The
+RepoMan repository, its generated skill, and the template seed of
+`.repoman/project.toml` remain. No further contract work belongs here. The
+ruling is in `vendomat/.scratch/projects/22-owner-estate/DECISIONS.md`.
